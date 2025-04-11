@@ -4,40 +4,39 @@ using UnityEngine;
 [System.Serializable]
 public class FacilityUpgrade
 {
-    public string UpgradeName;
-    public string Description;
-    public int CurrentLevel;
-    public int MaxLevel;
-    
-    // Cost increases with each level
-    public float BaseRecyclingPointCost;
-    public float BaseDimensionalPotentialCost;
-    public float CostMultiplier = 1.5f; // Each level costs 1.5x more
+    public string Name { get; set; }
+    public int MaxLevel { get; set; }
+    public int CurrentLevel { get; set; }
+    public float BaseRecyclingPointCost { get; set; }
+    public float BaseDimensionalPotentialCost { get; set; }
+    public float CostMultiplier { get; set; }
+
+    public float CurrentRecyclingPointCost => BaseRecyclingPointCost * Mathf.Pow(CostMultiplier, CurrentLevel);
+    public float CurrentDimensionalPotentialCost => BaseDimensionalPotentialCost * Mathf.Pow(CostMultiplier, CurrentLevel);
+
+    public bool CanAfford(float currentRecyclingPoints, float currentDimensionalPotential)
+    {
+        if (CurrentLevel >= MaxLevel)
+            return false;
+
+        return currentRecyclingPoints >= CurrentRecyclingPointCost &&
+               currentDimensionalPotential >= CurrentDimensionalPotentialCost;
+    }
+
+    public bool IsMaxLevel => CurrentLevel >= MaxLevel;
 
     // Benefits specific to this upgrade
     public Dictionary<string, float> CurrentBenefits = new Dictionary<string, float>();
 
-    // Current costs based on level
-    public float CurrentRecyclingPointCost => BaseRecyclingPointCost * Mathf.Pow(CostMultiplier, CurrentLevel);
-    public float CurrentDimensionalPotentialCost => BaseDimensionalPotentialCost * Mathf.Pow(CostMultiplier, CurrentLevel);
-
-    public FacilityUpgrade(string name, string description, int maxLevel, float baseRPCost, float baseDPCost)
+    public FacilityUpgrade(string name, int maxLevel, float baseRPCost, float baseDPCost)
     {
-        UpgradeName = name;
-        Description = description;
+        Name = name;
         MaxLevel = maxLevel;
         CurrentLevel = 0;
         BaseRecyclingPointCost = baseRPCost;
         BaseDimensionalPotentialCost = baseDPCost;
 
         UpdateBenefits();
-    }
-
-    public bool CanAfford(float currentRP, float currentDP)
-    {
-        return CurrentLevel < MaxLevel &&
-               currentRP >= CurrentRecyclingPointCost &&
-               currentDP >= CurrentDimensionalPotentialCost;
     }
 
     public bool TryUpgrade(ref float currentRP, ref float currentDP)
@@ -63,7 +62,7 @@ public class FacilityUpgrade
     {
         CurrentBenefits.Clear();
         
-        switch (UpgradeName)
+        switch (Name)
         {
             case "WasteStorage":
                 // Increase storage capacity

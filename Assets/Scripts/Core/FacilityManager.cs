@@ -30,26 +30,36 @@ public class FacilityManager : MonoBehaviour
 
     private void InitializeUpgrades()
     {
-        // Create initial upgrade options
-        upgrades.Add("WasteStorage", new FacilityUpgrade(
-            "Waste Storage Wing", 
-            "Increases your waste storage capacity.",
-            3, 100f, 10f));
-            
-        upgrades.Add("RecyclingLab", new FacilityUpgrade(
-            "Recycling Laboratory", 
-            "Improves recycling efficiency and point generation.",
-            3, 150f, 15f));
-            
-        upgrades.Add("StabilizationChamber", new FacilityUpgrade(
-            "Dimensional Stabilization", 
-            "Reduces contamination from collected waste.",
-            3, 200f, 20f));
-            
-        upgrades.Add("ExpeditionCenter", new FacilityUpgrade(
-            "Expedition Center", 
-            "Improves the quality of collected waste items.",
-            3, 250f, 25f));
+        // Initialize basic facility upgrades
+        upgrades.Add("WasteStorage", new FacilityUpgrade
+        {
+            Name = "Waste Storage",
+            MaxLevel = 3,
+            CurrentLevel = 0,
+            BaseRecyclingPointCost = 100f,
+            BaseDimensionalPotentialCost = 10f,
+            CostMultiplier = 1.5f
+        });
+
+        upgrades.Add("RecyclingLab", new FacilityUpgrade
+        {
+            Name = "Recycling Laboratory",
+            MaxLevel = 3,
+            CurrentLevel = 0,
+            BaseRecyclingPointCost = 150f,
+            BaseDimensionalPotentialCost = 15f,
+            CostMultiplier = 1.75f
+        });
+
+        upgrades.Add("StabilizationChamber", new FacilityUpgrade
+        {
+            Name = "Stabilization Chamber",
+            MaxLevel = 3,
+            CurrentLevel = 0,
+            BaseRecyclingPointCost = 200f,
+            BaseDimensionalPotentialCost = 20f,
+            CostMultiplier = 2f
+        });
     }
 
     // Try to upgrade a specific facility section
@@ -59,62 +69,62 @@ public class FacilityManager : MonoBehaviour
             return false;
             
         var upgrade = upgrades[upgradeName];
-        float currentRP = ResourceManager.Instance.RecyclingPoints;
-        float currentDP = ResourceManager.Instance.DimensionalPotential;
         
-        if (upgrade.TryUpgrade(ref currentRP, ref currentDP))
-        {
-            // Update resources
-            ResourceManager.Instance.SetRecyclingPoints(currentRP);
-            ResourceManager.Instance.SetDimensionalPotential(currentDP);
-            
-            // Apply upgrade effects
-            ApplyUpgradeEffects(upgradeName);
-            
-            // Notify listeners
-            OnUpgradeCompleted?.Invoke(upgradeName);
-            
-            return true;
-        }
+        // Check if player can afford the upgrade
+        bool canAfford = upgrade.CanAfford(
+            ResourceManager.Instance.GetRecyclingPoints(),
+            ResourceManager.Instance.GetDimensionalPotential()
+        );
         
-        return false;
+        if (!canAfford)
+            return false;
+        
+        // Spend resources
+        ResourceManager.Instance.SpendRecyclingPoints(upgrade.CurrentRecyclingPointCost);
+        ResourceManager.Instance.SpendDimensionalPotential(upgrade.CurrentDimensionalPotentialCost);
+        
+        // Increase upgrade level
+        upgrade.CurrentLevel++;
+        
+        // Apply upgrade effects
+        ApplyUpgradeEffects(upgradeName);
+        
+        // Notify listeners
+        OnUpgradeCompleted?.Invoke(upgradeName);
+        
+        return true;
     }
     
     // Get all available upgrades
-    public Dictionary<string, FacilityUpgrade> GetUpgrades()
+    public Dictionary<string, FacilityUpgrade> GetAllUpgrades()
     {
         return upgrades;
     }
     
     // Get a specific upgrade
-    public FacilityUpgrade GetUpgrade(string name)
+    public FacilityUpgrade GetUpgrade(string upgradeName)
     {
-        if (upgrades.ContainsKey(name))
-            return upgrades[name];
-        return null;
+        return upgrades.ContainsKey(upgradeName) ? upgrades[upgradeName] : null;
     }
     
     // Apply effects from an upgrade
     private void ApplyUpgradeEffects(string upgradeName)
     {
-        if (!upgrades.ContainsKey(upgradeName))
-            return;
-            
         var upgrade = upgrades[upgradeName];
         
-        // Apply different effects based on upgrade type
         switch (upgradeName)
         {
-            case "StabilizationChamber":
-                if (upgrade.CurrentBenefits.ContainsKey("ContaminationReduction"))
-                {
-                    float reduction = upgrade.CurrentBenefits["ContaminationReduction"];
-                    float currentContamination = ResourceManager.Instance.ContaminationLevel;
-                    ResourceManager.Instance.DecreaseContamination(currentContamination * reduction);
-                }
+            case "WasteStorage":
+                // Implement storage capacity increase
                 break;
                 
-            // Other upgrade effects can be added here
+            case "RecyclingLab":
+                // Implement recycling efficiency boost
+                break;
+                
+            case "StabilizationChamber":
+                // Implement contamination reduction
+                break;
         }
     }
     

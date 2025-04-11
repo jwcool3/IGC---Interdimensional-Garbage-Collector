@@ -46,6 +46,18 @@ public class GameManager : MonoBehaviour
             wasteGenerator = gameObject.AddComponent<WasteGenerator>();
         }
 
+        // Make sure FacilityManager exists
+        if (FacilityManager.Instance == null)
+        {
+            gameObject.AddComponent<FacilityManager>();
+        }
+        
+        // Make sure ResourceManager exists
+        if (ResourceManager.Instance == null)
+        {
+            gameObject.AddComponent<ResourceManager>();
+        }
+
         collectedWaste = new List<WasteItem>();
         TotalRecyclingPoints = 0f;
         FacilityContaminationLevel = 0.1f;
@@ -54,17 +66,26 @@ public class GameManager : MonoBehaviour
         CollectInitialWaste();
 
         // Subscribe to facility events
-        FacilityManager.Instance.OnContaminationChanged += UpdateContaminationLevel;
+        FacilityManager.Instance.OnUpgradeCompleted += HandleUpgradeCompleted;
+    }
+
+    private void HandleUpgradeCompleted(string upgradeName)
+    {
+        // React to upgrades being completed
+        Debug.Log($"Upgrade completed: {upgradeName}");
+        
+        // You might want to update UI or game state here
+        UpdateContaminationLevel(FacilityContaminationLevel);
     }
 
     // Collect initial set of waste
     private void CollectInitialWaste()
     {
-        // Generate starting waste
-        var initialWaste = wasteGenerator.GenerateWasteItems(5);
-        foreach (var waste in initialWaste)
+        // Generate a few initial waste items
+        for (int i = 0; i < 3; i++)
         {
-            AddWasteToCollection(waste);
+            var waste = wasteGenerator.GenerateWasteItem();
+            collectedWaste.Add(waste);
         }
 
         // Notify systems about initial waste
@@ -105,6 +126,7 @@ public class GameManager : MonoBehaviour
     private void UpdateContaminationLevel(float newLevel)
     {
         FacilityContaminationLevel = newLevel;
+        ResourceManager.Instance.IncreaseContamination(newLevel);
         OnContaminationLevelChanged?.Invoke(FacilityContaminationLevel);
     }
 
@@ -145,9 +167,10 @@ public class GameManager : MonoBehaviour
 
     private void OnDestroy()
     {
+        // Unsubscribe from events
         if (FacilityManager.Instance != null)
         {
-            FacilityManager.Instance.OnContaminationChanged -= UpdateContaminationLevel;
+            FacilityManager.Instance.OnUpgradeCompleted -= HandleUpgradeCompleted;
         }
     }
 } 
