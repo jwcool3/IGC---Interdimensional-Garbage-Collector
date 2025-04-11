@@ -1,25 +1,18 @@
-using UnityEngine;
-using System.Collections.Generic;
 using System;
+using System.Collections.Generic;
+using UnityEngine;
 
 public class FacilityManager : MonoBehaviour
 {
     // Singleton pattern
     public static FacilityManager Instance { get; private set; }
 
-    // Resources
-    public float CurrentRecyclingPoints { get; private set; }
-    public float CurrentDimensionalPotential { get; private set; }
-    public float ContaminationLevel { get; private set; }
-
+    // Available upgrades
+    private Dictionary<string, FacilityUpgrade> upgrades = new Dictionary<string, FacilityUpgrade>();
+    
     // Events
     public event Action<string> OnUpgradeCompleted;
-    public event Action<float> OnRecyclingPointsChanged;
-    public event Action<float> OnDimensionalPotentialChanged;
-    public event Action<float> OnContaminationChanged;
-
-    // Facility sections and their upgrades
-    private Dictionary<string, FacilityUpgrade> facilityUpgrades;
+    public event Action OnUpgradesFetched;
 
     private void Awake()
     {
@@ -27,7 +20,7 @@ public class FacilityManager : MonoBehaviour
         {
             Instance = this;
             DontDestroyOnLoad(gameObject);
-            InitializeFacility();
+            InitializeUpgrades();
         }
         else
         {
@@ -35,90 +28,102 @@ public class FacilityManager : MonoBehaviour
         }
     }
 
-    private void InitializeFacility()
+    private void InitializeUpgrades()
     {
-        facilityUpgrades = new Dictionary<string, FacilityUpgrade>();
-        CurrentRecyclingPoints = 1000f; // Starting resources
-        CurrentDimensionalPotential = 50f;
-        ContaminationLevel = 0.1f;
-
-        // Initialize facility sections
-        CreateUpgrade("WasteStorage", "Stores and processes collected waste", 3, 500f, 25f, 1.5f);
-        CreateUpgrade("RecyclingLab", "Analyzes and recycles waste", 3, 750f, 35f, 1.6f);
-        CreateUpgrade("StabilizationChamber", "Controls dimensional contamination", 3, 1000f, 45f, 1.7f);
-        CreateUpgrade("ExpeditionCenter", "Manages waste collection expeditions", 3, 1250f, 55f, 1.8f);
+        // Create initial upgrade options
+        upgrades.Add("WasteStorage", new FacilityUpgrade(
+            "Waste Storage Wing", 
+            "Increases your waste storage capacity.",
+            3, 100f, 10f));
+            
+        upgrades.Add("RecyclingLab", new FacilityUpgrade(
+            "Recycling Laboratory", 
+            "Improves recycling efficiency and point generation.",
+            3, 150f, 15f));
+            
+        upgrades.Add("StabilizationChamber", new FacilityUpgrade(
+            "Dimensional Stabilization", 
+            "Reduces contamination from collected waste.",
+            3, 200f, 20f));
+            
+        upgrades.Add("ExpeditionCenter", new FacilityUpgrade(
+            "Expedition Center", 
+            "Improves the quality of collected waste items.",
+            3, 250f, 25f));
     }
 
-    private void CreateUpgrade(string name, string description, int maxLevel, float baseRP, float basePotential, float multiplier)
+    // Try to upgrade a specific facility section
+    public bool TryUpgrade(string upgradeName)
     {
-        facilityUpgrades[name] = new FacilityUpgrade(name, description, maxLevel, baseRP, basePotential, multiplier);
-    }
-
-    public bool TryUpgradeFacility(string upgradeName)
-    {
-        if (!facilityUpgrades.ContainsKey(upgradeName))
+        if (!upgrades.ContainsKey(upgradeName))
             return false;
-
-        var upgrade = facilityUpgrades[upgradeName];
-        float currentRP = CurrentRecyclingPoints;
-        float currentDP = CurrentDimensionalPotential;
-
+            
+        var upgrade = upgrades[upgradeName];
+        float currentRP = ResourceManager.Instance.RecyclingPoints;
+        float currentDP = ResourceManager.Instance.DimensionalPotential;
+        
         if (upgrade.TryUpgrade(ref currentRP, ref currentDP))
         {
-            CurrentRecyclingPoints = currentRP;
-            CurrentDimensionalPotential = currentDP;
+            // Update resources
+            ResourceManager.Instance.SetRecyclingPoints(currentRP);
+            ResourceManager.Instance.SetDimensionalPotential(currentDP);
             
-            // Update contamination based on upgrades
-            UpdateContaminationLevel();
+            // Apply upgrade effects
+            ApplyUpgradeEffects(upgradeName);
             
+            // Notify listeners
             OnUpgradeCompleted?.Invoke(upgradeName);
-            OnRecyclingPointsChanged?.Invoke(CurrentRecyclingPoints);
-            OnDimensionalPotentialChanged?.Invoke(CurrentDimensionalPotential);
             
             return true;
         }
-
+        
         return false;
     }
-
-    private void UpdateContaminationLevel()
+    
+    // Get all available upgrades
+    public Dictionary<string, FacilityUpgrade> GetUpgrades()
     {
-        float totalStabilization = 0f;
-        foreach (var upgrade in facilityUpgrades.Values)
-        {
-            if (upgrade.UpgradeName == "StabilizationChamber")
-            {
-                totalStabilization = upgrade.CurrentLevel * 0.2f;
-                break;
-            }
-        }
-
-        ContaminationLevel = Mathf.Max(0.1f, 0.5f - totalStabilization);
-        OnContaminationChanged?.Invoke(ContaminationLevel);
+        return upgrades;
     }
-
-    public void AddRecyclingPoints(float amount)
+    
+    // Get a specific upgrade
+    public FacilityUpgrade GetUpgrade(string name)
     {
-        CurrentRecyclingPoints += amount;
-        OnRecyclingPointsChanged?.Invoke(CurrentRecyclingPoints);
+        if (upgrades.ContainsKey(name))
+            return upgrades[name];
+        return null;
     }
-
-    public void AddDimensionalPotential(float amount)
+    
+    // Apply effects from an upgrade
+    private void ApplyUpgradeEffects(string upgradeName)
     {
-        CurrentDimensionalPotential += amount;
-        OnDimensionalPotentialChanged?.Invoke(CurrentDimensionalPotential);
-    }
-
-    public FacilityUpgrade GetUpgrade(string upgradeName)
-    {
-        return facilityUpgrades.ContainsKey(upgradeName) ? facilityUpgrades[upgradeName] : null;
-    }
-
-    public Dictionary<string, float> GetFacilityBenefits()
-    {
-        var totalBenefits = new Dictionary<string, float>();
+        if (!upgrades.ContainsKey(upgradeName))
+            return;
+            
+        var upgrade = upgrades[upgradeName];
         
-        foreach (var upgrade in facilityUpgrades.Values)
+        // Apply different effects based on upgrade type
+        switch (upgradeName)
+        {
+            case "StabilizationChamber":
+                if (upgrade.CurrentBenefits.ContainsKey("ContaminationReduction"))
+                {
+                    float reduction = upgrade.CurrentBenefits["ContaminationReduction"];
+                    float currentContamination = ResourceManager.Instance.ContaminationLevel;
+                    ResourceManager.Instance.DecreaseContamination(currentContamination * reduction);
+                }
+                break;
+                
+            // Other upgrade effects can be added here
+        }
+    }
+    
+    // Get total benefits across all upgrades
+    public Dictionary<string, float> GetTotalBenefits()
+    {
+        Dictionary<string, float> totalBenefits = new Dictionary<string, float>();
+        
+        foreach (var upgrade in upgrades.Values)
         {
             foreach (var benefit in upgrade.CurrentBenefits)
             {
@@ -131,9 +136,4 @@ public class FacilityManager : MonoBehaviour
         
         return totalBenefits;
     }
-
-    public IReadOnlyDictionary<string, FacilityUpgrade> GetAllUpgrades()
-    {
-        return facilityUpgrades;
-    }
-} 
+}

@@ -96,4 +96,16 @@ public class ResourceManager : MonoBehaviour
     public float GetRecyclingPoints() => recyclingPoints;
     public float GetDimensionalPotential() => dimensionalPotential;
     public float GetContamination() => contamination;
+
+    public void SetRecyclingPoints(float value)
+    {
+        recyclingPoints = value;
+        OnRecyclingPointsChanged?.Invoke(recyclingPoints);
+    }
+
+    public void SetDimensionalPotential(float value)
+    {
+        dimensionalPotential = value;
+        OnDimensionalPotentialChanged?.Invoke(dimensionalPotential);
+    }
 }
