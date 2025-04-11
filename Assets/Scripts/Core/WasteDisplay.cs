@@ -8,9 +8,22 @@ public class WasteDisplay : MonoBehaviour
     [SerializeField] private TextMeshProUGUI originText;
     [SerializeField] private TextMeshProUGUI stabilityText;
     [SerializeField] private Image backgroundImage;
+    [SerializeField] private Button recycleButton;
+
+    private WasteItem currentWaste;
+
+    private void Start()
+    {
+        if (recycleButton != null)
+        {
+            recycleButton.onClick.AddListener(RecycleWaste);
+        }
+    }
 
     public void Initialize(WasteItem waste)
     {
+        currentWaste = waste;
+
         if (nameText != null)
             nameText.text = waste.Name;
 
@@ -27,6 +40,25 @@ public class WasteDisplay : MonoBehaviour
         }
     }
 
+    private void RecycleWaste()
+    {
+        if (currentWaste != null && ResourceManager.Instance != null)
+        {
+            // Calculate resources based on waste properties
+            float recyclingValue = currentWaste.RecyclingPotential * 100f;
+            float dimensionalValue = currentWaste.WasteStability * 10f;
+            float contaminationEffect = currentWaste.ContaminationLevel * 0.05f;
+            
+            // Add resources
+            ResourceManager.Instance.AddRecyclingPoints(recyclingValue);
+            ResourceManager.Instance.AddDimensionalPotential(dimensionalValue);
+            ResourceManager.Instance.IncreaseContamination(contaminationEffect);
+            
+            // Destroy the waste item display
+            Destroy(gameObject);
+        }
+    }
+
     private Color GetColorForDimension(string dimensionType)
     {
         // Return different colors based on dimension type
@@ -40,5 +72,13 @@ public class WasteDisplay : MonoBehaviour
             return new Color(0.8f, 0.6f, 0.2f); // Orange
 
         return Color.gray; // Default
+    }
+
+    private void OnDestroy()
+    {
+        if (recycleButton != null)
+        {
+            recycleButton.onClick.RemoveListener(RecycleWaste);
+        }
     }
 }
