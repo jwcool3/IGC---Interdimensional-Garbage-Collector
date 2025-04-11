@@ -6,14 +6,11 @@ public class WasteGenerator : MonoBehaviour
     // Dimension types for waste generation
     private readonly string[] DimensionTypes = new string[] 
     {
-        "Technological Waste",
-        "Biological Remnants",
-        "Quantum Residue",
-        "Philosophical Byproducts",
-        "Cosmic Debris",
-        "Temporal Refuse",
-        "Ethereal Scrap",
-        "Industrial Waste"
+        "Technological",
+        "Biological",
+        "Quantum",
+        "Temporal",
+        "Philosophical"
     };
 
     // Waste classification components
@@ -41,29 +38,37 @@ public class WasteGenerator : MonoBehaviour
         "Filter Component"
     };
 
+    private readonly string[] wasteNames = new string[]
+    {
+        "Debris",
+        "Residue",
+        "Matter",
+        "Fragment",
+        "Essence"
+    };
+
     // Generate a single waste item
     public WasteItem GenerateWasteItem()
     {
-        string dimensionOrigin = GetRandomDimensionType();
-        float wasteStability = CalculateWasteStability();
-        string name = GenerateWasteName();
+        string dimensionType = DimensionTypes[Random.Range(0, DimensionTypes.Length)];
+        string wasteName = wasteNames[Random.Range(0, wasteNames.Length)];
+        float stability = Random.Range(0.2f, 1.0f);
 
-        return new WasteItem(
-            dimensionOrigin,
-            wasteStability,
-            name
-        );
+        string fullName = $"{dimensionType} {wasteName}";
+        string origin = $"{dimensionType} Dimension";
+
+        return new WasteItem(fullName, origin, stability);
     }
 
     // Generate multiple waste items
-    public List<WasteItem> GenerateWasteItems(int count)
+    public List<WasteItem> GenerateMultipleWaste(int count)
     {
-        var wasteItems = new List<WasteItem>();
+        List<WasteItem> items = new List<WasteItem>();
         for (int i = 0; i < count; i++)
         {
-            wasteItems.Add(GenerateWasteItem());
+            items.Add(GenerateWasteItem());
         }
-        return wasteItems;
+        return items;
     }
 
     // Enhanced waste name generation
@@ -106,10 +111,11 @@ public class WasteGenerator : MonoBehaviour
             Mathf.Min(1f, stabilityRange + 0.2f)
         );
 
-        return new WasteItem(
-            dimensionType,
-            stability
-        );
+        string wasteName = wasteNames[Random.Range(0, wasteNames.Length)];
+        string fullName = $"{dimensionType} {wasteName}";
+        string origin = $"{dimensionType} Dimension";
+
+        return new WasteItem(fullName, origin, stability);
     }
 
     // Generate a batch of similar waste

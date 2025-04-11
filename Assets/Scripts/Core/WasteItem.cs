@@ -23,19 +23,16 @@ public class WasteItem
     public float RecyclingValue { get; private set; }
 
     // Constructor for generating waste items
-    public WasteItem(
-        string dimensionalOrigin, 
-        float wasteStability, 
-        string name = null, 
-        string description = null)
+    public WasteItem(string name, string dimensionalOrigin, float stability)
     {
         Id = Guid.NewGuid().ToString();
+        Name = name;
         DimensionalOrigin = dimensionalOrigin;
-        WasteStability = wasteStability;
-        Name = name ?? GenerateName();
-        Description = description ?? GenerateDescription();
+        WasteStability = Mathf.Clamp01(stability);
         
-        CalculateProperties();
+        // Calculate derived properties
+        CalculateRecyclingPotential();
+        CalculateContamination();
     }
 
     // Procedural name generation
@@ -56,6 +53,20 @@ public class WasteItem
                $"Stability: {WasteStability:P2}\n" +
                $"Contamination Level: {ContaminationLevel:P2}\n" +
                $"Environmental Impact: {GetEnvironmentalImpactDescription()}";
+    }
+
+    private void CalculateRecyclingPotential()
+    {
+        // Higher stability means better recycling potential
+        RecyclingPotential = WasteStability * UnityEngine.Random.Range(0.8f, 1.2f);
+        RecyclingPotential = Mathf.Clamp01(RecyclingPotential);
+    }
+
+    private void CalculateContamination()
+    {
+        // Lower stability means higher contamination
+        ContaminationLevel = (1 - WasteStability) * UnityEngine.Random.Range(0.8f, 1.2f);
+        ContaminationLevel = Mathf.Clamp01(ContaminationLevel);
     }
 
     private void CalculateProperties()
