@@ -27,6 +27,7 @@ public class UIManager : MonoBehaviour
     [Header("Tabs")]
     [SerializeField] private GameObject collectionTab;
     [SerializeField] private GameObject facilityTab;
+    [SerializeField] private GameObject upgradesTab;
     [SerializeField] private GameObject statsTab;
 
     private List<GameObject> activeWasteDisplays = new List<GameObject>();
@@ -182,6 +183,7 @@ public class UIManager : MonoBehaviour
     {
         collectionTab.SetActive(true);
         facilityTab.SetActive(false);
+        upgradesTab.SetActive(false);
         statsTab.SetActive(false);
     }
 
@@ -189,6 +191,15 @@ public class UIManager : MonoBehaviour
     {
         collectionTab.SetActive(false);
         facilityTab.SetActive(true);
+        upgradesTab.SetActive(false);
+        statsTab.SetActive(false);
+    }
+
+    public void ShowUpgradesTab()
+    {
+        collectionTab.SetActive(false);
+        facilityTab.SetActive(false);
+        upgradesTab.SetActive(true);
         statsTab.SetActive(false);
     }
 
@@ -196,6 +207,7 @@ public class UIManager : MonoBehaviour
     {
         collectionTab.SetActive(false);
         facilityTab.SetActive(false);
+        upgradesTab.SetActive(false);
         statsTab.SetActive(true);
     }
 

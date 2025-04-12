@@ -1,65 +1,49 @@
-
 using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
 
 public class UpgradeItemUI : MonoBehaviour
 {
+    [Header("UI Elements")]
     [SerializeField] private TextMeshProUGUI nameText;
     [SerializeField] private TextMeshProUGUI descriptionText;
     [SerializeField] private TextMeshProUGUI levelText;
     [SerializeField] private TextMeshProUGUI costText;
-    [SerializeField] private Button upgradeButton;
     [SerializeField] private Image progressBar;
-    
-    [SerializeField] private Color availableColor = Color.green;
-    [SerializeField] private Color unavailableColor = Color.red;
-    [SerializeField] private Color maxLevelColor = Color.yellow;
-    
+    [SerializeField] private Button upgradeButton;
+
     private FacilityUpgrade upgrade;
-    private string upgradeType;
-    
+
+    private void Start()
+    {
+        if (upgradeButton != null)
+        {
+            upgradeButton.onClick.AddListener(TryUpgrade);
+        }
+    }
+
     public void SetUpgrade(FacilityUpgrade facilityUpgrade)
     {
         upgrade = facilityUpgrade;
         UpdateUI();
     }
-    
-    public void SetUpgradeType(string type)
-    {
-        upgradeType = type;
-    }
-    
-    private void Start()
-    {
-        if (upgradeButton != null)
-        {
-            upgradeButton.onClick.AddListener(OnUpgradeClicked);
-        }
-    }
-    
-    private void Update()
-    {
-        // Update affordability in real-time
-        UpdateAffordability();
-    }
-    
+
     private void UpdateUI()
     {
         if (upgrade == null) return;
         
         if (nameText != null)
-            nameText.text = upgrade.UpgradeName;
+            nameText.text = upgrade.Name;
             
         if (descriptionText != null)
-            descriptionText.text = upgrade.Description;
+            descriptionText.text = GetUpgradeDescription();
             
         if (levelText != null)
             levelText.text = $"Level: {upgrade.CurrentLevel}/{upgrade.MaxLevel}";
             
         if (costText != null)
         {
-            if (upgrade.CurrentLevel >= upgrade.MaxLevel)
+            if (upgrade.IsMaxLevel)
             {
                 costText.text = "MAX LEVEL";
             }
@@ -76,44 +60,74 @@ public class UpgradeItemUI : MonoBehaviour
         
         UpdateAffordability();
     }
-    
-    private void UpdateAffordability()
+
+    private string GetUpgradeDescription()
     {
-        if (upgrade == null || upgradeButton == null) return;
-        
-        bool isMaxLevel = upgrade.CurrentLevel >= upgrade.MaxLevel;
-        bool canAfford = upgrade.CanAfford(
-            ResourceManager.Instance.RecyclingPoints,
-            ResourceManager.Instance.DimensionalPotential
-        );
-        
-        upgradeButton.interactable = !isMaxLevel && canAfford;
-        
-        // Update button color
-        Image buttonImage = upgradeButton.GetComponent<Image>();
-        if (buttonImage != null)
+        switch (upgrade.Name)
         {
-            if (isMaxLevel)
-                buttonImage.color = maxLevelColor;
-            else if (canAfford)
-                buttonImage.color = availableColor;
-            else
-                buttonImage.color = unavailableColor;
+            case "Waste Storage":
+                return "Increases waste storage capacity";
+            case "Recycling Laboratory":
+                return "Improves recycling efficiency";
+            case "Stabilization Chamber":
+                return "Reduces contamination from waste";
+            default:
+                return "Unknown upgrade type";
         }
     }
-    
-    private void OnUpgradeClicked()
+
+    private void UpdateAffordability()
     {
-        if (upgrade == null || string.IsNullOrEmpty(upgradeType)) return;
-        
-        FacilityManager.Instance.TryUpgrade(upgradeType);
+        if (upgradeButton != null)
+        {
+            bool canAfford = upgrade.CanAfford(
+                ResourceManager.Instance.GetRecyclingPoints(),
+                ResourceManager.Instance.GetDimensionalPotential()
+            );
+            
+            upgradeButton.interactable = !upgrade.IsMaxLevel && canAfford;
+        }
     }
-    
+
+    private void TryUpgrade()
+    {
+        if (FacilityManager.Instance != null && upgrade != null)
+        {
+            if (FacilityManager.Instance.TryUpgrade(upgrade.Name))
+            {
+                UpdateUI();
+            }
+        }
+    }
+
+    private void OnEnable()
+    {
+        if (ResourceManager.Instance != null)
+        {
+            ResourceManager.Instance.OnRecyclingPointsChanged += OnResourcesChanged;
+            ResourceManager.Instance.OnDimensionalPotentialChanged += OnResourcesChanged;
+        }
+    }
+
+    private void OnDisable()
+    {
+        if (ResourceManager.Instance != null)
+        {
+            ResourceManager.Instance.OnRecyclingPointsChanged -= OnResourcesChanged;
+            ResourceManager.Instance.OnDimensionalPotentialChanged -= OnResourcesChanged;
+        }
+    }
+
+    private void OnResourcesChanged(float _)
+    {
+        UpdateAffordability();
+    }
+
     private void OnDestroy()
     {
         if (upgradeButton != null)
         {
-            upgradeButton.onClick.RemoveListener(OnUpgradeClicked);
+            upgradeButton.onClick.RemoveListener(TryUpgrade);
         }
     }
-}
+} 
