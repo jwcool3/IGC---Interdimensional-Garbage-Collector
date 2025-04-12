@@ -4,39 +4,41 @@ using UnityEngine;
 [System.Serializable]
 public class FacilityUpgrade
 {
-    public string Name { get; set; }
-    public int MaxLevel { get; set; }
-    public int CurrentLevel { get; set; }
-    public float BaseRecyclingPointCost { get; set; }
-    public float BaseDimensionalPotentialCost { get; set; }
-    public float CostMultiplier { get; set; }
+    public string UpgradeName;
+    public string Description;
+    public int CurrentLevel;
+    public int MaxLevel;
 
-    public float CurrentRecyclingPointCost => BaseRecyclingPointCost * Mathf.Pow(CostMultiplier, CurrentLevel);
-    public float CurrentDimensionalPotentialCost => BaseDimensionalPotentialCost * Mathf.Pow(CostMultiplier, CurrentLevel);
-
-    public bool CanAfford(float currentRecyclingPoints, float currentDimensionalPotential)
-    {
-        if (CurrentLevel >= MaxLevel)
-            return false;
-
-        return currentRecyclingPoints >= CurrentRecyclingPointCost &&
-               currentDimensionalPotential >= CurrentDimensionalPotentialCost;
-    }
-
-    public bool IsMaxLevel => CurrentLevel >= MaxLevel;
+    // Cost increases with each level
+    public float BaseRecyclingPointCost;
+    public float BaseDimensionalPotentialCost;
+    public float CostMultiplier = 1.5f; // Each level costs 1.5x more
 
     // Benefits specific to this upgrade
     public Dictionary<string, float> CurrentBenefits = new Dictionary<string, float>();
 
-    public FacilityUpgrade(string name, int maxLevel, float baseRPCost, float baseDPCost)
+    // Current costs based on level
+    public float CurrentRecyclingPointCost => BaseRecyclingPointCost * Mathf.Pow(CostMultiplier, CurrentLevel);
+    public float CurrentDimensionalPotentialCost => BaseDimensionalPotentialCost * Mathf.Pow(CostMultiplier, CurrentLevel);
+
+    // Constructor that takes 5 arguments as expected by FacilityManager
+    public FacilityUpgrade(string name, string description, int maxLevel, float baseRPCost, float baseDPCost)
     {
-        Name = name;
+        UpgradeName = name;
+        Description = description;
         MaxLevel = maxLevel;
         CurrentLevel = 0;
         BaseRecyclingPointCost = baseRPCost;
         BaseDimensionalPotentialCost = baseDPCost;
 
         UpdateBenefits();
+    }
+
+    public bool CanAfford(float currentRP, float currentDP)
+    {
+        return CurrentLevel < MaxLevel &&
+               currentRP >= CurrentRecyclingPointCost &&
+               currentDP >= CurrentDimensionalPotentialCost;
     }
 
     public bool TryUpgrade(ref float currentRP, ref float currentDP)
@@ -47,13 +49,13 @@ public class FacilityUpgrade
         // Apply costs
         currentRP -= CurrentRecyclingPointCost;
         currentDP -= CurrentDimensionalPotentialCost;
-        
+
         // Increase level
         CurrentLevel++;
-        
+
         // Update benefits
         UpdateBenefits();
-        
+
         return true;
     }
 
@@ -61,25 +63,25 @@ public class FacilityUpgrade
     private void UpdateBenefits()
     {
         CurrentBenefits.Clear();
-        
-        switch (Name)
+
+        switch (UpgradeName)
         {
-            case "WasteStorage":
+            case "Waste Storage Wing":
                 // Increase storage capacity
                 CurrentBenefits["StorageCapacity"] = 50 + (CurrentLevel * 50); // 50, 100, 150, etc.
                 break;
-                
-            case "RecyclingLab":
+
+            case "Recycling Laboratory":
                 // Increase recycling efficiency
                 CurrentBenefits["RecyclingEfficiency"] = 1.0f + (CurrentLevel * 0.25f); // 1.0, 1.25, 1.5, etc.
                 break;
-                
-            case "StabilizationChamber":
+
+            case "Dimensional Stabilization":
                 // Reduce contamination
                 CurrentBenefits["ContaminationReduction"] = 0.1f + (CurrentLevel * 0.1f); // 0.1, 0.2, 0.3, etc.
                 break;
-                
-            case "ExpeditionCenter":
+
+            case "Expedition Center":
                 // Increase waste generation quality
                 CurrentBenefits["WasteQuality"] = 1.0f + (CurrentLevel * 0.2f); // 1.0, 1.2, 1.4, etc.
                 break;

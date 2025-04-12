@@ -37,7 +37,7 @@ public class UpgradeDisplay : MonoBehaviour
 
     private void Update()
     {
-        if (isInitialized && gameObject.activeInHierarchy)
+        if (isInitialized && gameObject.activeInHierarchy && ResourceManager.Instance != null)
         {
             UpdateAffordability();
         }
@@ -73,7 +73,7 @@ public class UpgradeDisplay : MonoBehaviour
         }
         else
         {
-            costText.text = $"Cost:\nDRP: {currentUpgrade.CurrentDRPCost:F0}\nQP: {currentUpgrade.CurrentQuantumPotentialCost:F1}";
+            costText.text = $"Cost:\nRP: {currentUpgrade.CurrentRecyclingPointCost:F0}\nDP: {currentUpgrade.CurrentDimensionalPotentialCost:F1}";
         }
     }
 
@@ -88,16 +88,16 @@ public class UpgradeDisplay : MonoBehaviour
 
     private void UpdateAffordability()
     {
-        if (upgradeButton == null || currentUpgrade == null) return;
+        if (upgradeButton == null || currentUpgrade == null || ResourceManager.Instance == null) return;
 
         bool isMaxLevel = currentUpgrade.CurrentLevel >= currentUpgrade.MaxLevel;
-        bool canAfford = currentUpgrade.CanUpgrade(
-            FacilityManager.Instance.CurrentDRP,
-            FacilityManager.Instance.CurrentQuantumPotential
+        bool canAfford = currentUpgrade.CanAfford(
+            ResourceManager.Instance.RecyclingPoints,
+            ResourceManager.Instance.DimensionalPotential
         );
 
         upgradeButton.interactable = !isMaxLevel && canAfford;
-        
+
         // Update button color
         var buttonImage = upgradeButton.GetComponent<Image>();
         if (buttonImage != null)
@@ -111,10 +111,33 @@ public class UpgradeDisplay : MonoBehaviour
 
     private void OnUpgradeButtonClicked()
     {
-        if (currentUpgrade == null) return;
+        if (currentUpgrade == null || FacilityManager.Instance == null) return;
 
-        FacilityManager.Instance.TryUpgradeFacility(currentUpgrade.UpgradeName);
+        // Extract the upgrade type from the upgrade name (or another method if you prefer)
+        string upgradeType = DetermineUpgradeType(currentUpgrade.UpgradeName);
+        if (!string.IsNullOrEmpty(upgradeType))
+        {
+            FacilityManager.Instance.TryUpgrade(upgradeType);
+        }
         UpdateDisplay();
+    }
+
+    private string DetermineUpgradeType(string upgradeName)
+    {
+        // Map upgrade names to upgrade types based on your system
+        switch (upgradeName)
+        {
+            case "Waste Storage Wing":
+                return "WasteStorage";
+            case "Recycling Laboratory":
+                return "RecyclingLab";
+            case "Dimensional Stabilization":
+                return "StabilizationChamber";
+            case "Expedition Center":
+                return "ExpeditionCenter";
+            default:
+                return "";
+        }
     }
 
     private void OnDestroy()
@@ -122,4 +145,4 @@ public class UpgradeDisplay : MonoBehaviour
         if (upgradeButton != null)
             upgradeButton.onClick.RemoveAllListeners();
     }
-} 
+}

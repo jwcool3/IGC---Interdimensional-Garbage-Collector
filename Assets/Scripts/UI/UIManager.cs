@@ -70,22 +70,24 @@ public class UIManager : MonoBehaviour
         GameManager.Instance.OnWasteUpdated += UpdateWasteCollection;
         GameManager.Instance.OnContaminationLevelChanged += UpdateContaminationLevel;
 
+        // Subscribe to ResourceManager events
+        ResourceManager.Instance.OnRecyclingPointsChanged += UpdateRecyclingPoints;
+        ResourceManager.Instance.OnDimensionalPotentialChanged += UpdateDimensionalPotential;
+
         // Subscribe to FacilityManager events
-        FacilityManager.Instance.OnRecyclingPointsChanged += UpdateRecyclingPoints;
-        FacilityManager.Instance.OnDimensionalPotentialChanged += UpdateDimensionalPotential;
-        FacilityManager.Instance.OnUpgradesPurchased += UpdateUpgradeDisplays;
+        FacilityManager.Instance.OnUpgradeCompleted += (upgradeName) => UpdateUpgradeDisplays();
     }
 
-    private void UpdateResourceDisplays()
+    public void UpdateResourceDisplays()
     {
-        if (recyclingPointsText != null)
+        if (recyclingPointsText != null && ResourceManager.Instance != null)
         {
-            recyclingPointsText.text = $"Recycling Points: {FacilityManager.Instance.CurrentRecyclingPoints:F1}";
+            recyclingPointsText.text = $"Recycling Points: {ResourceManager.Instance.RecyclingPoints:F1}";
         }
 
-        if (dimensionalPotentialText != null)
+        if (dimensionalPotentialText != null && ResourceManager.Instance != null)
         {
-            dimensionalPotentialText.text = $"Dimensional Potential: {FacilityManager.Instance.CurrentDimensionalPotential:F1}";
+            dimensionalPotentialText.text = $"Dimensional Potential: {ResourceManager.Instance.DimensionalPotential:F1}";
         }
 
         UpdateContaminationLevel(GameManager.Instance.FacilityContaminationLevel);
@@ -165,16 +167,20 @@ public class UIManager : MonoBehaviour
         activeUpgradeDisplays.Clear();
 
         // Create new displays for each upgrade
-        var upgrades = FacilityManager.Instance.GetAvailableUpgrades();
-        foreach (var upgrade in upgrades)
+        if (FacilityManager.Instance != null)
         {
-            var upgradeDisplay = Instantiate(upgradeItemPrefab, upgradeContainer);
-            var displayComponent = upgradeDisplay.GetComponent<UpgradeDisplay>();
-            if (displayComponent != null)
+            var upgrades = FacilityManager.Instance.GetAvailableUpgrades();
+            foreach (var upgrade in upgrades)
             {
-                displayComponent.Initialize(upgrade);
+                var upgradeDisplay = Instantiate(upgradeItemPrefab, upgradeContainer);
+                var displayComponent = upgradeDisplay.GetComponent<UpgradeItemUI>();
+                if (displayComponent != null)
+                {
+                    displayComponent.SetUpgrade(upgrade.Value);
+                    displayComponent.SetUpgradeType(upgrade.Key);
+                }
+                activeUpgradeDisplays.Add(upgradeDisplay);
             }
-            activeUpgradeDisplays.Add(upgradeDisplay);
         }
     }
 
@@ -221,11 +227,15 @@ public class UIManager : MonoBehaviour
             GameManager.Instance.OnContaminationLevelChanged -= UpdateContaminationLevel;
         }
 
+        if (ResourceManager.Instance != null)
+        {
+            ResourceManager.Instance.OnRecyclingPointsChanged -= UpdateRecyclingPoints;
+            ResourceManager.Instance.OnDimensionalPotentialChanged -= UpdateDimensionalPotential;
+        }
+
         if (FacilityManager.Instance != null)
         {
-            FacilityManager.Instance.OnRecyclingPointsChanged -= UpdateRecyclingPoints;
-            FacilityManager.Instance.OnDimensionalPotentialChanged -= UpdateDimensionalPotential;
-            FacilityManager.Instance.OnUpgradesPurchased -= UpdateUpgradeDisplays;
+            FacilityManager.Instance.OnUpgradeCompleted -= (upgradeName) => UpdateUpgradeDisplays();
         }
     }
-} 
+}

@@ -2,7 +2,7 @@ using UnityEngine;
 using System.Collections.Generic;
 using System;
 
-public class GameManager : MonoBehaviour 
+public class GameManager : MonoBehaviour
 {
     // Singleton pattern
     public static GameManager Instance { get; private set; }
@@ -28,7 +28,7 @@ public class GameManager : MonoBehaviour
         {
             Instance = this;
             DontDestroyOnLoad(gameObject);
-            
+
             // Initialize core systems
             InitializeSystems();
         }
@@ -51,7 +51,7 @@ public class GameManager : MonoBehaviour
         {
             gameObject.AddComponent<FacilityManager>();
         }
-        
+
         // Make sure ResourceManager exists
         if (ResourceManager.Instance == null)
         {
@@ -66,26 +66,20 @@ public class GameManager : MonoBehaviour
         CollectInitialWaste();
 
         // Subscribe to facility events
-        FacilityManager.Instance.OnUpgradeCompleted += HandleUpgradeCompleted;
-    }
-
-    private void HandleUpgradeCompleted(string upgradeName)
-    {
-        // React to upgrades being completed
-        Debug.Log($"Upgrade completed: {upgradeName}");
-        
-        // You might want to update UI or game state here
-        UpdateContaminationLevel(FacilityContaminationLevel);
+        if (ResourceManager.Instance != null)
+        {
+            ResourceManager.Instance.OnContaminationChanged += UpdateContaminationLevel;
+        }
     }
 
     // Collect initial set of waste
     private void CollectInitialWaste()
     {
-        // Generate a few initial waste items
-        for (int i = 0; i < 3; i++)
+        // Generate starting waste
+        var initialWaste = wasteGenerator.GenerateMultipleWaste(5);
+        foreach (var waste in initialWaste)
         {
-            var waste = wasteGenerator.GenerateWasteItem();
-            collectedWaste.Add(waste);
+            AddWasteToCollection(waste);
         }
 
         // Notify systems about initial waste
@@ -97,7 +91,7 @@ public class GameManager : MonoBehaviour
     {
         var newWaste = wasteGenerator.GenerateWasteItem();
         AddWasteToCollection(newWaste);
-        
+
         // Notify systems about new waste
         OnWasteCollected?.Invoke(newWaste);
         OnWasteUpdated?.Invoke(collectedWaste);
@@ -126,7 +120,6 @@ public class GameManager : MonoBehaviour
     private void UpdateContaminationLevel(float newLevel)
     {
         FacilityContaminationLevel = newLevel;
-        ResourceManager.Instance.IncreaseContamination(newLevel);
         OnContaminationLevelChanged?.Invoke(FacilityContaminationLevel);
     }
 
@@ -149,13 +142,13 @@ public class GameManager : MonoBehaviour
         {
             float recyclingPoints = waste.RecyclingValue;
             collectedWaste.Remove(waste);
-            
-            // Add recycling points to facility
-            FacilityManager.Instance.AddRecyclingPoints(recyclingPoints);
-            
+
+            // Add recycling points to resource manager
+            ResourceManager.Instance.AddRecyclingPoints(recyclingPoints);
+
             // Add dimensional potential based on stability
             float potentialGain = waste.WasteStability * 10f;
-            FacilityManager.Instance.AddDimensionalPotential(potentialGain);
+            ResourceManager.Instance.AddDimensionalPotential(potentialGain);
 
             // Update waste collection
             OnWasteUpdated?.Invoke(collectedWaste);
@@ -167,10 +160,9 @@ public class GameManager : MonoBehaviour
 
     private void OnDestroy()
     {
-        // Unsubscribe from events
-        if (FacilityManager.Instance != null)
+        if (ResourceManager.Instance != null)
         {
-            FacilityManager.Instance.OnUpgradeCompleted -= HandleUpgradeCompleted;
+            ResourceManager.Instance.OnContaminationChanged -= UpdateContaminationLevel;
         }
     }
-} 
+}

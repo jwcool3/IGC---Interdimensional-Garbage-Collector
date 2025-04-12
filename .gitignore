@@ -6,3 +6,26 @@
 *.tiff
 *.ico
 *.zip
+*.meta
+
+
+*.unity
+*.asset
+*.asset.meta
+
+*.ttf
+*.otf
+*.woff
+*.woff2
+*.eot
+*.svg
+*.svgz
+*.ttf.meta
+*.txt
+*.mat
+*.scenetemplate
+*.shader
+*.shadergraph
+
+
+Assets/TextMesh Pro/
