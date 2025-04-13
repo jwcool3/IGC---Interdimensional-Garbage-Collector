@@ -28,6 +28,15 @@ public class WasteItemDisplay : MonoBehaviour
         }
     }
 
+    public void SetIcon(Sprite icon)
+    {
+        if (iconImage != null)
+        {
+            iconImage.sprite = icon;
+            iconImage.gameObject.SetActive(icon != null);
+        }
+    }
+
     private void UpdateDisplay()
     {
         if (CurrentItem == null) return;

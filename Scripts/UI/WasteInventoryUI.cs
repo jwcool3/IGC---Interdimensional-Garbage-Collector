@@ -85,8 +85,19 @@ public class WasteInventoryUI : MonoBehaviour
         if (itemDisplay != null)
         {
             itemDisplay.Initialize(item);
+            // Load and set the icon
+            Sprite icon = LoadIconForItem(item);
+            itemDisplay.SetIcon(icon);
             activeItemDisplays.Add(display);
         }
+    }
+
+    private Sprite LoadIconForItem(WasteItem item)
+    {
+        // Example icon loading logic
+        string iconPath = $"WasteIcons/{item.DimensionalOrigin}";
+        Sprite icon = Resources.Load<Sprite>(iconPath);
+        return icon ?? Resources.Load<Sprite>("WasteIcons/DefaultIcon");
     }
 
     private void UpdateItemQuantity(WasteItem item)
