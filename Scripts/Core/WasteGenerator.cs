@@ -21,8 +21,31 @@ public class WasteGenerator : MonoBehaviour
     private string[] suffixes;
     private string[] descriptions;
 
+    private void OnValidate()
+    {
+        // Auto-populate dimension types if empty
+        if (dimensionTypes.Count == 0)
+        {
+            dimensionTypes.Add(new DimensionType() { Name = "Earth" });
+            dimensionTypes.Add(new DimensionType() { Name = "Technological Waste" });
+            dimensionTypes.Add(new DimensionType() { Name = "Biological Remnants" });
+            dimensionTypes.Add(new DimensionType() { Name = "Quantum Residue" });
+            dimensionTypes.Add(new DimensionType() { Name = "Philosophical Byproducts" });
+            dimensionTypes.Add(new DimensionType() { Name = "Cosmic Debris" });
+            dimensionTypes.Add(new DimensionType() { Name = "Temporal Anomaly" });
+            dimensionTypes.Add(new DimensionType() { Name = "Ethereal Plane" });
+            dimensionTypes.Add(new DimensionType() { Name = "Archaeological Waste" });
+        }
+    }
+
     private void Awake()
     {
+        // Ensure dimensions are initialized
+        if (dimensionTypes.Count == 0)
+        {
+            OnValidate();
+        }
+
         InitializeGenerationData();
     }
 
@@ -86,6 +109,12 @@ public class WasteGenerator : MonoBehaviour
 
     public WasteItem GenerateWasteItem(string specificIdentifier = null)
     {
+        if (WasteItemDatabase.Instance == null)
+        {
+            Debug.LogError("WasteItemDatabase.Instance is null! Ensure it's initialized before generating waste.");
+            return null;
+        }
+
         WasteItemData itemData;
 
         if (!string.IsNullOrEmpty(specificIdentifier))
@@ -143,7 +172,22 @@ public class WasteGenerator : MonoBehaviour
 
     private DimensionType GetDimensionType(string dimensionName)
     {
-        return dimensionTypes.Find(d => d.Name == dimensionName) ?? dimensionTypes[0];
+        var dimension = dimensionTypes.Find(d => d.Name == dimensionName);
+        if (dimension == null)
+        {
+            Debug.LogWarning($"Dimension type '{dimensionName}' not found. Using default dimension.");
+            
+            // Create a default dimension if none exists
+            if (dimensionTypes.Count == 0)
+            {
+                var defaultDimension = new DimensionType() { Name = "Default" };
+                dimensionTypes.Add(defaultDimension);
+                return defaultDimension;
+            }
+            
+            return dimensionTypes[0];
+        }
+        return dimension;
     }
 
     // Generate multiple waste items
@@ -215,15 +259,25 @@ public class WasteGenerator : MonoBehaviour
     // Generate waste with specific characteristics
     public WasteItem GenerateSpecificWaste(string dimensionType, WasteRarity rarity = WasteRarity.Common)
     {
+        if (WasteItemDatabase.Instance == null)
+        {
+            Debug.LogError("WasteItemDatabase.Instance is null! Ensure it's initialized before generating waste.");
+            return null;
+        }
+
         var itemData = WasteItemDatabase.Instance.GetRandomItemByOrigin(dimensionType);
-        if (itemData == null) return null;
+        if (itemData == null)
+        {
+            Debug.LogWarning($"No item data found for dimension: {dimensionType}");
+            return null;
+        }
 
         // Get a random sprite
         Sprite itemSprite = GetRandomSprite(itemData.itemSprites);
 
         return new WasteItem(
-            itemData.itemName, 
-            dimensionType, 
+            itemData.itemName,
+            dimensionType,
             rarity,
             itemSprite
         )
@@ -238,6 +292,12 @@ public class WasteGenerator : MonoBehaviour
     // Generate a batch of similar waste
     public List<WasteItem> GenerateSimilarWaste(int count, string dimensionType)
     {
+        if (WasteItemDatabase.Instance == null)
+        {
+            Debug.LogError("WasteItemDatabase.Instance is null! Ensure it's initialized before generating waste.");
+            return new List<WasteItem>();
+        }
+
         var wasteItems = new List<WasteItem>();
         WasteRarity baseRarity = Random.value < 0.3f ? WasteRarity.Uncommon : WasteRarity.Common;
 
@@ -257,13 +317,13 @@ public class WasteGenerator : MonoBehaviour
     {
         float roll = Random.value;
         
-        if (roll < 0.01f * dimension.LegendaryChance)
+        if (roll < dimension.LegendaryChance)
             return WasteRarity.Legendary;
-        if (roll < 0.05f * dimension.EpicChance)
+        if (roll < dimension.EpicChance)
             return WasteRarity.Epic;
-        if (roll < 0.15f * dimension.RareChance)
+        if (roll < dimension.RareChance)
             return WasteRarity.Rare;
-        if (roll < 0.30f * dimension.UncommonChance)
+        if (roll < dimension.UncommonChance)
             return WasteRarity.Uncommon;
             
         return WasteRarity.Common;

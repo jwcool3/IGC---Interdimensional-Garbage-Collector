@@ -31,10 +31,11 @@ public class WasteItem
     // Visual properties
     public Color RarityColor => GetRarityColor();
 
+    private bool propertiesInitialized = false;
+
     public WasteItem()
     {
         Id = Guid.NewGuid().ToString();
-        CalculateRecyclingPotential();
     }
 
     public WasteItem(string name, string dimensionalOrigin, WasteRarity rarity = WasteRarity.Common, Sprite icon = null)
@@ -45,10 +46,19 @@ public class WasteItem
         Rarity = rarity;
         Icon = icon;
         
-        // Calculate initial properties
-        WasteStability = CalculateInitialStability();
-        ContaminationLevel = CalculateInitialContamination();
-        RecyclingPotential = CalculateRecyclingPotential();
+        InitializeProperties();
+    }
+
+    public void InitializeProperties()
+    {
+        if (!propertiesInitialized)
+        {
+            WasteStability = CalculateInitialStability();
+            ContaminationLevel = CalculateInitialContamination();
+            RecyclingPotential = CalculateRecyclingPotential();
+            RecyclingValue = CalculateRecyclingValue();
+            propertiesInitialized = true;
+        }
     }
 
     public void SetQuantity(int newQuantity)
@@ -78,32 +88,36 @@ public class WasteItem
 
     private float CalculateInitialStability()
     {
-        // Base calculation based on rarity
-        float baseStability = UnityEngine.Random.Range(0.3f, 1f);
-        float rarityBonus = ((int)Rarity + 1) * 0.1f;
-        return Mathf.Clamp01(baseStability + rarityBonus);
+        float baseStability = 0.5f + ((int)Rarity * 0.1f);
+        if (Application.isPlaying)
+        {
+            baseStability += UnityEngine.Random.Range(-0.1f, 0.1f);
+        }
+        return Mathf.Clamp01(baseStability);
     }
 
     private float CalculateInitialContamination()
     {
-        // More rare items have lower contamination
-        float baseContamination = UnityEngine.Random.Range(0f, 0.5f);
-        float rarityReduction = ((int)Rarity + 1) * 0.05f;
-        return Mathf.Clamp01(baseContamination - rarityReduction);
+        float baseContamination = 0.5f - ((int)Rarity * 0.1f);
+        if (Application.isPlaying)
+        {
+            baseContamination += UnityEngine.Random.Range(-0.1f, 0.1f);
+        }
+        return Mathf.Clamp01(baseContamination);
     }
 
     private float CalculateRecyclingPotential()
     {
-        // Higher rarity and stability increase recycling potential
-        float basePotential = UnityEngine.Random.Range(0.2f, 0.8f);
-        float rarityBonus = ((int)Rarity + 1) * 0.08f;
-        float stabilityBonus = WasteStability * 0.2f;
-        return Mathf.Clamp01(basePotential + rarityBonus + stabilityBonus);
+        float basePotential = 0.3f + ((int)Rarity * 0.15f);
+        if (Application.isPlaying)
+        {
+            basePotential += UnityEngine.Random.Range(-0.1f, 0.1f);
+        }
+        return Mathf.Clamp01(basePotential);
     }
 
     private float CalculateRecyclingValue()
     {
-        // Base value modified by rarity, stability, and recycling potential
         float baseValue = 10f * (1 + (int)Rarity);
         return baseValue * RecyclingPotential * (1 - ContaminationLevel);
     }
@@ -129,6 +143,7 @@ public class WasteItem
 
     public WasteData GetWasteData()
     {
+        InitializeProperties(); // Ensure properties are initialized before getting data
         return new WasteData
         {
             Id = this.Id,
