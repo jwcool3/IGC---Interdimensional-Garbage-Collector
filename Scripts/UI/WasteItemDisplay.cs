@@ -44,8 +44,8 @@ public class WasteItemDisplay : MonoBehaviour
         // Update icon
         if (iconImage != null)
         {
-            iconImage.sprite = CurrentItem.ItemIcon;
-            iconImage.gameObject.SetActive(CurrentItem.ItemIcon != null);
+            iconImage.sprite = CurrentItem.Icon;
+            iconImage.gameObject.SetActive(CurrentItem.Icon != null);
         }
 
         // Update texts

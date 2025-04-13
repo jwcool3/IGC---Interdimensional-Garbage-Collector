@@ -20,7 +20,7 @@ public class WasteItem
     public WasteRarity Rarity { get; set; }
     public string DimensionalOrigin { get; set; }
     public int Quantity { get; set; } = 1;
-    public Sprite ItemIcon { get; set; }
+    public Sprite Icon { get; set; }
 
     // Gameplay properties
     public float WasteStability { get; set; }
@@ -37,12 +37,13 @@ public class WasteItem
         CalculateRecyclingPotential();
     }
 
-    public WasteItem(string name, string dimensionalOrigin, WasteRarity rarity = WasteRarity.Common)
+    public WasteItem(string name, string dimensionalOrigin, WasteRarity rarity = WasteRarity.Common, Sprite icon = null)
     {
         Id = Guid.NewGuid().ToString();
         Name = name;
         DimensionalOrigin = dimensionalOrigin;
         Rarity = rarity;
+        Icon = icon;
         
         // Calculate initial properties
         WasteStability = CalculateInitialStability();
@@ -68,6 +69,11 @@ public class WasteItem
             return true;
         }
         return false;
+    }
+
+    public void SetIcon(Sprite newIcon)
+    {
+        Icon = newIcon;
     }
 
     private float CalculateInitialStability()
