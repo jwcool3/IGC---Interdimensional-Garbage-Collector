@@ -58,6 +58,12 @@ public class GameManager : MonoBehaviour
             gameObject.AddComponent<ResourceManager>();
         }
 
+        // Make sure WasteInventoryManager exists
+        if (WasteInventoryManager.Instance == null)
+        {
+            gameObject.AddComponent<WasteInventoryManager>();
+        }
+
         collectedWaste = new List<WasteItem>();
         TotalRecyclingPoints = 0f;
         FacilityContaminationLevel = 0.1f;
@@ -79,32 +85,38 @@ public class GameManager : MonoBehaviour
         var initialWaste = wasteGenerator.GenerateMultipleWaste(5);
         foreach (var waste in initialWaste)
         {
-            AddWasteToCollection(waste);
+            // Add to inventory instead of direct collection
+            if (WasteInventoryManager.Instance != null)
+            {
+                WasteInventoryManager.Instance.AddWasteItem(waste);
+            }
         }
 
         // Notify systems about initial waste
-        OnWasteUpdated?.Invoke(collectedWaste);
+        OnWasteUpdated?.Invoke(WasteInventoryManager.Instance?.GetAllWaste() ?? new List<WasteItem>());
     }
 
     // Method to collect new waste
     public void CollectWaste()
     {
         var newWaste = wasteGenerator.GenerateWasteItem();
-        AddWasteToCollection(newWaste);
+        
+        // Add to inventory instead of direct collection
+        if (WasteInventoryManager.Instance != null)
+        {
+            WasteInventoryManager.Instance.AddWasteItem(newWaste);
+            
+            // Notify systems about new waste
+            OnWasteCollected?.Invoke(newWaste);
+            OnWasteUpdated?.Invoke(WasteInventoryManager.Instance.GetAllWaste());
 
-        // Notify systems about new waste
-        OnWasteCollected?.Invoke(newWaste);
-        OnWasteUpdated?.Invoke(collectedWaste);
-
-        // Update contamination
-        UpdateFacilityContamination(newWaste);
-    }
-
-    // Add waste to collection and update stats
-    private void AddWasteToCollection(WasteItem waste)
-    {
-        collectedWaste.Add(waste);
-        TotalRecyclingPoints += waste.RecyclingValue;
+            // Update contamination
+            UpdateFacilityContamination(newWaste);
+        }
+        else
+        {
+            Debug.LogError("WasteInventoryManager not found! Cannot collect waste.");
+        }
     }
 
     // Update facility contamination based on new waste
@@ -126,22 +138,22 @@ public class GameManager : MonoBehaviour
     // Get current waste collection
     public List<WasteItem> GetCollectedWaste()
     {
-        return new List<WasteItem>(collectedWaste);
+        return WasteInventoryManager.Instance?.GetAllWaste() ?? new List<WasteItem>();
     }
 
     // Get waste by dimension type
     public List<WasteItem> GetWasteByDimension(string dimensionType)
     {
-        return collectedWaste.FindAll(w => w.DimensionalOrigin == dimensionType);
+        return WasteInventoryManager.Instance?.GetWasteByDimension(dimensionType) ?? new List<WasteItem>();
     }
 
     // Process waste for recycling
     public float ProcessWaste(WasteItem waste)
     {
-        if (collectedWaste.Contains(waste))
+        if (WasteInventoryManager.Instance != null && WasteInventoryManager.Instance.HasWasteItem(waste))
         {
             float recyclingPoints = waste.RecyclingValue;
-            collectedWaste.Remove(waste);
+            WasteInventoryManager.Instance.RemoveWasteItem(waste);
 
             // Add recycling points to resource manager
             ResourceManager.Instance.AddRecyclingPoints(recyclingPoints);
@@ -151,7 +163,7 @@ public class GameManager : MonoBehaviour
             ResourceManager.Instance.AddDimensionalPotential(potentialGain);
 
             // Update waste collection
-            OnWasteUpdated?.Invoke(collectedWaste);
+            OnWasteUpdated?.Invoke(WasteInventoryManager.Instance.GetAllWaste());
 
             return recyclingPoints;
         }

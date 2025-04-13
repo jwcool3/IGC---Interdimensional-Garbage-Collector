@@ -1,114 +1,129 @@
 using System;
 using UnityEngine;
 
-[Serializable]
-public class WasteItem 
+public enum WasteRarity
 {
-    // Unique identifier for the waste item
+    Common,
+    Uncommon,
+    Rare,
+    Epic,
+    Legendary
+}
+
+[Serializable]
+public class WasteItem
+{
+    // Core properties
     public string Id { get; private set; }
-
-    // Dimensional properties
-    public string DimensionalOrigin { get; private set; }
-    public float WasteStability { get; private set; }
+    public string Name { get; set; }
+    public string Description { get; set; }
+    public WasteRarity Rarity { get; set; }
+    public string DimensionalOrigin { get; set; }
+    
+    // Gameplay properties
+    public float WasteStability { get; set; }
+    public float ContaminationLevel { get; set; }
+    public float RecyclingValue { get; set; }
     public float RecyclingPotential { get; private set; }
+    public int Quantity { get; private set; }
 
-    // Waste characteristics
-    public string Name { get; private set; }
-    public string Description { get; private set; }
-    public float ContaminationLevel { get; private set; }
+    // Visual properties
+    public Color RarityColor => GetRarityColor();
+    public Sprite Icon { get; set; }
+    public Sprite ItemIcon => Icon; // Alias for compatibility
 
-    // Gameplay mechanics
-    public float ProcessingDifficulty { get; private set; }
-    public float EnvironmentalImpact { get; private set; }
-    public float RecyclingValue { get; private set; }
+    public WasteItem()
+    {
+        Id = Guid.NewGuid().ToString();
+        Quantity = 1;
+        CalculateRecyclingPotential();
+    }
 
-    // Constructor for generating waste items
-    public WasteItem(string name, string dimensionalOrigin, float stability)
+    public WasteItem(string name, string dimensionalOrigin, WasteRarity rarity = WasteRarity.Common)
     {
         Id = Guid.NewGuid().ToString();
         Name = name;
         DimensionalOrigin = dimensionalOrigin;
-        WasteStability = Mathf.Clamp01(stability);
+        Rarity = rarity;
+        Quantity = 1;
         
-        // Calculate derived properties
+        // Generate some random properties
+        WasteStability = UnityEngine.Random.Range(0.1f, 1.0f);
+        ContaminationLevel = UnityEngine.Random.Range(0.0f, 0.5f);
+        
+        // Calculate derived values
         CalculateRecyclingPotential();
-        CalculateContamination();
+        RecyclingValue = CalculateRecyclingValue();
     }
 
-    // Procedural name generation
-    private string GenerateName()
+    public void SetQuantity(int newQuantity)
     {
-        string[] prefixes = { "Unstable", "Quantum", "Dimensional", "Exotic", "Contaminated" };
-        string[] types = { "Waste", "Debris", "Residue", "Refuse", "Scrap" };
-        string prefix = prefixes[UnityEngine.Random.Range(0, prefixes.Length)];
-        string type = types[UnityEngine.Random.Range(0, types.Length)];
-        
-        return $"{prefix} {DimensionalOrigin} {type}";
+        Quantity = Mathf.Max(0, newQuantity);
     }
 
-    // Procedural description generation
-    private string GenerateDescription()
+    public void AddQuantity(int amount = 1)
     {
-        return $"A peculiar piece of waste from the {DimensionalOrigin} reality.\n" +
-               $"Stability: {WasteStability:P2}\n" +
-               $"Contamination Level: {ContaminationLevel:P2}\n" +
-               $"Environmental Impact: {GetEnvironmentalImpactDescription()}";
+        Quantity = Mathf.Max(0, Quantity + amount);
+    }
+
+    public bool RemoveQuantity(int amount = 1)
+    {
+        if (Quantity >= amount)
+        {
+            Quantity -= amount;
+            return true;
+        }
+        return false;
     }
 
     private void CalculateRecyclingPotential()
     {
-        // Higher stability means better recycling potential
-        RecyclingPotential = WasteStability * UnityEngine.Random.Range(0.8f, 1.2f);
-        RecyclingPotential = Mathf.Clamp01(RecyclingPotential);
+        // Higher stability and rarity increase recycling potential
+        float rarityBonus = ((int)Rarity + 1) * 0.2f;
+        float stabilityFactor = WasteStability * (1 - ContaminationLevel);
+        RecyclingPotential = Mathf.Clamp01(stabilityFactor * (1 + rarityBonus));
     }
 
-    private void CalculateContamination()
+    private float CalculateRecyclingValue()
     {
-        // Lower stability means higher contamination
-        ContaminationLevel = (1 - WasteStability) * UnityEngine.Random.Range(0.8f, 1.2f);
-        ContaminationLevel = Mathf.Clamp01(ContaminationLevel);
+        // Base value modified by rarity, stability, and recycling potential
+        float baseValue = 10f * (1 + (int)Rarity);
+        return baseValue * RecyclingPotential * (1 - ContaminationLevel);
     }
 
-    private void CalculateProperties()
+    public Color GetRarityColor()
     {
-        // Calculate recycling potential based on stability
-        RecyclingPotential = WasteStability * UnityEngine.Random.Range(0.5f, 2f);
-        
-        // Higher stability means lower contamination
-        ContaminationLevel = 1f - WasteStability;
-        
-        // Processing difficulty increases with contamination
-        ProcessingDifficulty = Mathf.Lerp(0.5f, 2f, ContaminationLevel);
-        
-        // Environmental impact is worse with high contamination and low stability
-        EnvironmentalImpact = (ContaminationLevel + (1f - WasteStability)) * 0.5f;
-        
-        // Recycling value is based on potential and difficulty
-        RecyclingValue = RecyclingPotential * 100f / ProcessingDifficulty;
+        switch (Rarity)
+        {
+            case WasteRarity.Common:
+                return Color.gray;
+            case WasteRarity.Uncommon:
+                return Color.green;
+            case WasteRarity.Rare:
+                return Color.blue;
+            case WasteRarity.Epic:
+                return new Color(0.5f, 0f, 0.5f); // Purple
+            case WasteRarity.Legendary:
+                return Color.yellow;
+            default:
+                return Color.white;
+        }
     }
 
-    private string GetEnvironmentalImpactDescription()
+    public WasteData GetWasteData()
     {
-        if (EnvironmentalImpact >= 0.8f) return "Severe";
-        if (EnvironmentalImpact >= 0.6f) return "High";
-        if (EnvironmentalImpact >= 0.4f) return "Moderate";
-        if (EnvironmentalImpact >= 0.2f) return "Low";
-        return "Minimal";
-    }
-
-    public string GetStatusDescription()
-    {
-        return $"Processing Difficulty: {GetDifficultyDescription()}\n" +
-               $"Recycling Potential: {RecyclingPotential:P2}\n" +
-               $"Value: {RecyclingValue:F0} RP";
-    }
-
-    private string GetDifficultyDescription()
-    {
-        if (ProcessingDifficulty >= 1.8f) return "Extreme";
-        if (ProcessingDifficulty >= 1.5f) return "Very Hard";
-        if (ProcessingDifficulty >= 1.2f) return "Hard";
-        if (ProcessingDifficulty >= 0.8f) return "Moderate";
-        return "Easy";
+        return new WasteData
+        {
+            Id = this.Id,
+            Name = this.Name,
+            Description = this.Description,
+            Rarity = this.Rarity,
+            DimensionalOrigin = this.DimensionalOrigin,
+            WasteStability = this.WasteStability,
+            ContaminationLevel = this.ContaminationLevel,
+            RecyclingValue = this.RecyclingValue,
+            RecyclingPotential = this.RecyclingPotential,
+            Quantity = this.Quantity
+        };
     }
 } 

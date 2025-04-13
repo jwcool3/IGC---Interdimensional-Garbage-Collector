@@ -3,17 +3,27 @@ using UnityEngine;
 
 public class WasteGenerator : MonoBehaviour
 {
-    // Dimension types for waste generation
-    private readonly string[] DimensionTypes = new string[] 
+    [System.Serializable]
+    public class DimensionType
     {
-        "Technological",
-        "Biological",
-        "Quantum",
-        "Temporal",
-        "Philosophical"
+        public string Name;
+        public float CommonChance = 0.6f;
+        public float UncommonChance = 0.25f;
+        public float RareChance = 0.1f;
+        public float EpicChance = 0.04f;
+        public float LegendaryChance = 0.01f;
+    }
+
+    [SerializeField] private List<DimensionType> dimensionTypes = new List<DimensionType>
+    {
+        new DimensionType { Name = "Technological Waste" },
+        new DimensionType { Name = "Biological Remnants" },
+        new DimensionType { Name = "Quantum Residue" },
+        new DimensionType { Name = "Philosophical Byproducts" },
+        new DimensionType { Name = "Cosmic Debris" }
     };
 
-    // Waste classification components
+    // Dimension types for waste generation
     private readonly string[] WasteOrigins = 
     {
         "Abandoned",
@@ -50,25 +60,74 @@ public class WasteGenerator : MonoBehaviour
     // Generate a single waste item
     public WasteItem GenerateWasteItem()
     {
-        string dimensionType = DimensionTypes[Random.Range(0, DimensionTypes.Length)];
-        string wasteName = wasteNames[Random.Range(0, wasteNames.Length)];
-        float stability = Random.Range(0.2f, 1.0f);
-
-        string fullName = $"{dimensionType} {wasteName}";
-        string origin = $"{dimensionType} Dimension";
-
-        return new WasteItem(fullName, origin, stability);
+        var dimension = GetRandomDimension();
+        var rarity = GenerateRarity(dimension);
+        
+        return new WasteItem(
+            GenerateName(dimension.Name, rarity),
+            dimension.Name,
+            rarity
+        );
     }
 
     // Generate multiple waste items
     public List<WasteItem> GenerateMultipleWaste(int count)
     {
-        List<WasteItem> items = new List<WasteItem>();
+        var items = new List<WasteItem>();
         for (int i = 0; i < count; i++)
         {
             items.Add(GenerateWasteItem());
         }
         return items;
+    }
+
+    private DimensionType GetRandomDimension()
+    {
+        return dimensionTypes[Random.Range(0, dimensionTypes.Count)];
+    }
+
+    private WasteRarity GenerateRarity(DimensionType dimension)
+    {
+        float roll = Random.value;
+        
+        if (roll < dimension.LegendaryChance)
+            return WasteRarity.Legendary;
+        if (roll < dimension.LegendaryChance + dimension.EpicChance)
+            return WasteRarity.Epic;
+        if (roll < dimension.LegendaryChance + dimension.EpicChance + dimension.RareChance)
+            return WasteRarity.Rare;
+        if (roll < dimension.LegendaryChance + dimension.EpicChance + dimension.RareChance + dimension.UncommonChance)
+            return WasteRarity.Uncommon;
+            
+        return WasteRarity.Common;
+    }
+
+    private string GenerateName(string dimensionName, WasteRarity rarity)
+    {
+        string[] prefixes = GetPrefixesForRarity(rarity);
+        string[] suffixes = { "Waste", "Debris", "Residue", "Matter", "Substance" };
+        
+        string prefix = prefixes[Random.Range(0, prefixes.Length)];
+        string suffix = suffixes[Random.Range(0, suffixes.Length)];
+        
+        return $"{prefix} {dimensionName} {suffix}";
+    }
+
+    private string[] GetPrefixesForRarity(WasteRarity rarity)
+    {
+        switch (rarity)
+        {
+            case WasteRarity.Legendary:
+                return new[] { "Mythical", "Ancient", "Legendary", "Divine" };
+            case WasteRarity.Epic:
+                return new[] { "Mystical", "Ethereal", "Transcendent" };
+            case WasteRarity.Rare:
+                return new[] { "Unstable", "Exotic", "Peculiar" };
+            case WasteRarity.Uncommon:
+                return new[] { "Unusual", "Strange", "Curious" };
+            default:
+                return new[] { "Common", "Basic", "Standard" };
+        }
     }
 
     // Enhanced waste name generation
@@ -82,7 +141,7 @@ public class WasteGenerator : MonoBehaviour
     // Get a random dimension type
     private string GetRandomDimensionType()
     {
-        return DimensionTypes[Random.Range(0, DimensionTypes.Length)];
+        return dimensionTypes[Random.Range(0, dimensionTypes.Count)].Name;
     }
 
     // Calculate waste stability with interesting variance
@@ -104,33 +163,21 @@ public class WasteGenerator : MonoBehaviour
     }
 
     // Generate waste with specific characteristics
-    public WasteItem GenerateSpecificWaste(string dimensionType, float stabilityRange)
+    public WasteItem GenerateSpecificWaste(string dimensionType, WasteRarity rarity = WasteRarity.Common)
     {
-        float stability = Random.Range(
-            Mathf.Max(0.1f, stabilityRange - 0.2f),
-            Mathf.Min(1f, stabilityRange + 0.2f)
-        );
-
-        string wasteName = wasteNames[Random.Range(0, wasteNames.Length)];
-        string fullName = $"{dimensionType} {wasteName}";
-        string origin = $"{dimensionType} Dimension";
-
-        return new WasteItem(fullName, origin, stability);
+        string wasteName = GenerateName(dimensionType, rarity);
+        return new WasteItem(wasteName, dimensionType, rarity);
     }
 
     // Generate a batch of similar waste
     public List<WasteItem> GenerateSimilarWaste(int count, string dimensionType)
     {
         var wasteItems = new List<WasteItem>();
-        float baseStability = Random.Range(0.3f, 0.7f);
+        WasteRarity baseRarity = Random.value < 0.3f ? WasteRarity.Uncommon : WasteRarity.Common;
 
         for (int i = 0; i < count; i++)
         {
-            float stabilityVariation = Random.Range(-0.1f, 0.1f);
-            wasteItems.Add(GenerateSpecificWaste(
-                dimensionType,
-                Mathf.Clamp01(baseStability + stabilityVariation)
-            ));
+            wasteItems.Add(GenerateSpecificWaste(dimensionType, baseRarity));
         }
 
         return wasteItems;
