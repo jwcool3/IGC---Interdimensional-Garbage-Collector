@@ -45,7 +45,7 @@ public class WasteItem
         DimensionalOrigin = dimensionalOrigin;
         Rarity = rarity;
         Icon = icon;
-        
+
         InitializeProperties();
     }
 
@@ -158,4 +158,4 @@ public class WasteItem
             Quantity = this.Quantity
         };
     }
-} 
+}

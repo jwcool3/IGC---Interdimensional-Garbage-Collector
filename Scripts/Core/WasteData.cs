@@ -1,4 +1,7 @@
 using System;
+using UnityEngine;
+
+
 
 [Serializable]
 public class WasteData
@@ -13,4 +16,4 @@ public class WasteData
     public float RecyclingValue { get; set; }
     public float RecyclingPotential { get; set; }
     public int Quantity { get; set; }
-} 
+}

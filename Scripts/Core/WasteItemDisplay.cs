@@ -51,10 +51,10 @@ public class WasteItemDisplay : MonoBehaviour
         // Update texts
         if (nameText != null)
             nameText.text = CurrentItem.Name;
-        
+
         if (quantityText != null)
             UpdateQuantity(CurrentItem.Quantity);
-        
+
         if (rarityText != null)
             rarityText.text = CurrentItem.Rarity.ToString();
 
@@ -66,4 +66,4 @@ public class WasteItemDisplay : MonoBehaviour
             backgroundImage.color = rarityColor;
         }
     }
-} 
+}

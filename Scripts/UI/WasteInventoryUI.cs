@@ -12,7 +12,7 @@ public class WasteInventoryUI : MonoBehaviour
     [SerializeField] private Transform itemContainer;
     [SerializeField] private GameObject itemPrefab;
     [SerializeField] private TextMeshProUGUI inventoryCountText;
-    
+
     private List<GameObject> activeItemDisplays = new List<GameObject>();
     private WasteInventoryManager inventoryManager;
 
@@ -26,7 +26,7 @@ public class WasteInventoryUI : MonoBehaviour
             inventoryManager.OnWasteRemoved += HandleWasteRemoved;
             inventoryManager.OnInventoryChanged += RefreshInventoryDisplay;
             inventoryManager.OnItemQuantityChanged += UpdateItemQuantity;
-            
+
             // Initial refresh
             RefreshInventoryDisplay(inventoryManager.GetAllItems());
         }
@@ -81,7 +81,7 @@ public class WasteInventoryUI : MonoBehaviour
 
         GameObject display = Instantiate(itemPrefab, itemContainer);
         WasteItemDisplay itemDisplay = display.GetComponent<WasteItemDisplay>();
-        
+
         if (itemDisplay != null)
         {
             itemDisplay.Initialize(item);
@@ -94,9 +94,14 @@ public class WasteInventoryUI : MonoBehaviour
 
     private Sprite LoadIconForItem(WasteItem item)
     {
-        // Example icon loading logic
-        string iconPath = $"WasteIcons/{item.DimensionalOrigin}";
+        // If item has a specific icon, use it
+        if (item.Icon != null)
+            return item.Icon;
+
+        // Fallback to resource loading
+        string iconPath = $"WasteIcons/{item.Rarity}/{item.Name}";
         Sprite icon = Resources.Load<Sprite>(iconPath);
+
         return icon ?? Resources.Load<Sprite>("WasteIcons/DefaultIcon");
     }
 

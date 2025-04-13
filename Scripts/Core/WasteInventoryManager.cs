@@ -16,7 +16,7 @@ public class WasteInventoryManager : MonoBehaviour
     public event Action<List<WasteItem>> OnInventoryChanged;
     public event Action<WasteItem> OnItemQuantityChanged;
     public event Action<WasteItem> OnItemDataChanged;
-    
+
     // Legacy event names for compatibility
     public event Action<WasteItem> OnItemAdded
     {
@@ -59,7 +59,7 @@ public class WasteInventoryManager : MonoBehaviour
     public bool AddWasteItem(WasteItem item)
     {
         if (item == null) return false;
-        
+
         // Check capacity
         if (inventory.Count >= maxCapacity)
         {
@@ -90,9 +90,9 @@ public class WasteInventoryManager : MonoBehaviour
     // Find similar item in inventory
     private WasteItem GetSimilarItem(WasteItem item)
     {
-        return GetAllItems().Find(i => 
-            i.Name == item.Name && 
-            i.DimensionalOrigin == item.DimensionalOrigin && 
+        return GetAllItems().Find(i =>
+            i.Name == item.Name &&
+            i.DimensionalOrigin == item.DimensionalOrigin &&
             i.Rarity == item.Rarity);
     }
 
@@ -104,7 +104,7 @@ public class WasteInventoryManager : MonoBehaviour
             item.SetQuantity(newQuantity);
             OnItemQuantityChanged?.Invoke(item);
             OnInventoryChanged?.Invoke(GetAllItems());
-            
+
             // Remove item if quantity is 0
             if (item.Quantity <= 0)
             {
@@ -205,7 +205,7 @@ public class WasteInventoryManager : MonoBehaviour
 
     // Sort items by various criteria
     public List<WasteItem> GetSortedItems(
-        Func<WasteItem, IComparable> sortKey, 
+        Func<WasteItem, IComparable> sortKey,
         bool descending = false)
     {
         var items = GetAllItems();
