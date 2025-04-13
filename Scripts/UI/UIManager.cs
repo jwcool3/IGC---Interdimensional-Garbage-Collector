@@ -2,6 +2,7 @@ using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
 using System.Collections.Generic;
+using UnityEngine.EventSystems;
 
 public class UIManager : MonoBehaviour
 {
@@ -26,12 +27,24 @@ public class UIManager : MonoBehaviour
 
     [Header("Tabs")]
     [SerializeField] private GameObject collectionTab;
-    [SerializeField] private GameObject facilityTab;
     [SerializeField] private GameObject upgradesTab;
-    [SerializeField] private GameObject statsTab;
+    // [SerializeField] private GameObject statsTab;
+
+    [Header("Tab Buttons")]
+    [SerializeField] private Button collectionTabButton;
+    [SerializeField] private Button upgradesTabButton;
+    // [SerializeField] private Button statsTabButton;
+
+    [Header("Tab Button Visual Settings")]
+    [SerializeField] private Color activeTabColor = new Color(1f, 1f, 1f, 1f);
+    [SerializeField] private Color inactiveTabColor = new Color(0.7f, 0.7f, 0.7f, 1f);
+    [SerializeField] private float activeTabScale = 1.1f;
+    [SerializeField] private float inactiveTabScale = 1.0f;
 
     private List<GameObject> activeWasteDisplays = new List<GameObject>();
     private List<GameObject> activeUpgradeDisplays = new List<GameObject>();
+
+    private Button currentActiveTabButton;
 
     private void Awake()
     {
@@ -51,16 +64,60 @@ public class UIManager : MonoBehaviour
         // Set up button listeners
         if (collectWasteButton != null)
         {
-            collectWasteButton.onClick.AddListener(() => GameManager.Instance.CollectWaste());
+            collectWasteButton.onClick.AddListener(() => {
+                Debug.Log("Generate Waste button clicked!");
+                if (GameManager.Instance != null)
+                    GameManager.Instance.CollectWaste();
+                else
+                    Debug.LogError("GameManager.Instance is null!");
+            });
         }
+
+        // Set up tab button listeners
+        if (collectionTabButton != null)
+            collectionTabButton.onClick.AddListener(ShowCollectionTab);
+        if (upgradesTabButton != null)
+            upgradesTabButton.onClick.AddListener(ShowUpgradesTab);
+        // if (statsTabButton != null)
+        //     statsTabButton.onClick.AddListener(ShowStatsTab);
 
         // Initialize displays
         UpdateResourceDisplays();
-        UpdateWasteCollection(GameManager.Instance.GetCollectedWaste());
+
+        // Subscribe to events
+        SubscribeToEvents();
+
+        // Setup initial waste and upgrades
+        if (GameManager.Instance != null)
+            UpdateWasteCollection(GameManager.Instance.GetCollectedWaste());
         UpdateUpgradeDisplays();
 
-        // Default to collection tab
+        // Initialize all tabs to inactive state first
+        InitializeTabStates();
+
+        // Explicitly call ShowCollectionTab to activate it
         ShowCollectionTab();
+
+        // Force Canvas update to ensure proper display
+        Canvas.ForceUpdateCanvases();
+
+        Debug.Log("UI Initialization complete. Collection tab should be visible.");
+    }
+
+    private void InitializeTabStates()
+    {
+        // Ensure all tabs are initially inactive
+        if (collectionTab != null) SetTabState(collectionTab, collectionTab.GetComponent<CanvasGroup>(), false);
+        if (upgradesTab != null) SetTabState(upgradesTab, upgradesTab.GetComponent<CanvasGroup>(), false);
+        // if (statsTab != null) SetTabState(statsTab, statsTab.GetComponent<CanvasGroup>(), false);
+
+        // Reset all button states to inactive
+        if (collectionTabButton != null) SetButtonState(collectionTabButton, false);
+        if (upgradesTabButton != null) SetButtonState(upgradesTabButton, false);
+        // if (statsTabButton != null) SetButtonState(statsTabButton, false);
+
+        // Reset current active button reference
+        currentActiveTabButton = null;
     }
 
     private void SubscribeToEvents()
@@ -187,34 +244,104 @@ public class UIManager : MonoBehaviour
     // Tab management
     public void ShowCollectionTab()
     {
-        collectionTab.SetActive(true);
-        facilityTab.SetActive(false);
-        upgradesTab.SetActive(false);
-        statsTab.SetActive(false);
-    }
+        Debug.Log("ShowCollectionTab called");
 
-    public void ShowFacilityTab()
-    {
-        collectionTab.SetActive(false);
-        facilityTab.SetActive(true);
-        upgradesTab.SetActive(false);
-        statsTab.SetActive(false);
+        // Check if the collection tab exists
+        if (collectionTab == null)
+        {
+            Debug.LogError("Collection tab is null!");
+            return;
+        }
+
+        SetTabVisibility(collectionTab);
+        UpdateTabButtonHighlight(collectionTabButton);
+
+        // Force Canvas update
+        Canvas.ForceUpdateCanvases();
+
+        // Log the state for debugging
+        CanvasGroup cg = collectionTab?.GetComponent<CanvasGroup>();
+        Debug.Log($"Collection Tab - Active: {collectionTab.activeSelf}, " +
+                  $"Interactable: {cg?.interactable}, BlocksRaycasts: {cg?.blocksRaycasts}");
     }
 
     public void ShowUpgradesTab()
     {
-        collectionTab.SetActive(false);
-        facilityTab.SetActive(false);
-        upgradesTab.SetActive(true);
-        statsTab.SetActive(false);
+        SetTabVisibility(upgradesTab);
+        UpdateTabButtonHighlight(upgradesTabButton);
     }
 
-    public void ShowStatsTab()
+    // public void ShowStatsTab()
+    // {
+    //     SetTabVisibility(statsTab);
+    //     UpdateTabButtonHighlight(statsTabButton);
+    // }
+
+    private void SetTabVisibility(GameObject activeTab)
     {
-        collectionTab.SetActive(false);
-        facilityTab.SetActive(false);
-        upgradesTab.SetActive(false);
-        statsTab.SetActive(true);
+        // Get references to all tab CanvasGroups (with null checks)
+        CanvasGroup collectionCG = collectionTab?.GetComponent<CanvasGroup>();
+        CanvasGroup upgradesCG = upgradesTab?.GetComponent<CanvasGroup>();
+        // CanvasGroup statsCG = statsTab?.GetComponent<CanvasGroup>();
+
+        // Set active tab (with null checks)
+        if (collectionTab != null)
+            SetTabState(collectionTab, collectionCG, activeTab == collectionTab);
+
+        if (upgradesTab != null)
+            SetTabState(upgradesTab, upgradesCG, activeTab == upgradesTab);
+
+        // if (statsTab != null)
+        //     SetTabState(statsTab, statsCG, activeTab == statsTab);
+    }
+
+    private void SetTabState(GameObject tab, CanvasGroup canvasGroup, bool isActive)
+    {
+        if (tab == null) return;
+
+        tab.SetActive(isActive);
+
+        if (canvasGroup != null)
+        {
+            canvasGroup.alpha = isActive ? 1f : 0f;
+            canvasGroup.interactable = isActive;
+            canvasGroup.blocksRaycasts = isActive;
+        }
+    }
+
+    private void UpdateTabButtonHighlight(Button activeButton)
+    {
+        // Reset previous active button
+        if (currentActiveTabButton != null)
+        {
+            SetButtonState(currentActiveTabButton, false);
+        }
+
+        // Set new active button
+        SetButtonState(activeButton, true);
+        currentActiveTabButton = activeButton;
+    }
+
+    private void SetButtonState(Button button, bool isActive)
+    {
+        if (button == null) return;
+
+        // Update color
+        var buttonImage = button.GetComponent<Image>();
+        if (buttonImage != null)
+        {
+            buttonImage.color = isActive ? activeTabColor : inactiveTabColor;
+        }
+
+        // Update scale
+        button.transform.localScale = Vector3.one * (isActive ? activeTabScale : inactiveTabScale);
+
+        // Update text color if present
+        var buttonText = button.GetComponentInChildren<TextMeshProUGUI>();
+        if (buttonText != null)
+        {
+            buttonText.color = isActive ? activeTabColor : inactiveTabColor;
+        }
     }
 
     private void OnDestroy()
@@ -236,6 +363,30 @@ public class UIManager : MonoBehaviour
         if (FacilityManager.Instance != null)
         {
             FacilityManager.Instance.OnUpgradeCompleted -= (upgradeName) => UpdateUpgradeDisplays();
+        }
+    }
+
+    private void Update()
+    {
+        // Check if mouse is over UI
+        if (EventSystem.current != null && EventSystem.current.IsPointerOverGameObject())
+        {
+            Debug.Log("Mouse is over UI");
+        }
+
+        // Press space to force waste generation (for testing)
+        if (Input.GetKeyDown(KeyCode.Space))
+        {
+            Debug.Log("Space pressed - forcing waste generation");
+            if (GameManager.Instance != null)
+            {
+                GameManager.Instance.CollectWaste();
+                Debug.Log("Waste generation triggered via space key");
+            }
+            else
+            {
+                Debug.LogError("Cannot generate waste: GameManager.Instance is null!");
+            }
         }
     }
 }
