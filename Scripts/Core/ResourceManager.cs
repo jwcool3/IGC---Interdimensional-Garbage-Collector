@@ -41,9 +41,25 @@ public class ResourceManager : MonoBehaviour
     // Add recycling points and trigger event
     public void AddRecyclingPoints(float amount)
     {
+        if (amount < 0)
+        {
+            Debug.LogWarning($"Attempting to add negative recycling points: {amount}");
+            return;
+        }
+        
+        float previousValue = recyclingPoints;
         recyclingPoints += amount;
-        Debug.Log($"Added {amount:F1} recycling points. Total: {recyclingPoints:F1}");
-        OnRecyclingPointsChanged?.Invoke(recyclingPoints);
+        Debug.Log($"Adding recycling points: {amount:F1} (Previous: {previousValue:F1}, New: {recyclingPoints:F1})");
+        
+        if (OnRecyclingPointsChanged != null)
+        {
+            OnRecyclingPointsChanged.Invoke(recyclingPoints);
+            Debug.Log("OnRecyclingPointsChanged event fired");
+        }
+        else
+        {
+            Debug.LogWarning("No listeners for OnRecyclingPointsChanged event");
+        }
     }
     
     // Spend recycling points if enough are available
@@ -61,9 +77,25 @@ public class ResourceManager : MonoBehaviour
     // Add dimensional potential and trigger event
     public void AddDimensionalPotential(float amount)
     {
+        if (amount < 0)
+        {
+            Debug.LogWarning($"Attempting to add negative dimensional potential: {amount}");
+            return;
+        }
+        
+        float previousValue = dimensionalPotential;
         dimensionalPotential += amount;
-        Debug.Log($"Added {amount:F1} dimensional potential. Total: {dimensionalPotential:F1}");
-        OnDimensionalPotentialChanged?.Invoke(dimensionalPotential);
+        Debug.Log($"Adding dimensional potential: {amount:F1} (Previous: {previousValue:F1}, New: {dimensionalPotential:F1})");
+        
+        if (OnDimensionalPotentialChanged != null)
+        {
+            OnDimensionalPotentialChanged.Invoke(dimensionalPotential);
+            Debug.Log("OnDimensionalPotentialChanged event fired");
+        }
+        else
+        {
+            Debug.LogWarning("No listeners for OnDimensionalPotentialChanged event");
+        }
     }
     
     // Spend dimensional potential if enough is available
@@ -81,9 +113,25 @@ public class ResourceManager : MonoBehaviour
     // Increase contamination level
     public void IncreaseContamination(float amount)
     {
+        if (amount < 0)
+        {
+            Debug.LogWarning($"Attempting to increase contamination by negative amount: {amount}");
+            return;
+        }
+        
+        float previousValue = contamination;
         contamination = Mathf.Min(contamination + amount, maxContamination);
-        Debug.Log($"Contamination increased by {amount:F1}. Total: {contamination:F1}");
-        OnContaminationChanged?.Invoke(contamination);
+        Debug.Log($"Increasing contamination: {amount:F1} (Previous: {previousValue:F1}, New: {contamination:F1}, Max: {maxContamination:F1})");
+        
+        if (OnContaminationChanged != null)
+        {
+            OnContaminationChanged.Invoke(contamination);
+            Debug.Log("OnContaminationChanged event fired");
+        }
+        else
+        {
+            Debug.LogWarning("No listeners for OnContaminationChanged event");
+        }
     }
     
     // Decrease contamination level

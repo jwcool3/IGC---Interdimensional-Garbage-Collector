@@ -112,29 +112,55 @@ public class WasteDisplay : MonoBehaviour
 
     private void RecycleWaste()
     {
-        if (currentWaste != null && ResourceManager.Instance != null)
+        if (currentWaste == null)
         {
-            Debug.Log($"Recycling waste item: {currentWaste.Name}");
-            
-            // Calculate resources based on waste properties
-            float recyclingValue = currentWaste.RecyclingPotential * 100f;
-            float dimensionalValue = currentWaste.WasteStability * 10f;
-            float contaminationEffect = currentWaste.ContaminationLevel * 0.05f;
-            
-            // Add resources
-            ResourceManager.Instance.AddRecyclingPoints(recyclingValue);
-            ResourceManager.Instance.AddDimensionalPotential(dimensionalValue);
-            ResourceManager.Instance.IncreaseContamination(contaminationEffect);
-            
-            // Remove item from inventory
-            if (WasteInventoryManager.Instance != null)
-            {
-                WasteInventoryManager.Instance.RemoveWasteItem(currentWaste);
-            }
-            
-            // Destroy the waste item display
-            Destroy(gameObject);
+            Debug.LogError("Cannot recycle: currentWaste is null!");
+            return;
         }
+
+        if (ResourceManager.Instance == null)
+        {
+            Debug.LogError("Cannot recycle: ResourceManager.Instance is null!");
+            return;
+        }
+
+        Debug.Log($"Starting recycling process for: {currentWaste.Name}");
+        Debug.Log($"Before recycling - RP: {ResourceManager.Instance.RecyclingPoints}, " +
+                 $"DP: {ResourceManager.Instance.DimensionalPotential}, " +
+                 $"Contamination: {ResourceManager.Instance.ContaminationLevel}");
+            
+        // Calculate resources based on waste properties
+        float recyclingValue = currentWaste.RecyclingPotential * 100f;
+        float dimensionalValue = currentWaste.WasteStability * 10f;
+        float contaminationEffect = currentWaste.ContaminationLevel * 0.05f;
+        
+        Debug.Log($"Calculated values - Recycling: {recyclingValue:F1}, " +
+                 $"Dimensional: {dimensionalValue:F1}, " +
+                 $"Contamination: {contaminationEffect:F1}");
+        
+        // Add resources
+        ResourceManager.Instance.AddRecyclingPoints(recyclingValue);
+        ResourceManager.Instance.AddDimensionalPotential(dimensionalValue);
+        ResourceManager.Instance.IncreaseContamination(contaminationEffect);
+        
+        Debug.Log($"After recycling - RP: {ResourceManager.Instance.RecyclingPoints}, " +
+                 $"DP: {ResourceManager.Instance.DimensionalPotential}, " +
+                 $"Contamination: {ResourceManager.Instance.ContaminationLevel}");
+        
+        // Remove item from inventory
+        if (WasteInventoryManager.Instance != null)
+        {
+            WasteInventoryManager.Instance.RemoveWasteItem(currentWaste);
+            Debug.Log($"Removed {currentWaste.Name} from inventory");
+        }
+        else
+        {
+            Debug.LogError("WasteInventoryManager.Instance is null when trying to remove item!");
+        }
+        
+        // Destroy the waste item display
+        Debug.Log($"Destroying display for {currentWaste.Name}");
+        Destroy(gameObject);
     }
 
     private Color GetColorForDimension(string dimensionType)
