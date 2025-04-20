@@ -58,6 +58,19 @@ public class WasteGenerator : MonoBehaviour
         }
 
         InitializeGenerationData();
+        
+        // Add default sprite loading code
+        if (defaultItemSprite == null)
+        {
+            // Try to load a default sprite
+            defaultItemSprite = Resources.Load<Sprite>("DefaultWasteIcon");
+            
+            // If still null, create a fallback
+            if (defaultItemSprite == null)
+            {
+                Debug.LogWarning("No default sprite found! Items may appear without icons.");
+            }
+        }
     }
 
     private void InitializeGenerationData()
@@ -143,6 +156,9 @@ public class WasteGenerator : MonoBehaviour
             wasteItem.ContaminationLevel = RandomizeProperty(itemData.baseContamination);
             wasteItem.RecyclingPotential = RandomizeProperty(itemData.baseRecyclingPotential);
 
+            // Add debug logging
+            Debug.Log($"Generated waste item: {wasteItem.Name}, Origin: {wasteItem.DimensionalOrigin}, Has Icon: {wasteItem.Icon != null}");
+
             return wasteItem;
         }
         catch (Exception e)
@@ -198,6 +214,9 @@ public class WasteGenerator : MonoBehaviour
         wasteItem.WasteStability = 0.5f + ((int)rarity * 0.1f) + UnityEngine.Random.Range(-0.1f, 0.1f);
         wasteItem.ContaminationLevel = 0.5f - ((int)rarity * 0.1f) + UnityEngine.Random.Range(-0.1f, 0.1f);
         wasteItem.RecyclingPotential = 0.3f + ((int)rarity * 0.15f) + UnityEngine.Random.Range(-0.1f, 0.1f);
+
+        // Add debug logging
+        Debug.Log($"Generated procedural waste item: {wasteItem.Name}, Origin: {wasteItem.DimensionalOrigin}, Has Icon: {wasteItem.Icon != null}");
 
         return wasteItem;
     }

@@ -77,18 +77,34 @@ public class WasteInventoryUI : MonoBehaviour
 
     private void CreateItemDisplay(WasteItem item)
     {
-        if (itemPrefab == null || itemContainer == null) return;
+        if (itemPrefab == null || itemContainer == null)
+        {
+            Debug.LogError("Item prefab or container is null!");
+            return;
+        }
 
         GameObject display = Instantiate(itemPrefab, itemContainer);
         WasteItemDisplay itemDisplay = display.GetComponent<WasteItemDisplay>();
 
         if (itemDisplay != null)
         {
+            Debug.Log($"Initializing display for waste item: {item.Name}");
             itemDisplay.Initialize(item);
             // Load and set the icon
             Sprite icon = LoadIconForItem(item);
-            itemDisplay.SetIcon(icon);
+            if (icon != null)
+            {
+                itemDisplay.SetIcon(icon);
+            }
+            else
+            {
+                Debug.LogWarning($"No icon found for item: {item.Name}, using default");
+            }
             activeItemDisplays.Add(display);
+        }
+        else
+        {
+            Debug.LogError("WasteItemDisplay component not found on instantiated prefab!");
         }
     }
 
