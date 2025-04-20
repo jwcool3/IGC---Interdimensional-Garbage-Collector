@@ -10,6 +10,7 @@ public class WasteItemDisplay : MonoBehaviour
     [SerializeField] private TextMeshProUGUI nameText;
     [SerializeField] private TextMeshProUGUI quantityText;
     [SerializeField] private TextMeshProUGUI rarityText;
+    [SerializeField] private TextMeshProUGUI dimensionText; // Add this line
     [SerializeField] private Image backgroundImage;
 
     public WasteItem CurrentItem { get; private set; }
@@ -57,6 +58,10 @@ public class WasteItemDisplay : MonoBehaviour
 
         if (rarityText != null)
             rarityText.text = CurrentItem.Rarity.ToString();
+
+        // Add this block for dimensional origin
+        if (dimensionText != null)
+            dimensionText.text = CurrentItem.DimensionalOrigin;
 
         // Update background color based on rarity
         if (backgroundImage != null)
