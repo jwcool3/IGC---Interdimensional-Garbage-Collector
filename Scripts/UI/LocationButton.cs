@@ -76,6 +76,12 @@ public class LocationButton : MonoBehaviour, IPointerEnterHandler, IPointerExitH
         }
     }
 
+    // Add this method to fix the error
+    public LocationData GetLocationData()
+    {
+        return locationData;
+    }
+
     private void OnDestroy()
     {
         button.onClick.RemoveListener(OnButtonClick);

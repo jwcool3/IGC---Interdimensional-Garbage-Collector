@@ -58,6 +58,9 @@ public class GameSetupManager : MonoBehaviour
         // Step 3: Create FacilityManager
         yield return CreateSystem("FacilityManager", facilityManagerPrefab, () => FacilityManager.Instance == null);
 
+        // Step 3.5: Create LocationManager
+        yield return CreateSystem("LocationManager", null, () => LocationManager.Instance == null);
+
         // Step 4: Create WasteInventoryManager
         yield return CreateSystem("WasteInventoryManager", wasteInventoryManagerPrefab, () => WasteInventoryManager.Instance == null);
 
