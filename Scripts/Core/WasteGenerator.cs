@@ -36,11 +36,18 @@ public class WasteGenerator : MonoBehaviour
 
     private void Start()
     {
+        Debug.Log("WasteGenerator: Initializing...");
+        
         // Subscribe to location change events
         if (LocationManager.Instance != null)
         {
             LocationManager.Instance.OnLocationChanged += OnLocationChanged;
             UpdateCurrentLocation();
+            Debug.Log($"WasteGenerator: Subscribed to location changes. Current location: {currentLocation?.displayName ?? "None"}");
+        }
+        else
+        {
+            Debug.LogError("WasteGenerator: LocationManager.Instance is null!");
         }
     }
 
@@ -55,7 +62,13 @@ public class WasteGenerator : MonoBehaviour
     private void OnLocationChanged(LocationData newLocation)
     {
         currentLocation = newLocation;
-        Debug.Log($"WasteGenerator: Location changed to {currentLocation.displayName}");
+        Debug.Log($"WasteGenerator: Location changed to {currentLocation?.displayName ?? "None"}");
+        
+        if (currentLocation != null)
+        {
+            Debug.Log($"WasteGenerator: Location {currentLocation.displayName} allows waste types: {string.Join(", ", currentLocation.wasteTypes)}");
+            Debug.Log($"WasteGenerator: Location {currentLocation.displayName} rarity chances - Common: {currentLocation.commonChance}, Uncommon: {currentLocation.uncommonChance}, Rare: {currentLocation.rareChance}");
+        }
     }
 
     private void UpdateCurrentLocation()
@@ -63,6 +76,7 @@ public class WasteGenerator : MonoBehaviour
         if (LocationManager.Instance != null)
         {
             currentLocation = LocationManager.Instance.GetCurrentLocation();
+            Debug.Log($"WasteGenerator: Updated current location to {currentLocation?.displayName ?? "None"}");
         }
     }
 
@@ -135,18 +149,19 @@ public class WasteGenerator : MonoBehaviour
     {
         try
         {
+            // Ensure we have the current location
             UpdateCurrentLocation();
 
             if (currentLocation == null)
             {
-                Debug.LogError("No current location set!");
+                Debug.LogError("WasteGenerator: No current location set! Using procedural generation.");
                 return CreateProceduralWasteItem();
             }
 
             WasteItemDatabase database = WasteItemDatabase.Instance;
             if (database == null)
             {
-                Debug.LogError("WasteItemDatabase.Instance is null!");
+                Debug.LogError("WasteGenerator: WasteItemDatabase.Instance is null!");
                 return CreateProceduralWasteItem();
             }
 
@@ -155,33 +170,38 @@ public class WasteGenerator : MonoBehaviour
             if (!string.IsNullOrEmpty(specificIdentifier))
             {
                 itemData = database.GetItemByIdentifier(specificIdentifier);
+                Debug.Log($"WasteGenerator: Generating specific item with ID {specificIdentifier}");
             }
             else
             {
-                // Use ONLY the allowed waste types for this location
+                // Get allowed waste types for current location
                 List<string> allowedTypes = currentLocation.wasteTypes;
                 
                 if (allowedTypes == null || allowedTypes.Count == 0)
                 {
-                    Debug.LogError($"No waste types defined for location {currentLocation.displayName}!");
+                    Debug.LogError($"WasteGenerator: No waste types defined for location {currentLocation.displayName}!");
                     return CreateProceduralWasteItem();
                 }
 
-                // Pick a random allowed dimension type
+                // Pick a random allowed waste type
                 string selectedType = allowedTypes[UnityEngine.Random.Range(0, allowedTypes.Count)];
-                Debug.Log($"Generating waste of type: {selectedType} for location: {currentLocation.displayName}");
+                Debug.Log($"WasteGenerator: Selected waste type '{selectedType}' from allowed types: {string.Join(", ", allowedTypes)}");
                 
+                // Get random item of that type from database
                 itemData = database.GetRandomItemByOrigin(selectedType);
 
                 if (itemData == null)
                 {
-                    Debug.LogWarning($"No items found for dimension: {selectedType}. Creating procedural item.");
+                    Debug.LogWarning($"WasteGenerator: No items found for waste type '{selectedType}'. Creating procedural item.");
                     return CreateProceduralWasteItem(selectedType);
                 }
+                
+                Debug.Log($"WasteGenerator: Found item '{itemData.itemName}' of type '{itemData.dimensionalOrigin}'");
             }
 
-            // Generate rarity based on LOCATION's probability
+            // Generate rarity based on location's probability settings
             WasteRarity rarity = GenerateRarityForLocation(currentLocation);
+            Debug.Log($"WasteGenerator: Generated rarity {rarity} for location {currentLocation.displayName}");
 
             // Create the waste item
             Sprite itemSprite = GetSpriteForItem(itemData);
@@ -201,52 +221,87 @@ public class WasteGenerator : MonoBehaviour
             // Apply location modifiers
             ApplyLocationModifiers(wasteItem);
 
-            Debug.Log($"Generated {wasteItem.Rarity} waste item: {wasteItem.Name}, Origin: {wasteItem.DimensionalOrigin}");
+            Debug.Log($"WasteGenerator: Successfully generated {wasteItem.Rarity} waste item: {wasteItem.Name}, Origin: {wasteItem.DimensionalOrigin}");
 
             return wasteItem;
         }
         catch (Exception e)
         {
-            Debug.LogError($"Error generating waste item: {e.Message}\n{e.StackTrace}");
+            Debug.LogError($"WasteGenerator: Error generating waste item: {e.Message}\n{e.StackTrace}");
             return CreateProceduralWasteItem();
         }
     }
 
     private WasteRarity GenerateRarityForLocation(LocationData location)
     {
+        if (location == null)
+        {
+            Debug.LogWarning("WasteGenerator: GenerateRarityForLocation called with null location");
+            return WasteRarity.Common;
+        }
+
         float roll = UnityEngine.Random.value;
+        Debug.Log($"WasteGenerator: Rarity roll: {roll} for location {location.displayName}");
+
         float cumulative = 0f;
 
-        // Add each rarity chance in order
+        // Check each rarity tier in order
         cumulative += location.commonChance;
-        if (roll < cumulative) return WasteRarity.Common;
+        if (roll < cumulative) 
+        {
+            Debug.Log($"WasteGenerator: Roll {roll} < {cumulative} (common), returning Common");
+            return WasteRarity.Common;
+        }
 
         cumulative += location.uncommonChance;
-        if (roll < cumulative) return WasteRarity.Uncommon;
+        if (roll < cumulative)
+        {
+            Debug.Log($"WasteGenerator: Roll {roll} < {cumulative} (common + uncommon), returning Uncommon");
+            return WasteRarity.Uncommon;
+        }
 
         cumulative += location.rareChance;
-        if (roll < cumulative) return WasteRarity.Rare;
+        if (roll < cumulative)
+        {
+            Debug.Log($"WasteGenerator: Roll {roll} < {cumulative} (common + uncommon + rare), returning Rare");
+            return WasteRarity.Rare;
+        }
 
         cumulative += location.epicChance;
-        if (roll < cumulative) return WasteRarity.Epic;
+        if (roll < cumulative)
+        {
+            Debug.Log($"WasteGenerator: Roll {roll} < {cumulative} (common + uncommon + rare + epic), returning Epic");
+            return WasteRarity.Epic;
+        }
 
         cumulative += location.legendaryChance;
-        if (roll < cumulative) return WasteRarity.Legendary;
+        if (roll < cumulative)
+        {
+            Debug.Log($"WasteGenerator: Roll {roll} < {cumulative} (all), returning Legendary");
+            return WasteRarity.Legendary;
+        }
 
-        // Fallback to common if somehow none matched
+        // Fallback
+        Debug.Log($"WasteGenerator: Roll {roll} exceeded all thresholds, returning Common as fallback");
         return WasteRarity.Common;
     }
 
     private void ApplyLocationModifiers(WasteItem item)
     {
-        if (currentLocation == null) return;
+        if (currentLocation == null || item == null) return;
+
+        Debug.Log($"WasteGenerator: Applying location modifiers for {currentLocation.displayName}");
 
         // Apply value multiplier
+        float oldValue = item.RecyclingValue;
         item.RecyclingValue *= currentLocation.averageValueMultiplier;
+        Debug.Log($"WasteGenerator: Applied value multiplier {currentLocation.averageValueMultiplier} (was {oldValue}, now {item.RecyclingValue})");
 
         // Apply danger level effects
+        float oldContamination = item.ContaminationLevel;
         item.ContaminationLevel += currentLocation.dangerLevel * 0.2f;
         item.ContaminationLevel = Mathf.Clamp01(item.ContaminationLevel);
+        Debug.Log($"WasteGenerator: Applied danger level {currentLocation.dangerLevel} to contamination (was {oldContamination}, now {item.ContaminationLevel})");
 
         // Apply discovery rate bonus
         if (UnityEngine.Random.value < currentLocation.discoveryRateMultiplier * 0.1f)
@@ -255,7 +310,7 @@ public class WasteGenerator : MonoBehaviour
             int currentRarity = (int)item.Rarity;
             int upgradedRarity = Mathf.Min(currentRarity + 1, (int)WasteRarity.Legendary);
             item.Rarity = (WasteRarity)upgradedRarity;
-            Debug.Log($"Discovery bonus! Upgraded {item.Name} to {item.Rarity}");
+            Debug.Log($"WasteGenerator: Discovery bonus! Upgraded {item.Name} from {(WasteRarity)currentRarity} to {item.Rarity}");
         }
     }
 
@@ -280,36 +335,76 @@ public class WasteGenerator : MonoBehaviour
 
     private WasteItem CreateProceduralWasteItem(string dimensionName = null)
     {
-        // If no dimension name is provided, pick a random one
-        if (string.IsNullOrEmpty(dimensionName))
+        try
         {
-            dimensionName = GetRandomDimension().Name;
+            // If no dimension name is provided, try to get one from current location
+            if (string.IsNullOrEmpty(dimensionName) && currentLocation != null && currentLocation.wasteTypes.Count > 0)
+            {
+                dimensionName = currentLocation.wasteTypes[UnityEngine.Random.Range(0, currentLocation.wasteTypes.Count)];
+                Debug.Log($"WasteGenerator: No dimension specified, using random type from location: {dimensionName}");
+            }
+            // If still null, pick a random one from our dimension types
+            else if (string.IsNullOrEmpty(dimensionName))
+            {
+                dimensionName = GetRandomDimension().Name;
+                Debug.Log($"WasteGenerator: No dimension specified and no location available, using random type: {dimensionName}");
+            }
+
+            Debug.Log($"WasteGenerator: Creating procedural item for dimension: {dimensionName}");
+
+            // Get the dimension type configuration
+            DimensionType dimensionType = GetDimensionType(dimensionName);
+            if (dimensionType == null)
+            {
+                Debug.LogError($"WasteGenerator: Failed to find dimension type for {dimensionName}, creating new configuration");
+                dimensionType = new DimensionType { Name = dimensionName };
+                dimensionTypes.Add(dimensionType);
+            }
+
+            // Generate a random rarity based on the dimension's configuration
+            WasteRarity rarity = currentLocation != null ? 
+                GenerateRarityForLocation(currentLocation) : 
+                GenerateRarity(dimensionType);
+
+            // Generate a name using the correct dimension type
+            string itemName = GenerateDetailedName(dimensionName, rarity);
+            Debug.Log($"WasteGenerator: Generated procedural name: {itemName}");
+
+            // Create the waste item with the correct dimension type
+            WasteItem wasteItem = new WasteItem(
+                itemName,
+                dimensionName, // Use the exact dimension name that was provided
+                rarity,
+                dimensionType.DefaultIcon ?? defaultItemSprite
+            );
+
+            // Set additional properties
+            wasteItem.Description = GenerateDescription(dimensionName, rarity);
+            wasteItem.WasteStability = 0.5f + ((int)rarity * 0.1f) + UnityEngine.Random.Range(-0.1f, 0.1f);
+            wasteItem.ContaminationLevel = 0.5f - ((int)rarity * 0.1f) + UnityEngine.Random.Range(-0.1f, 0.1f);
+            wasteItem.RecyclingPotential = 0.3f + ((int)rarity * 0.15f) + UnityEngine.Random.Range(-0.1f, 0.1f);
+
+            // Apply location modifiers if we have a location
+            if (currentLocation != null)
+            {
+                ApplyLocationModifiers(wasteItem);
+            }
+
+            Debug.Log($"WasteGenerator: Successfully created procedural item: {wasteItem.Name}, Origin: {wasteItem.DimensionalOrigin}, Rarity: {wasteItem.Rarity}");
+
+            return wasteItem;
         }
-
-        // Generate a random rarity
-        WasteRarity rarity = GenerateRarity(GetDimensionType(dimensionName));
-
-        // Generate a name
-        string itemName = GenerateDetailedName(dimensionName, rarity);
-
-        // Create the waste item
-        WasteItem wasteItem = new WasteItem(
-            itemName,
-            dimensionName,
-            rarity,
-            defaultItemSprite
-        );
-
-        // Set additional properties
-        wasteItem.Description = GenerateDescription(dimensionName, rarity);
-        wasteItem.WasteStability = 0.5f + ((int)rarity * 0.1f) + UnityEngine.Random.Range(-0.1f, 0.1f);
-        wasteItem.ContaminationLevel = 0.5f - ((int)rarity * 0.1f) + UnityEngine.Random.Range(-0.1f, 0.1f);
-        wasteItem.RecyclingPotential = 0.3f + ((int)rarity * 0.15f) + UnityEngine.Random.Range(-0.1f, 0.1f);
-
-        // Add debug logging
-        Debug.Log($"Generated procedural waste item: {wasteItem.Name}, Origin: {wasteItem.DimensionalOrigin}, Has Icon: {wasteItem.Icon != null}");
-
-        return wasteItem;
+        catch (Exception e)
+        {
+            Debug.LogError($"WasteGenerator: Error in CreateProceduralWasteItem: {e.Message}\n{e.StackTrace}");
+            // Create an absolute fallback item
+            return new WasteItem(
+                "Corrupted Waste",
+                dimensionName ?? "Unknown",
+                WasteRarity.Common,
+                defaultItemSprite
+            );
+        }
     }
 
     private float RandomizeProperty(float baseValue)
@@ -319,21 +414,35 @@ public class WasteGenerator : MonoBehaviour
 
     private DimensionType GetDimensionType(string dimensionName)
     {
-        var dimension = dimensionTypes.Find(d => d.Name == dimensionName);
+        // First try exact match
+        var dimension = dimensionTypes.Find(d => d.Name.Equals(dimensionName, StringComparison.OrdinalIgnoreCase));
+        
         if (dimension == null)
         {
-            Debug.LogWarning($"Dimension type '{dimensionName}' not found. Using default dimension.");
-
-            // Create a default dimension if none exists
-            if (dimensionTypes.Count == 0)
-            {
-                var defaultDimension = new DimensionType() { Name = "Default" };
-                dimensionTypes.Add(defaultDimension);
-                return defaultDimension;
-            }
-
-            return dimensionTypes[0];
+            // Try partial match
+            dimension = dimensionTypes.Find(d => 
+                d.Name.Replace(" ", "").Equals(dimensionName.Replace(" ", ""), StringComparison.OrdinalIgnoreCase) ||
+                dimensionName.Contains(d.Name, StringComparison.OrdinalIgnoreCase) ||
+                d.Name.Contains(dimensionName, StringComparison.OrdinalIgnoreCase)
+            );
         }
+
+        if (dimension == null)
+        {
+            Debug.LogWarning($"WasteGenerator: Dimension type '{dimensionName}' not found. Creating new configuration.");
+
+            // Create a new dimension type with the exact name provided
+            dimension = new DimensionType() { 
+                Name = dimensionName,
+                CommonChance = 0.6f,
+                UncommonChance = 0.25f,
+                RareChance = 0.1f,
+                EpicChance = 0.04f,
+                LegendaryChance = 0.01f
+            };
+            dimensionTypes.Add(dimension);
+        }
+
         return dimension;
     }
 
@@ -367,11 +476,22 @@ public class WasteGenerator : MonoBehaviour
 
     private string GenerateDetailedName(string dimensionType, WasteRarity rarity)
     {
-        string[] rarityPrefixes = GetPrefixesForRarity(rarity);
-        string prefix = rarityPrefixes[UnityEngine.Random.Range(0, rarityPrefixes.Length)];
-        string suffix = suffixes[UnityEngine.Random.Range(0, suffixes.Length)];
+        try
+        {
+            string[] rarityPrefixes = GetPrefixesForRarity(rarity);
+            string prefix = rarityPrefixes[UnityEngine.Random.Range(0, rarityPrefixes.Length)];
+            string suffix = suffixes[UnityEngine.Random.Range(0, suffixes.Length)];
 
-        return $"{prefix} {dimensionType} {suffix}";
+            // Clean up the dimension type name if needed
+            string cleanDimensionType = dimensionType.Replace("Waste", "").Trim();
+            
+            return $"{prefix} {cleanDimensionType} {suffix}";
+        }
+        catch (Exception e)
+        {
+            Debug.LogError($"WasteGenerator: Error generating name: {e.Message}");
+            return $"Unknown {dimensionType} Fragment";
+        }
     }
 
     private string[] GetPrefixesForRarity(WasteRarity rarity)

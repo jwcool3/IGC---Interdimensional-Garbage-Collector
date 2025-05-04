@@ -13,6 +13,7 @@ public class WasteItemGenerator : EditorWindow
 
     private TextAsset jsonFile;
     private string outputFolder = "Assets/Resources/ItemDatabase";
+    private bool createByDimension = true; // Option to create items in dimension-specific folders
 
     private void OnGUI()
     {
@@ -20,6 +21,7 @@ public class WasteItemGenerator : EditorWindow
 
         jsonFile = (TextAsset)EditorGUILayout.ObjectField("Item Data JSON", jsonFile, typeof(TextAsset), false);
         outputFolder = EditorGUILayout.TextField("Output Folder", outputFolder);
+        createByDimension = EditorGUILayout.Toggle("Organize by Dimension", createByDimension);
 
         if (GUILayout.Button("Generate Items"))
         {
@@ -42,7 +44,7 @@ public class WasteItemGenerator : EditorWindow
     }
 
     [System.Serializable]
-    private class ItemDataList
+    private class ItemDataWrapper
     {
         public List<ItemData> items;
     }
@@ -65,8 +67,9 @@ public class WasteItemGenerator : EditorWindow
         List<ItemData> itemDataList;
         try
         {
-            // If your JSON is an array
-            itemDataList = JsonUtility.FromJson<ItemDataList>("{\"items\":" + jsonFile.text + "}").items;
+            // The JSON is an array, so we need to deserialize it properly
+            string jsonContent = jsonFile.text;
+            itemDataList = JsonUtility.FromJson<ItemDataWrapper>("{\"items\":" + jsonContent + "}").items;
         }
         catch (System.Exception e)
         {
@@ -76,6 +79,9 @@ public class WasteItemGenerator : EditorWindow
 
         int successCount = 0;
         int failCount = 0;
+
+        // Keep track of created directories
+        HashSet<string> createdDirectories = new HashSet<string>();
 
         foreach (var itemData in itemDataList)
         {
@@ -98,7 +104,6 @@ public class WasteItemGenerator : EditorWindow
                 Sprite itemSprite = AssetDatabase.LoadAssetAtPath<Sprite>(itemData.spritePath);
                 if (itemSprite != null)
                 {
-                    // Assuming you implemented Approach 3 to simplify sprite references
                     newItem.itemSprites = new Sprite[] { itemSprite };
                 }
                 else
@@ -106,8 +111,31 @@ public class WasteItemGenerator : EditorWindow
                     Debug.LogWarning($"Could not find sprite at path: {itemData.spritePath} for item {itemData.name}");
                 }
 
+                // Determine asset path
+                string assetPath;
+                if (createByDimension)
+                {
+                    // Create dimension-specific folder
+                    string dimensionFolder = itemData.dimensionalOrigin.Replace(" ", "");
+                    string fullDimensionPath = $"{outputFolder}/{dimensionFolder}Items";
+
+                    if (!createdDirectories.Contains(fullDimensionPath))
+                    {
+                        if (!Directory.Exists(fullDimensionPath))
+                        {
+                            Directory.CreateDirectory(fullDimensionPath);
+                        }
+                        createdDirectories.Add(fullDimensionPath);
+                    }
+
+                    assetPath = $"{fullDimensionPath}/{itemData.name}.asset";
+                }
+                else
+                {
+                    assetPath = $"{outputFolder}/{itemData.name}.asset";
+                }
+
                 // Save the asset
-                string assetPath = $"{outputFolder}/{itemData.name}.asset";
                 AssetDatabase.CreateAsset(newItem, assetPath);
                 successCount++;
             }
