@@ -112,42 +112,18 @@ public class WasteDisplay : MonoBehaviour
 
     private void RecycleWaste()
     {
-        if (currentWaste == null)
+        if (currentWaste == null || ResourceManager.Instance == null)
         {
-            Debug.LogError("Cannot recycle: currentWaste is null!");
+            Debug.LogError("Cannot recycle: currentWaste or ResourceManager.Instance is null!");
             return;
         }
 
-        if (ResourceManager.Instance == null)
-        {
-            Debug.LogError("Cannot recycle: ResourceManager.Instance is null!");
-            return;
-        }
-
-        Debug.Log($"Starting recycling process for: {currentWaste.Name}");
-        Debug.Log($"Before recycling - RP: {ResourceManager.Instance.RecyclingPoints}, " +
-                 $"DP: {ResourceManager.Instance.DimensionalPotential}, " +
-                 $"Contamination: {ResourceManager.Instance.ContaminationLevel}");
-
-        // Calculate resources based on waste properties
-        float recyclingValue = currentWaste.RecyclingPotential * 100f;
-        float dimensionalValue = currentWaste.WasteStability * 10f;
-        float contaminationEffect = currentWaste.ContaminationLevel * 0.05f;
-
-        Debug.Log($"Calculated values - Recycling: {recyclingValue:F1}, " +
-                 $"Dimensional: {dimensionalValue:F1}, " +
-                 $"Contamination: {contaminationEffect:F1}");
-
-        // Add resources
-        ResourceManager.Instance.AddRecyclingPoints(recyclingValue);
-        ResourceManager.Instance.AddDimensionalPotential(dimensionalValue);
-        ResourceManager.Instance.IncreaseContamination(contaminationEffect);
-
-        Debug.Log($"After recycling - RP: {ResourceManager.Instance.RecyclingPoints}, " +
-                 $"DP: {ResourceManager.Instance.DimensionalPotential}, " +
-                 $"Contamination: {ResourceManager.Instance.ContaminationLevel}");
-
-        // Remove item from inventory
+        Debug.Log($"Recycling {currentWaste.Name}");
+        
+        // Use the new processing method that considers location
+        ResourceManager.Instance.ProcessWasteItem(currentWaste);
+        
+        // Remove from inventory
         if (WasteInventoryManager.Instance != null)
         {
             WasteInventoryManager.Instance.RemoveWasteItem(currentWaste);
@@ -157,8 +133,8 @@ public class WasteDisplay : MonoBehaviour
         {
             Debug.LogError("WasteInventoryManager.Instance is null when trying to remove item!");
         }
-
-        // Destroy the waste item display
+        
+        // Destroy the display
         Debug.Log($"Destroying display for {currentWaste.Name}");
         Destroy(gameObject);
     }
