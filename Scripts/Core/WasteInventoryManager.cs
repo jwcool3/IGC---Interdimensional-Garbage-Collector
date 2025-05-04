@@ -55,6 +55,17 @@ public class WasteInventoryManager : MonoBehaviour
         return GetAllItems();
     }
 
+    // Get total number of waste items in inventory
+    public int GetInventoryCount()
+    {
+        int totalCount = 0;
+        foreach (var item in inventory.Values)
+        {
+            totalCount += item.Quantity;
+        }
+        return totalCount;
+    }
+
     // Add waste item to inventory
     public bool AddWasteItem(WasteItem item)
     {
@@ -189,12 +200,6 @@ public class WasteInventoryManager : MonoBehaviour
     public List<WasteItem> GetItemsByRarity(WasteRarity rarity)
     {
         return GetAllItems().FindAll(w => w.Rarity == rarity);
-    }
-
-    // Get inventory count
-    public int GetInventoryCount()
-    {
-        return inventory.Count;
     }
 
     // Get remaining capacity

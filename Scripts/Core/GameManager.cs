@@ -17,7 +17,17 @@ public class GameManager : MonoBehaviour
     private List<WasteItem> collectedWaste;
 
     // Game state
-    public int TotalWasteCollected => collectedWaste != null ? collectedWaste.Count : 0;
+    public int TotalWasteCollected 
+    { 
+        get 
+        {
+            if (WasteInventoryManager.Instance != null)
+            {
+                return WasteInventoryManager.Instance.GetInventoryCount();
+            }
+            return 0;
+        }
+    }
     public float TotalRecyclingPoints { get; private set; }
     public float FacilityContaminationLevel { get; private set; }
 
@@ -169,6 +179,12 @@ public class GameManager : MonoBehaviour
             // Notify systems about new waste
             OnWasteCollected?.Invoke(newWaste);
             OnWasteUpdated?.Invoke(WasteInventoryManager.Instance.GetAllWaste());
+
+            // Add this line to check for unlocks after each collection
+            if (LocationManager.Instance != null)
+            {
+                LocationManager.Instance.CheckForLocationUnlocks();
+            }
 
             // Update contamination
             UpdateFacilityContamination(newWaste);

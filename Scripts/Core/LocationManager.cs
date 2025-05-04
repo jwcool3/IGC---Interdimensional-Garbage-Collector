@@ -87,11 +87,24 @@ public class LocationManager : MonoBehaviour
 
     public void CheckForLocationUnlocks()
     {
+        Debug.Log($"Checking for location unlocks. Total waste collected: {GameManager.Instance.TotalWasteCollected}");
+        
         foreach (var location in allLocations)
         {
-            if (!unlockedLocations.Contains(location) && CanUnlockLocation(location))
+            if (!unlockedLocations.Contains(location))
             {
-                UnlockLocation(location);
+                Debug.Log($"Checking unlock requirements for {location.displayName}");
+                Debug.Log($"Required waste: {location.requiredWasteCollected}, Current: {GameManager.Instance.TotalWasteCollected}");
+                
+                if (CanUnlockLocation(location))
+                {
+                    Debug.Log($"Location {location.displayName} can be unlocked!");
+                    UnlockLocation(location);
+                }
+                else
+                {
+                    Debug.Log($"Location {location.displayName} cannot be unlocked yet");
+                }
             }
         }
     }
