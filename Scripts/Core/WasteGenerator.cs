@@ -18,6 +18,8 @@ public class WasteGenerator : MonoBehaviour
         public Sprite DefaultIcon;
     }
 
+    private LocationData currentLocation;
+
     [Header("Dimension Configuration")]
     [SerializeField] private List<DimensionType> dimensionTypes = new List<DimensionType>();
 
@@ -97,10 +99,20 @@ public class WasteGenerator : MonoBehaviour
         };
     }
 
+    private void UpdateCurrentLocation()
+    {
+        if (LocationManager.Instance != null)
+        {
+            currentLocation = LocationManager.Instance.GetCurrentLocation();
+        }
+    }
+
     public WasteItem GenerateWasteItem(string specificIdentifier = null)
     {
         try
         {
+            UpdateCurrentLocation();
+            
             // Validate database access
             WasteItemDatabase database = WasteItemDatabase.Instance;
             if (database == null)
@@ -118,20 +130,36 @@ public class WasteGenerator : MonoBehaviour
             }
             else
             {
-                // Random item selection
-                DimensionType dimension = GetRandomDimension();
-                itemData = database.GetRandomItemByOrigin(dimension.Name);
+                // Use location-specific waste types if available
+                List<string> allowedTypes = currentLocation?.wasteTypes ?? new List<string>();
+                
+                if (allowedTypes.Count > 0)
+                {
+                    // Pick a random allowed dimension type
+                    string selectedType = allowedTypes[UnityEngine.Random.Range(0, allowedTypes.Count)];
+                    itemData = database.GetRandomItemByOrigin(selectedType);
+                }
+                else
+                {
+                    // Fallback to any random dimension
+                    DimensionType dimension = GetRandomDimension();
+                    itemData = database.GetRandomItemByOrigin(dimension.Name);
+                }
 
                 // If no item was found, try to create a default one for this dimension
                 if (itemData == null)
                 {
-                    Debug.LogWarning($"No items found for dimension: {dimension.Name}. Creating a default item.");
-                    itemData = database.CreateDefaultItemForDimension(dimension.Name);
+                    string dimensionName = allowedTypes.Count > 0 ? 
+                        allowedTypes[UnityEngine.Random.Range(0, allowedTypes.Count)] : 
+                        GetRandomDimension().Name;
+                        
+                    Debug.LogWarning($"No items found for dimension: {dimensionName}. Creating a default item.");
+                    itemData = database.CreateDefaultItemForDimension(dimensionName);
 
                     // If still null, create a procedural item
                     if (itemData == null)
                     {
-                        return CreateProceduralWasteItem(dimension.Name);
+                        return CreateProceduralWasteItem(dimensionName);
                     }
                 }
             }
