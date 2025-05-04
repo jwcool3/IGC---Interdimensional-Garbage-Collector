@@ -213,7 +213,7 @@ public class WasteItemJsonConverter : EditorWindow
         // Special cases that should NOT be mapped to Earth
         if (normalizedOrigin.ToLower().Contains("temporal"))
             return "Temporal Anomaly";
-        
+
         if (normalizedOrigin.ToLower().Contains("quantum"))
             return "Quantum Residue";
 
@@ -229,12 +229,12 @@ public class WasteItemJsonConverter : EditorWindow
         if (normalizedOrigin.ToLower().Contains("ethereal"))
             return "Ethereal Plane";
 
-        if (normalizedOrigin.ToLower().Contains("archaeological") || 
+        if (normalizedOrigin.ToLower().Contains("archaeological") ||
             normalizedOrigin.ToLower().Contains("artifact"))
             return "Archaeological Waste";
 
         // Only map to Earth if it's explicitly Earth-related
-        if (normalizedOrigin.ToLower().Contains("earth") || 
+        if (normalizedOrigin.ToLower().Contains("earth") ||
             normalizedOrigin.ToLower().Contains("terrestrial") ||
             normalizedOrigin.ToLower().Contains("mundane"))
             return "Earth";

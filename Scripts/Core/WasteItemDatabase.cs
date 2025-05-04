@@ -35,6 +35,8 @@ public class WasteItemDatabase : MonoBehaviour
 
     private void InitializeDatabase()
     {
+        Debug.Log("Starting WasteItemDatabase initialization...");
+
         // Initialize dictionaries
         itemDictionary = new Dictionary<string, WasteItemData>();
         itemsByOrigin = new Dictionary<string, List<WasteItemData>>();
@@ -42,7 +44,13 @@ public class WasteItemDatabase : MonoBehaviour
         // Only load from Resources if not using manual assignment
         if (!useManualAssignment)
         {
+            Debug.Log("Loading items from Resources...");
             LoadItemsFromResources();
+        }
+        else
+        {
+            Debug.Log("Using manual assignment, skipping Resources loading");
+            Debug.Log($"Manual itemDatabase count: {itemDatabase.Count}");
         }
 
         // Populate dictionaries from itemDatabase
@@ -54,6 +62,34 @@ public class WasteItemDatabase : MonoBehaviour
         foreach (var dimension in itemsByOrigin.Keys)
         {
             Debug.Log($"Dimension: {dimension}, Items: {itemsByOrigin[dimension].Count}");
+            foreach (var item in itemsByOrigin[dimension])
+            {
+                Debug.Log($"  - [{dimension}] {item.itemName} (ID: {item.uniqueIdentifier})");
+            }
+        }
+
+        // Specifically check for Earth
+        if (itemsByOrigin.ContainsKey("Earth"))
+        {
+            Debug.Log($"Earth items found: {itemsByOrigin["Earth"].Count}");
+            foreach (var item in itemsByOrigin["Earth"])
+            {
+                Debug.Log($"  - Earth Item: {item.itemName} (ID: {item.uniqueIdentifier})");
+            }
+        }
+        else
+        {
+            Debug.LogError("No 'Earth' key found in itemsByOrigin dictionary!");
+        }
+
+        // Log fallback item info
+        if (fallbackItemData != null)
+        {
+            Debug.Log($"Fallback item configured: {fallbackItemData.itemName} (Origin: {fallbackItemData.dimensionalOrigin})");
+        }
+        else
+        {
+            Debug.LogWarning("No fallback item configured!");
         }
     }
 
@@ -61,21 +97,61 @@ public class WasteItemDatabase : MonoBehaviour
     {
         try
         {
+            Debug.Log("Attempting to load items from Resources...");
+
+            // Try loading from the root ItemDatabase folder
             WasteItemData[] loadedItems = Resources.LoadAll<WasteItemData>("ItemDatabase");
             Debug.Log($"Loaded {loadedItems.Length} items from Resources/ItemDatabase");
 
+            // Also try loading from specific subfolders
+            WasteItemData[] earthItems = Resources.LoadAll<WasteItemData>("ItemDatabase/Earth");
+            Debug.Log($"Loaded {earthItems.Length} items from Resources/ItemDatabase/Earth");
+
+            // Log details of loaded items
             if (loadedItems != null && loadedItems.Length > 0)
             {
+                Debug.Log("Items found in root ItemDatabase folder:");
+                foreach (var item in loadedItems)
+                {
+                    Debug.Log($"  - {item.itemName} (Origin: {item.dimensionalOrigin})");
+                }
                 itemDatabase.AddRange(loadedItems);
             }
             else
             {
-                Debug.LogWarning("No items loaded from Resources/ItemDatabase. Make sure your items are in the correct folder.");
+                Debug.LogWarning("No items loaded from Resources/ItemDatabase");
+            }
+
+            // Add Earth items if any were found
+            if (earthItems != null && earthItems.Length > 0)
+            {
+                Debug.Log("Items found in Earth subfolder:");
+                foreach (var item in earthItems)
+                {
+                    Debug.Log($"  - {item.itemName} (Origin: {item.dimensionalOrigin})");
+                }
+                itemDatabase.AddRange(earthItems);
+            }
+
+            // Log the final count
+            Debug.Log($"Total items loaded into database: {itemDatabase.Count}");
+
+            // Verify items have required fields
+            foreach (var item in itemDatabase)
+            {
+                if (string.IsNullOrEmpty(item.dimensionalOrigin))
+                {
+                    Debug.LogError($"Item {item.itemName} has no dimensional origin!");
+                }
+                if (string.IsNullOrEmpty(item.uniqueIdentifier))
+                {
+                    Debug.LogError($"Item {item.itemName} has no unique identifier!");
+                }
             }
         }
         catch (Exception e)
         {
-            Debug.LogError($"Error loading items from Resources: {e.Message}");
+            Debug.LogError($"Error loading items from Resources: {e.Message}\nStack trace: {e.StackTrace}");
         }
     }
 
