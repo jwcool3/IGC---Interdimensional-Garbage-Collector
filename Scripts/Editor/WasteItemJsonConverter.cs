@@ -75,10 +75,8 @@ public class WasteItemJsonConverter : EditorWindow
     {
         try
         {
-            // Parse the JSON
+            // Parse the JSON using our helper
             string jsonContent = inputJsonFile.text;
-
-            // Parse the JSON array directly
             List<ItemData> itemList = WasteItemJsonHelper.FromJson<ItemData>(jsonContent);
 
             // Create dictionaries for converted items by dimension
@@ -146,21 +144,8 @@ public class WasteItemJsonConverter : EditorWindow
         for (int i = 0; i < items.Count; i++)
         {
             string itemJson = JsonUtility.ToJson(items[i], true);
-
-            // Add proper indentation
-            string[] lines = itemJson.Split('\n');
-            for (int j = 0; j < lines.Length; j++)
-            {
-                if (j == 0)
-                    sb.Append("  ");
-                else
-                    sb.Append("    ");
-
-                sb.Append(lines[j]);
-
-                if (j < lines.Length - 1)
-                    sb.AppendLine();
-            }
+            sb.Append("  ");
+            sb.Append(itemJson);
 
             if (i < items.Count - 1)
                 sb.AppendLine(",");
@@ -174,53 +159,88 @@ public class WasteItemJsonConverter : EditorWindow
 
     private string ConvertDimensionalOrigin(string originalOrigin)
     {
-        // Map your existing dimensional origins to the ones used in your location system
-        string lowerOrigin = originalOrigin.ToLower();
-
-        // First handle the special cases that need to be mapped to Earth
-        if (lowerOrigin.Contains("anomaly") ||
-            lowerOrigin.Contains("temporal") ||
-            lowerOrigin.Contains("material") ||
-            lowerOrigin.Contains("erosion") ||
-            lowerOrigin.Contains("stasis") ||
-            lowerOrigin.Contains("echo") ||
-            lowerOrigin.Contains("containment") ||
-            lowerOrigin.Contains("residue") ||
-            lowerOrigin == "dimensional anomaly")
+        if (string.IsNullOrEmpty(originalOrigin))
         {
-            return "Earth"; // Map various anomalies to Earth for now
+            Debug.LogWarning("Empty dimensional origin, defaulting to Earth");
+            return "Earth";
         }
 
-        switch (lowerOrigin)
+        // Normalize the input
+        string normalizedOrigin = originalOrigin.Trim();
+
+        // Direct matches (case-insensitive)
+        switch (normalizedOrigin.ToLower())
         {
-            case "technological waste":
-                return "Technological Waste";
-
-            case "biological remnants":
-                return "Biological Remnants";
-
-            case "quantum residue":
-                return "Quantum Residue";
-
-            case "philosophical byproducts":
-                return "Philosophical Byproducts";
-
-            case "cosmic debris":
-                return "Cosmic Debris";
-
-            case "ethereal plane":
-                return "Ethereal Plane";
-
-            case "archaeological waste":
-                return "Archaeological Waste";
-
             case "earth":
                 return "Earth";
 
-            default:
-                // Default to Earth for unrecognized origins
-                Debug.LogWarning($"Unknown dimensional origin: {originalOrigin}, defaulting to Earth");
-                return "Earth";
+            case "technological waste":
+            case "tech waste":
+            case "technology":
+                return "Technological Waste";
+
+            case "biological remnants":
+            case "bio waste":
+            case "biological":
+                return "Biological Remnants";
+
+            case "quantum residue":
+            case "quantum waste":
+            case "quantum":
+                return "Quantum Residue";
+
+            case "philosophical byproducts":
+            case "philosophical waste":
+            case "philosophy":
+                return "Philosophical Byproducts";
+
+            case "cosmic debris":
+            case "cosmic waste":
+            case "cosmic":
+                return "Cosmic Debris";
+
+            case "ethereal plane":
+            case "ethereal waste":
+            case "ethereal":
+                return "Ethereal Plane";
+
+            case "archaeological waste":
+            case "archaeological":
+            case "artifacts":
+                return "Archaeological Waste";
         }
+
+        // Special cases that should NOT be mapped to Earth
+        if (normalizedOrigin.ToLower().Contains("temporal"))
+            return "Temporal Anomaly";
+        
+        if (normalizedOrigin.ToLower().Contains("quantum"))
+            return "Quantum Residue";
+
+        if (normalizedOrigin.ToLower().Contains("tech"))
+            return "Technological Waste";
+
+        if (normalizedOrigin.ToLower().Contains("bio"))
+            return "Biological Remnants";
+
+        if (normalizedOrigin.ToLower().Contains("cosmic"))
+            return "Cosmic Debris";
+
+        if (normalizedOrigin.ToLower().Contains("ethereal"))
+            return "Ethereal Plane";
+
+        if (normalizedOrigin.ToLower().Contains("archaeological") || 
+            normalizedOrigin.ToLower().Contains("artifact"))
+            return "Archaeological Waste";
+
+        // Only map to Earth if it's explicitly Earth-related
+        if (normalizedOrigin.ToLower().Contains("earth") || 
+            normalizedOrigin.ToLower().Contains("terrestrial") ||
+            normalizedOrigin.ToLower().Contains("mundane"))
+            return "Earth";
+
+        // Log warning for unknown types
+        Debug.LogWarning($"Unknown dimensional origin: {originalOrigin}, creating new dimension type");
+        return originalOrigin; // Keep original if unknown
     }
 }
