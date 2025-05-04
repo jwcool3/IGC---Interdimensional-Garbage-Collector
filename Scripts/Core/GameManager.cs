@@ -17,9 +17,9 @@ public class GameManager : MonoBehaviour
     private List<WasteItem> collectedWaste;
 
     // Game state
-    public int TotalWasteCollected 
-    { 
-        get 
+    public int TotalWasteCollected
+    {
+        get
         {
             if (WasteInventoryManager.Instance != null)
             {

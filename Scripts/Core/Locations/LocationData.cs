@@ -26,14 +26,14 @@ public class LocationData : ScriptableObject
 
     [Header("Waste Configuration")]
     public List<string> wasteTypes = new List<string>();  // Dimensional types allowed
-    
+
     [Header("Rarity Configuration")]
     [Range(0f, 1f)] public float commonChance = 0.7f;
     [Range(0f, 1f)] public float uncommonChance = 0.2f;
     [Range(0f, 1f)] public float rareChance = 0.07f;
     [Range(0f, 1f)] public float epicChance = 0.025f;
     [Range(0f, 1f)] public float legendaryChance = 0.005f;
-    
+
     [Header("Special Properties")]
     public bool isStartingLocation = false;
     public string[] specialDiscoveryItems;  // Special items that can be found here

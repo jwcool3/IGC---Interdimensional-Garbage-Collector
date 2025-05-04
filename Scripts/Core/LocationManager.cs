@@ -33,7 +33,7 @@ public class LocationManager : MonoBehaviour
     {
         // Load all locations from Resources
         allLocations.AddRange(Resources.LoadAll<LocationData>("Locations"));
-        
+
         // Find and set the starting location
         foreach (var location in allLocations)
         {
@@ -54,14 +54,14 @@ public class LocationManager : MonoBehaviour
     public bool TryChangeLocation(string locationID)
     {
         LocationData newLocation = GetLocationByID(locationID);
-        
+
         if (newLocation != null && unlockedLocations.Contains(newLocation))
         {
             currentLocation = newLocation;
             OnLocationChanged?.Invoke(currentLocation);
             return true;
         }
-        
+
         return false;
     }
 
@@ -88,14 +88,14 @@ public class LocationManager : MonoBehaviour
     public void CheckForLocationUnlocks()
     {
         Debug.Log($"Checking for location unlocks. Total waste collected: {GameManager.Instance.TotalWasteCollected}");
-        
+
         foreach (var location in allLocations)
         {
             if (!unlockedLocations.Contains(location))
             {
                 Debug.Log($"Checking unlock requirements for {location.displayName}");
                 Debug.Log($"Required waste: {location.requiredWasteCollected}, Current: {GameManager.Instance.TotalWasteCollected}");
-                
+
                 if (CanUnlockLocation(location))
                 {
                     Debug.Log($"Location {location.displayName} can be unlocked!");

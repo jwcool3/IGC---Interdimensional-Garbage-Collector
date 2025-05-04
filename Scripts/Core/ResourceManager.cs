@@ -168,15 +168,15 @@ public class ResourceManager : MonoBehaviour
         // Calculate base values
         float baseRecyclingPoints = item.RecyclingValue * 10f;
         float baseDimensionalPotential = item.RecyclingPotential * 5f;
-        
+
         // Apply location multiplier
         float finalRecyclingPoints = baseRecyclingPoints * locationMultiplier;
         float finalDimensionalPotential = baseDimensionalPotential * locationMultiplier;
-        
+
         // Add resources
         AddRecyclingPoints(finalRecyclingPoints);
         AddDimensionalPotential(finalDimensionalPotential);
-        
+
         // Add contamination (affected by danger level)
         float contaminationAmount = item.ContaminationLevel * 0.1f;
         if (currentLocation != null)
@@ -184,7 +184,7 @@ public class ResourceManager : MonoBehaviour
             contaminationAmount += currentLocation.dangerLevel * 0.05f;
         }
         IncreaseContamination(contaminationAmount);
-        
+
         Debug.Log($"Processed {item.Name} for {finalRecyclingPoints:F1} RP (location multiplier: {locationMultiplier:F1}x)");
     }
 }

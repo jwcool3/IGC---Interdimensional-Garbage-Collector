@@ -92,13 +92,13 @@ public class WasteGenerator : MonoBehaviour
         }
 
         InitializeGenerationData();
-        
+
         // Add default sprite loading code
         if (defaultItemSprite == null)
         {
             // Try to load a default sprite
             defaultItemSprite = Resources.Load<Sprite>("DefaultWasteIcon");
-            
+
             // If still null, create a fallback
             if (defaultItemSprite == null)
             {
@@ -160,7 +160,7 @@ public class WasteGenerator : MonoBehaviour
             {
                 // Use ONLY the allowed waste types for this location
                 List<string> allowedTypes = currentLocation.wasteTypes;
-                
+
                 if (allowedTypes == null || allowedTypes.Count == 0)
                 {
                     Debug.LogError($"No waste types defined for location {currentLocation.displayName}!");
@@ -170,7 +170,7 @@ public class WasteGenerator : MonoBehaviour
                 // Pick a random allowed dimension type
                 string selectedType = allowedTypes[UnityEngine.Random.Range(0, allowedTypes.Count)];
                 Debug.Log($"Generating waste of type: {selectedType} for location: {currentLocation.displayName}");
-                
+
                 itemData = database.GetRandomItemByOrigin(selectedType);
 
                 if (itemData == null)

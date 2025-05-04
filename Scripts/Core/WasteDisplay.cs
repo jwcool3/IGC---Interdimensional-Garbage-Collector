@@ -119,10 +119,10 @@ public class WasteDisplay : MonoBehaviour
         }
 
         Debug.Log($"Recycling {currentWaste.Name}");
-        
+
         // Use the new processing method that considers location
         ResourceManager.Instance.ProcessWasteItem(currentWaste);
-        
+
         // Remove from inventory
         if (WasteInventoryManager.Instance != null)
         {
@@ -133,7 +133,7 @@ public class WasteDisplay : MonoBehaviour
         {
             Debug.LogError("WasteInventoryManager.Instance is null when trying to remove item!");
         }
-        
+
         // Destroy the display
         Debug.Log($"Destroying display for {currentWaste.Name}");
         Destroy(gameObject);
