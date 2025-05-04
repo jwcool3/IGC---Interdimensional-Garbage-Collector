@@ -20,7 +20,7 @@ public class LocationButton : MonoBehaviour, IPointerEnterHandler, IPointerExitH
     {
         if (button == null)
             button = GetComponent<Button>();
-        
+
         button.onClick.AddListener(OnButtonClick);
     }
 
@@ -36,7 +36,7 @@ public class LocationButton : MonoBehaviour, IPointerEnterHandler, IPointerExitH
     private void UpdateDisplay()
     {
         locationNameText.text = locationData.displayName;
-        
+
         if (locationIcon != null && locationData.locationIcon != null)
             locationIcon.sprite = locationData.locationIcon;
 

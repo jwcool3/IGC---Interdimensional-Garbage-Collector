@@ -60,13 +60,13 @@ public class WasteGenerator : MonoBehaviour
         }
 
         InitializeGenerationData();
-        
+
         // Add default sprite loading code
         if (defaultItemSprite == null)
         {
             // Try to load a default sprite
             defaultItemSprite = Resources.Load<Sprite>("DefaultWasteIcon");
-            
+
             // If still null, create a fallback
             if (defaultItemSprite == null)
             {
@@ -112,7 +112,7 @@ public class WasteGenerator : MonoBehaviour
         try
         {
             UpdateCurrentLocation();
-            
+
             // Validate database access
             WasteItemDatabase database = WasteItemDatabase.Instance;
             if (database == null)
@@ -132,7 +132,7 @@ public class WasteGenerator : MonoBehaviour
             {
                 // Use location-specific waste types if available
                 List<string> allowedTypes = currentLocation?.wasteTypes ?? new List<string>();
-                
+
                 if (allowedTypes.Count > 0)
                 {
                     // Pick a random allowed dimension type
@@ -149,10 +149,10 @@ public class WasteGenerator : MonoBehaviour
                 // If no item was found, try to create a default one for this dimension
                 if (itemData == null)
                 {
-                    string dimensionName = allowedTypes.Count > 0 ? 
-                        allowedTypes[UnityEngine.Random.Range(0, allowedTypes.Count)] : 
+                    string dimensionName = allowedTypes.Count > 0 ?
+                        allowedTypes[UnityEngine.Random.Range(0, allowedTypes.Count)] :
                         GetRandomDimension().Name;
-                        
+
                     Debug.LogWarning($"No items found for dimension: {dimensionName}. Creating a default item.");
                     itemData = database.CreateDefaultItemForDimension(dimensionName);
 

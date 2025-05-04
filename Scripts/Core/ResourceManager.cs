@@ -5,25 +5,25 @@ public class ResourceManager : MonoBehaviour
 {
     // Singleton pattern
     public static ResourceManager Instance { get; private set; }
-    
+
     // Resource values
     private float recyclingPoints;
     private float dimensionalPotential;
     private float contamination;
-    
+
     // Resource limits
     [SerializeField] private float maxContamination = 1.0f;
-    
+
     // Events for UI updates
     public event Action<float> OnRecyclingPointsChanged;
     public event Action<float> OnDimensionalPotentialChanged;
     public event Action<float> OnContaminationChanged;
-    
+
     // Properties with public getters
     public float RecyclingPoints => recyclingPoints;
     public float DimensionalPotential => dimensionalPotential;
     public float ContaminationLevel => contamination;
-    
+
     private void Awake()
     {
         // Singleton setup
@@ -37,7 +37,7 @@ public class ResourceManager : MonoBehaviour
             Destroy(gameObject);
         }
     }
-    
+
     // Add recycling points and trigger event
     public void AddRecyclingPoints(float amount)
     {
@@ -46,11 +46,11 @@ public class ResourceManager : MonoBehaviour
             Debug.LogWarning($"Attempting to add negative recycling points: {amount}");
             return;
         }
-        
+
         float previousValue = recyclingPoints;
         recyclingPoints += amount;
         Debug.Log($"Adding recycling points: {amount:F1} (Previous: {previousValue:F1}, New: {recyclingPoints:F1})");
-        
+
         if (OnRecyclingPointsChanged != null)
         {
             OnRecyclingPointsChanged.Invoke(recyclingPoints);
@@ -61,7 +61,7 @@ public class ResourceManager : MonoBehaviour
             Debug.LogWarning("No listeners for OnRecyclingPointsChanged event");
         }
     }
-    
+
     // Spend recycling points if enough are available
     public bool SpendRecyclingPoints(float amount)
     {
@@ -73,7 +73,7 @@ public class ResourceManager : MonoBehaviour
         }
         return false;
     }
-    
+
     // Add dimensional potential and trigger event
     public void AddDimensionalPotential(float amount)
     {
@@ -82,11 +82,11 @@ public class ResourceManager : MonoBehaviour
             Debug.LogWarning($"Attempting to add negative dimensional potential: {amount}");
             return;
         }
-        
+
         float previousValue = dimensionalPotential;
         dimensionalPotential += amount;
         Debug.Log($"Adding dimensional potential: {amount:F1} (Previous: {previousValue:F1}, New: {dimensionalPotential:F1})");
-        
+
         if (OnDimensionalPotentialChanged != null)
         {
             OnDimensionalPotentialChanged.Invoke(dimensionalPotential);
@@ -97,7 +97,7 @@ public class ResourceManager : MonoBehaviour
             Debug.LogWarning("No listeners for OnDimensionalPotentialChanged event");
         }
     }
-    
+
     // Spend dimensional potential if enough is available
     public bool SpendDimensionalPotential(float amount)
     {
@@ -109,7 +109,7 @@ public class ResourceManager : MonoBehaviour
         }
         return false;
     }
-    
+
     // Increase contamination level
     public void IncreaseContamination(float amount)
     {
@@ -118,11 +118,11 @@ public class ResourceManager : MonoBehaviour
             Debug.LogWarning($"Attempting to increase contamination by negative amount: {amount}");
             return;
         }
-        
+
         float previousValue = contamination;
         contamination = Mathf.Min(contamination + amount, maxContamination);
         Debug.Log($"Increasing contamination: {amount:F1} (Previous: {previousValue:F1}, New: {contamination:F1}, Max: {maxContamination:F1})");
-        
+
         if (OnContaminationChanged != null)
         {
             OnContaminationChanged.Invoke(contamination);
@@ -133,7 +133,7 @@ public class ResourceManager : MonoBehaviour
             Debug.LogWarning("No listeners for OnContaminationChanged event");
         }
     }
-    
+
     // Decrease contamination level
     public void DecreaseContamination(float amount)
     {

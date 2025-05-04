@@ -84,7 +84,7 @@ public class WasteInventoryUI : MonoBehaviour
         }
 
         GameObject display = Instantiate(itemPrefab, itemContainer);
-        WasteItemDisplay itemDisplay = display.GetComponent<WasteItemDisplay>();
+        WasteDisplay itemDisplay = display.GetComponent<WasteDisplay>();
 
         if (itemDisplay != null)
         {

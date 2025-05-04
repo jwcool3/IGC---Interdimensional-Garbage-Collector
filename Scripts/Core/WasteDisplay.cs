@@ -128,25 +128,25 @@ public class WasteDisplay : MonoBehaviour
         Debug.Log($"Before recycling - RP: {ResourceManager.Instance.RecyclingPoints}, " +
                  $"DP: {ResourceManager.Instance.DimensionalPotential}, " +
                  $"Contamination: {ResourceManager.Instance.ContaminationLevel}");
-            
+
         // Calculate resources based on waste properties
         float recyclingValue = currentWaste.RecyclingPotential * 100f;
         float dimensionalValue = currentWaste.WasteStability * 10f;
         float contaminationEffect = currentWaste.ContaminationLevel * 0.05f;
-        
+
         Debug.Log($"Calculated values - Recycling: {recyclingValue:F1}, " +
                  $"Dimensional: {dimensionalValue:F1}, " +
                  $"Contamination: {contaminationEffect:F1}");
-        
+
         // Add resources
         ResourceManager.Instance.AddRecyclingPoints(recyclingValue);
         ResourceManager.Instance.AddDimensionalPotential(dimensionalValue);
         ResourceManager.Instance.IncreaseContamination(contaminationEffect);
-        
+
         Debug.Log($"After recycling - RP: {ResourceManager.Instance.RecyclingPoints}, " +
                  $"DP: {ResourceManager.Instance.DimensionalPotential}, " +
                  $"Contamination: {ResourceManager.Instance.ContaminationLevel}");
-        
+
         // Remove item from inventory
         if (WasteInventoryManager.Instance != null)
         {
@@ -157,7 +157,7 @@ public class WasteDisplay : MonoBehaviour
         {
             Debug.LogError("WasteInventoryManager.Instance is null when trying to remove item!");
         }
-        
+
         // Destroy the waste item display
         Debug.Log($"Destroying display for {currentWaste.Name}");
         Destroy(gameObject);
@@ -168,9 +168,9 @@ public class WasteDisplay : MonoBehaviour
         // Return different colors based on dimension type
         if (string.IsNullOrEmpty(dimensionType))
             return Color.gray;
-            
+
         dimensionType = dimensionType.ToLower();
-        
+
         if (dimensionType.Contains("technological"))
             return new Color(0.2f, 0.4f, 0.8f); // Blue
         else if (dimensionType.Contains("biological"))
@@ -196,7 +196,7 @@ public class WasteDisplay : MonoBehaviour
             recycleButton.onClick.RemoveListener(RecycleWaste);
         }
     }
-    
+
     public void SetIcon(Sprite icon)
     {
         if (iconImage != null)
