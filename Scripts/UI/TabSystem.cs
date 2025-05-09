@@ -131,6 +131,22 @@ public class TabSystem : MonoBehaviour
     
     public void ShowLocationsTab()
     {
+        // Switch to the location tab
         SwitchToTab(locationsPanel, locationsButton);
+        
+        // Refresh the location display with current location
+        LocationImageDisplay display = locationsPanel.GetComponentInChildren<LocationImageDisplay>();
+        LocationSelectionManager manager = locationsPanel.GetComponentInChildren<LocationSelectionManager>();
+        
+        if (display != null && LocationManager.Instance != null)
+        {
+            display.UpdateLocationDisplay(LocationManager.Instance.GetCurrentLocation());
+        }
+        
+        if (manager != null)
+        {
+            // Refresh selection
+            manager.SelectLocation(LocationManager.Instance.GetCurrentLocation());
+        }
     }
 }

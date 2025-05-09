@@ -34,6 +34,9 @@ public class LocationManager : MonoBehaviour
         // Load all locations from Resources
         allLocations.AddRange(Resources.LoadAll<LocationData>("Locations"));
 
+        // Load location images
+        LoadLocationImages();
+
         // Find and set the starting location
         foreach (var location in allLocations)
         {
@@ -48,6 +51,42 @@ public class LocationManager : MonoBehaviour
         if (currentLocation == null)
         {
             Debug.LogError("No starting location found!");
+        }
+    }
+
+    private void LoadLocationImages()
+    {
+        foreach (var location in allLocations)
+        {
+            if (location.locationIcon == null)
+            {
+                // Try to load image from Resources
+                string imagePath = $"Locations/Images/{location.locationID}";
+                Sprite locationSprite = Resources.Load<Sprite>(imagePath);
+                
+                if (locationSprite != null)
+                {
+                    location.locationIcon = locationSprite;
+                }
+                else
+                {
+                    Debug.LogWarning($"No image found for location: {location.displayName}");
+                    // Assign default image
+                    location.locationIcon = Resources.Load<Sprite>("Locations/Images/Default");
+                }
+            }
+
+            // Load background image if not set
+            if (location.backgroundImage == null)
+            {
+                string bgPath = $"Locations/Images/{location.locationID}_bg";
+                Sprite bgSprite = Resources.Load<Sprite>(bgPath);
+                
+                if (bgSprite != null)
+                {
+                    location.backgroundImage = bgSprite;
+                }
+            }
         }
     }
 

@@ -10,6 +10,7 @@ public class LocationData : ScriptableObject
     [TextArea(3, 5)]
     public string description;
     public Sprite locationIcon;
+    public Sprite backgroundImage;  // Optional larger background for location screen
 
     [Header("Unlock Requirements")]
     public int requiredWasteCollected = 0;
