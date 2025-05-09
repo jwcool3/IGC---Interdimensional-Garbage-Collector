@@ -13,6 +13,8 @@ public class GameSetupManager : MonoBehaviour
     [SerializeField] private GameObject wasteInventoryManagerPrefab;
     [SerializeField] private GameObject gameManagerPrefab;
     [SerializeField] private GameObject uiManagerPrefab;
+    [SerializeField] private GameObject probeManagerPrefab;
+    [SerializeField] private GameObject probeUpgradeManagerPrefab;
 
     [Header("Configuration")]
     [SerializeField] private bool initializeOnStart = true;
@@ -49,25 +51,23 @@ public class GameSetupManager : MonoBehaviour
     {
         Debug.Log("Starting game system initialization sequence...");
 
-        // Step 1: Create WasteItemDatabase
+        // Step 1: Create WasteItemDatabase (core dependency)
         yield return CreateSystem("WasteItemDatabase", wasteItemDatabasePrefab, () => WasteItemDatabase.Instance == null);
 
-        // Step 2: Create ResourceManager
+        // Create core managers first
         yield return CreateSystem("ResourceManager", resourceManagerPrefab, () => ResourceManager.Instance == null);
-
-        // Step 3: Create FacilityManager
         yield return CreateSystem("FacilityManager", facilityManagerPrefab, () => FacilityManager.Instance == null);
-
-        // Step 3.5: Create LocationManager
         yield return CreateSystem("LocationManager", null, () => LocationManager.Instance == null);
-
-        // Step 4: Create WasteInventoryManager
         yield return CreateSystem("WasteInventoryManager", wasteInventoryManagerPrefab, () => WasteInventoryManager.Instance == null);
-
-        // Step 5: Create GameManager
+        yield return CreateSystem("ProbeManager", probeManagerPrefab, () => ProbeManager.Instance == null);
+        yield return CreateSystem("ProbeUpgradeManager", probeUpgradeManagerPrefab, () => ProbeUpgradeManager.Instance == null);
+        
+        // Wait to ensure managers are initialized
+        Debug.Log("Core managers created, waiting for initialization...");
+        yield return new WaitForSeconds(0.2f);
+        
+        // Now initialize UI and other systems
         yield return CreateSystem("GameManager", gameManagerPrefab, () => GameManager.Instance == null);
-
-        // Step 6: Create UIManager
         yield return CreateSystem("UIManager", uiManagerPrefab, () => UIManager.Instance == null);
 
         Debug.Log("Game system initialization complete!");
@@ -112,6 +112,12 @@ public class GameSetupManager : MonoBehaviour
                         break;
                     case "UIManager":
                         systemObject.AddComponent<UIManager>();
+                        break;
+                    case "ProbeManager":
+                        systemObject.AddComponent<ProbeManager>();
+                        break;
+                    case "ProbeUpgradeManager":
+                        systemObject.AddComponent<ProbeUpgradeManager>();
                         break;
                 }
             }

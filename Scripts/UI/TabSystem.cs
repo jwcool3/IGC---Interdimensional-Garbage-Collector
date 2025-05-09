@@ -7,11 +7,13 @@ public class TabSystem : MonoBehaviour
     [SerializeField] private Button wasteCollectionButton;
     [SerializeField] private Button upgradesButton;
     [SerializeField] private Button locationsButton;
+    [SerializeField] private Button probesTabButton;
     
     [Header("Tab Content")]
     [SerializeField] private GameObject inventoryPanel;
     [SerializeField] private GameObject upgradesPanel;
     [SerializeField] private GameObject locationsPanel;
+    [SerializeField] private GameObject probesPanel;
     
     [Header("Persistent UI")]
     [SerializeField] private GameObject actionPanel; // Always visible
@@ -38,6 +40,9 @@ public class TabSystem : MonoBehaviour
             
         if (locationsButton != null)
             locationsButton.onClick.AddListener(() => SwitchToTab(locationsPanel, locationsButton));
+
+        if (probesTabButton != null)
+            probesTabButton.onClick.AddListener(() => SwitchToTab(probesPanel, probesTabButton));
         
         // Activate default tab (waste collection)
         if (inventoryPanel != null && wasteCollectionButton != null)
@@ -80,6 +85,7 @@ public class TabSystem : MonoBehaviour
         if (inventoryPanel != null) inventoryPanel.SetActive(false);
         if (upgradesPanel != null) upgradesPanel.SetActive(false);
         if (locationsPanel != null) locationsPanel.SetActive(false);
+        if (probesPanel != null) probesPanel.SetActive(false);
     }
     
     private void EnsurePersistentUIActive()
@@ -92,6 +98,7 @@ public class TabSystem : MonoBehaviour
         if (wasteCollectionButton != null) wasteCollectionButton.gameObject.SetActive(true);
         if (upgradesButton != null) upgradesButton.gameObject.SetActive(true);
         if (locationsButton != null) locationsButton.gameObject.SetActive(true);
+        if (probesTabButton != null) probesTabButton.gameObject.SetActive(true);
     }
     
     private void UpdateButtonVisuals(Button newActiveButton)
@@ -148,5 +155,10 @@ public class TabSystem : MonoBehaviour
             // Refresh selection
             manager.SelectLocation(LocationManager.Instance.GetCurrentLocation());
         }
+    }
+    
+    public void ShowProbesTab()
+    {
+        SwitchToTab(probesPanel, probesTabButton);
     }
 }
