@@ -94,14 +94,31 @@ public class LocationManager : MonoBehaviour
     {
         LocationData newLocation = GetLocationByID(locationID);
 
-        if (newLocation != null && unlockedLocations.Contains(newLocation))
+        if (newLocation == null)
         {
-            currentLocation = newLocation;
-            OnLocationChanged?.Invoke(currentLocation);
-            return true;
+            Debug.LogError($"Location with ID '{locationID}' not found!");
+            return false;
         }
 
-        return false;
+        if (!unlockedLocations.Contains(newLocation))
+        {
+            Debug.LogWarning($"Location '{newLocation.displayName}' is not yet unlocked!");
+            return false;
+        }
+
+        // Check if this is actually a change
+        if (currentLocation == newLocation)
+        {
+            Debug.Log($"Already at location: {newLocation.displayName}");
+            return false;
+        }
+
+        // Only proceed if it's a real location change
+        LocationData oldLocation = currentLocation;
+        currentLocation = newLocation;
+        Debug.Log($"Location changed from {oldLocation?.displayName ?? "None"} to {newLocation.displayName}");
+        OnLocationChanged?.Invoke(currentLocation);
+        return true;
     }
 
     public LocationData GetCurrentLocation()

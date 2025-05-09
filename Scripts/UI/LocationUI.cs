@@ -25,6 +25,7 @@ public class LocationUI : MonoBehaviour
 
     private List<LocationButton> locationButtons = new List<LocationButton>();
     private LocationData selectedLocation;
+    private bool isInitialized = false;
 
     private void Start()
     {
@@ -39,29 +40,44 @@ public class LocationUI : MonoBehaviour
         if (travelButton != null)
             travelButton.onClick.AddListener(OnTravelButtonClick);
 
-        // Initialize display
-        RefreshLocationList();
-        UpdateCurrentLocationDisplay(LocationManager.Instance?.GetCurrentLocation());
+        // Initialize display (only once)
+        if (!isInitialized)
+        {
+            RefreshLocationList();
+            UpdateCurrentLocationDisplay(LocationManager.Instance?.GetCurrentLocation());
+            isInitialized = true;
+        }
     }
 
     public void ToggleLocationPanel()
     {
         locationPanel.SetActive(!locationPanel.activeSelf);
+        
+        // If opening panel, refresh the list to ensure it's up to date
+        if (locationPanel.activeSelf)
+        {
+            RefreshLocationList();
+        }
     }
 
     private void RefreshLocationList()
     {
         // Clear existing buttons
-        foreach (var button in locationButtons)
-        {
-            Destroy(button.gameObject);
-        }
-        locationButtons.Clear();
+        ClearLocationButtons();
 
-        // Create buttons for all locations
+        // Get current data from LocationManager
+        if (LocationManager.Instance == null)
+        {
+            Debug.LogError("LocationManager.Instance is null when refreshing location list!");
+            return;
+        }
+
         var allLocations = LocationManager.Instance.GetAllLocations();
         var unlockedLocations = LocationManager.Instance.GetUnlockedLocations();
+        
+        Debug.Log($"Refreshing location list with {allLocations.Count} total locations, {unlockedLocations.Count} unlocked");
 
+        // Create buttons for all locations
         foreach (var location in allLocations)
         {
             GameObject buttonObj = Instantiate(locationButtonPrefab, locationButtonContainer);
@@ -74,6 +90,36 @@ public class LocationUI : MonoBehaviour
                 locationButtons.Add(locationButton);
             }
         }
+        
+        // Highlight the current location
+        var currentLocation = LocationManager.Instance.GetCurrentLocation();
+        foreach (var button in locationButtons)
+        {
+            if (button.GetLocationData() == currentLocation)
+            {
+                button.SetSelected(true);
+                selectedLocation = currentLocation;
+                break;
+            }
+        }
+        
+        // Update travel button state
+        UpdateTravelButton();
+    }
+    
+    private void ClearLocationButtons()
+    {
+        // Destroy all button GameObjects
+        foreach (var button in locationButtons)
+        {
+            if (button != null && button.gameObject != null)
+            {
+                Destroy(button.gameObject);
+            }
+        }
+        
+        // Clear the list
+        locationButtons.Clear();
     }
 
     public void SelectLocation(LocationData location)
@@ -84,7 +130,7 @@ public class LocationUI : MonoBehaviour
         // Update selected state on buttons
         foreach (var button in locationButtons)
         {
-            button.SetSelected(button.gameObject.GetComponent<LocationButton>().GetLocationData() == location);
+            button.SetSelected(button.GetLocationData() == location);
         }
     }
 
@@ -105,6 +151,7 @@ public class LocationUI : MonoBehaviour
             if (LocationManager.Instance.TryChangeLocation(selectedLocation.locationID))
             {
                 Debug.Log($"Traveled to {selectedLocation.displayName}");
+                UpdateTravelButton();
             }
         }
     }
@@ -138,6 +185,7 @@ public class LocationUI : MonoBehaviour
 
     private void OnLocationUnlocked(LocationData location)
     {
+        // Refresh the full list when a new location is unlocked
         RefreshLocationList();
     }
 
