@@ -2,9 +2,6 @@ using System.Collections.Generic;
 using System;
 using UnityEngine;
 
-/// <summary>
-/// Manages the inventory of waste items
-/// </summary>
 public class WasteInventoryManager : MonoBehaviour
 {
     // Singleton pattern
@@ -34,6 +31,11 @@ public class WasteInventoryManager : MonoBehaviour
 
     // Inventory storage
     private Dictionary<string, WasteItem> inventory = new Dictionary<string, WasteItem>();
+
+    [Header("Stacking Settings")]
+    [SerializeField] private bool enableStacking = true;
+    [SerializeField] private int maxStackSize = 99;
+    [SerializeField] private bool stackSimilarItemsOnly = true; // Only stack if same name, rarity, origin
 
     private void Awake()
     {
@@ -66,13 +68,37 @@ public class WasteInventoryManager : MonoBehaviour
         return totalCount;
     }
 
-    // Add waste item to inventory
+    // Find similar item in inventory
+    private WasteItem GetSimilarItem(WasteItem item)
+    {
+        if (stackSimilarItemsOnly)
+        {
+            return GetAllItems().Find(i => 
+                i.Name == item.Name && 
+                i.DimensionalOrigin == item.DimensionalOrigin &&
+                i.Rarity == item.Rarity);
+        }
+        else
+        {
+            // For more precise stacking, use the CanStackWith method
+            return GetAllItems().Find(i => i.CanStackWith(item));
+        }
+    }
+
+    // Add this method to actually use the maxStackSize field
+    private bool CanAddToStack(WasteItem item, WasteItem existingItem)
+    {
+        // Check if the existing item's stack is under the maximum
+        return existingItem.Quantity < maxStackSize;
+    }
+
+    // Modified AddWasteItem to use the stack check
     public bool AddWasteItem(WasteItem item)
     {
         if (item == null) return false;
 
         // Check capacity
-        if (inventory.Count >= maxCapacity)
+        if (inventory.Count >= maxCapacity && !enableStacking)
         {
             Debug.LogWarning("Inventory is at maximum capacity!");
             return false;
@@ -80,7 +106,7 @@ public class WasteInventoryManager : MonoBehaviour
 
         // Check if similar item exists
         var existingItem = GetSimilarItem(item);
-        if (existingItem != null)
+        if (existingItem != null && enableStacking && CanAddToStack(item, existingItem))
         {
             // Increase quantity of existing item
             existingItem.AddQuantity();
@@ -96,15 +122,6 @@ public class WasteInventoryManager : MonoBehaviour
         OnInventoryChanged?.Invoke(GetAllItems());
         Debug.Log($"Added new waste item to inventory: {item.Name} (ID: {item.Id})");
         return true;
-    }
-
-    // Find similar item in inventory
-    private WasteItem GetSimilarItem(WasteItem item)
-    {
-        return GetAllItems().Find(i =>
-            i.Name == item.Name &&
-            i.DimensionalOrigin == item.DimensionalOrigin &&
-            i.Rarity == item.Rarity);
     }
 
     // Update item quantity
@@ -233,5 +250,41 @@ public class WasteInventoryManager : MonoBehaviour
     public List<WasteItem> GetFilteredItems(Predicate<WasteItem> filter)
     {
         return GetAllItems().FindAll(filter);
+    }
+
+    // Add a specific quantity of an item
+    public bool AddWasteItem(WasteItem item, int quantity)
+    {
+        if (item == null || quantity <= 0) return false;
+
+        // Set the quantity
+        item.SetQuantity(quantity);
+        
+        // Use the standard add method
+        return AddWasteItem(item);
+    }
+
+    // Remove a specific quantity of an item
+    public bool RemoveQuantity(string itemId, int quantity)
+    {
+        if (quantity <= 0) return false;
+        
+        if (inventory.TryGetValue(itemId, out WasteItem item))
+        {
+            if (item.Quantity <= quantity)
+            {
+                // Remove the entire item
+                return RemoveWasteItem(itemId);
+            }
+            else
+            {
+                // Reduce the quantity
+                item.RemoveQuantity(quantity);
+                OnItemQuantityChanged?.Invoke(item);
+                OnInventoryChanged?.Invoke(GetAllItems());
+                return true;
+            }
+        }
+        return false;
     }
 }

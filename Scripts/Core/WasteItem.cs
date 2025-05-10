@@ -1,15 +1,6 @@
 using System;
 using UnityEngine;
 
-public enum WasteRarity
-{
-    Common,
-    Uncommon,
-    Rare,
-    Epic,
-    Legendary
-}
-
 [Serializable]
 public class WasteItem
 {
@@ -19,7 +10,7 @@ public class WasteItem
     public string Description { get; set; }
     public WasteRarity Rarity { get; set; }
     public string DimensionalOrigin { get; set; }
-    public int Quantity { get; set; } = 1;
+    public int Quantity { get; set; } = 1;  // Add this property for stacking
     public Sprite Icon { get; set; }
 
     // Gameplay properties
@@ -141,21 +132,23 @@ public class WasteItem
         }
     }
 
-    public WasteData GetWasteData()
+    // Helper method to check if items can be stacked
+    public bool CanStackWith(WasteItem other)
     {
-        InitializeProperties(); // Ensure properties are initialized before getting data
-        return new WasteData
-        {
-            Id = this.Id,
-            Name = this.Name,
-            Description = this.Description,
-            Rarity = this.Rarity,
-            DimensionalOrigin = this.DimensionalOrigin,
-            WasteStability = this.WasteStability,
-            ContaminationLevel = this.ContaminationLevel,
-            RecyclingValue = this.RecyclingValue,
-            RecyclingPotential = this.RecyclingPotential,
-            Quantity = this.Quantity
-        };
+        if (other == null) return false;
+        
+        // Items can stack if they're identical in key properties
+        return Name == other.Name &&
+               DimensionalOrigin == other.DimensionalOrigin &&
+               Rarity == other.Rarity &&
+               Mathf.Approximately(RecyclingPotential, other.RecyclingPotential) &&
+               Mathf.Approximately(WasteStability, other.WasteStability) &&
+               Mathf.Approximately(ContaminationLevel, other.ContaminationLevel);
+    }
+
+    // Helper method to get total recycling value considering quantity
+    public float GetTotalRecyclingValue()
+    {
+        return RecyclingValue * Quantity;
     }
 }

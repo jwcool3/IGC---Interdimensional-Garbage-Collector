@@ -26,16 +26,6 @@ public class InventoryWasteItem
     // Additional inventory-specific metadata
     public DateTime AcquisitionTime { get; private set; }
 
-    // Enum for waste item rarity
-    public enum WasteRarity
-    {
-        Common,
-        Uncommon,
-        Rare,
-        Epic,
-        Legendary
-    }
-
     // Constructor
     public InventoryWasteItem(WasteItem wasteData, Sprite icon, int quantity = 1)
     {

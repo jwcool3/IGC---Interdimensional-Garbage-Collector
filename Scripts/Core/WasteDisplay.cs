@@ -11,8 +11,12 @@ public class WasteDisplay : MonoBehaviour
     public Image backgroundImage;
     public Image iconImage;
     public Button recycleButton;
+    
+    [Header("Stack Display")]
+    public TextMeshProUGUI quantityText;    // Add this for displaying stack size
+    public GameObject quantityBackground;   // Optional background for quantity display
 
-    private WasteItem currentWaste;
+    public WasteItem currentWaste { get; private set; }
 
     private void Awake()
     {
@@ -107,6 +111,62 @@ public class WasteDisplay : MonoBehaviour
         else
         {
             Debug.LogError("backgroundImage is null in WasteDisplay");
+        }
+        
+        // Update quantity display
+        UpdateQuantity(waste.Quantity);
+    }
+    
+    public void UpdateQuantity(int quantity)
+    {
+        if (quantityText != null)
+        {
+            // Only show quantity text for stacks > 1
+            if (quantity > 1)
+            {
+                quantityText.text = $"x{quantity}";
+                quantityText.gameObject.SetActive(true);
+                
+                // Show background if it exists
+                if (quantityBackground != null)
+                    quantityBackground.SetActive(true);
+            }
+            else
+            {
+                quantityText.gameObject.SetActive(false);
+                
+                // Hide background if it exists
+                if (quantityBackground != null)
+                    quantityBackground.SetActive(false);
+            }
+        }
+    }
+
+
+
+
+    public void UpdateQuantity(int quantity)
+    {
+        if (quantityText != null)
+        {
+            // Only show quantity text for stacks > 1
+            if (quantity > 1)
+            {
+                quantityText.text = $"x{quantity}";
+                quantityText.gameObject.SetActive(true);
+                
+                // Show background if it exists
+                if (quantityBackground != null)
+                    quantityBackground.SetActive(true);
+            }
+            else
+            {
+                quantityText.gameObject.SetActive(false);
+                
+                // Hide background if it exists
+                if (quantityBackground != null)
+                    quantityBackground.SetActive(false);
+            }
         }
     }
 

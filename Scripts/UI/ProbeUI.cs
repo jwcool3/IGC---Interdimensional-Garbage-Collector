@@ -42,7 +42,7 @@ public class ProbeUI : MonoBehaviour
         if (ProbeManager.Instance == null)
         {
             Debug.LogWarning("ProbeUI: ProbeManager.Instance is null. Attempting to find it...");
-            ProbeManager manager = FindObjectOfType<ProbeManager>();
+            ProbeManager manager = UnityEngine.Object.FindFirstObjectByType<ProbeManager>();
             if (manager != null)
             {
                 Debug.Log("ProbeUI: Found ProbeManager in the scene!");
@@ -60,7 +60,7 @@ public class ProbeUI : MonoBehaviour
         if (ProbeUpgradeManager.Instance == null)
         {
             Debug.LogWarning("ProbeUI: ProbeUpgradeManager.Instance is null. Attempting to find it...");
-            ProbeUpgradeManager manager = FindObjectOfType<ProbeUpgradeManager>();
+            ProbeUpgradeManager manager = UnityEngine.Object.FindFirstObjectByType<ProbeUpgradeManager>();
             if (manager != null)
             {
                 Debug.Log("ProbeUI: Found ProbeUpgradeManager in the scene!");

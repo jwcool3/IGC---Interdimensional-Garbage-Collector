@@ -126,8 +126,8 @@ public class WasteInventoryUI : MonoBehaviour
         // Find and update the specific item display
         foreach (var display in activeItemDisplays)
         {
-            WasteItemDisplay itemDisplay = display.GetComponent<WasteItemDisplay>();
-            if (itemDisplay != null && itemDisplay.CurrentItem.Id == item.Id)
+            WasteDisplay itemDisplay = display.GetComponent<WasteDisplay>();
+            if (itemDisplay != null && itemDisplay.currentWaste.Id == item.Id)
             {
                 itemDisplay.UpdateQuantity(item.Quantity);
                 break;
