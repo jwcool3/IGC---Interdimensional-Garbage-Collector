@@ -8,12 +8,14 @@ public class TabSystem : MonoBehaviour
     [SerializeField] private Button upgradesButton;
     [SerializeField] private Button locationsButton;
     [SerializeField] private Button probesTabButton;
+    [SerializeField] private Button shipTabButton;
     
     [Header("Tab Content")]
     [SerializeField] private GameObject inventoryPanel;
     [SerializeField] private GameObject upgradesPanel;
     [SerializeField] private GameObject locationsPanel;
     [SerializeField] private GameObject probesPanel;
+    [SerializeField] private GameObject shipPanel;
     
     [Header("Persistent UI")]
     [SerializeField] private GameObject actionPanel; // Always visible
@@ -43,6 +45,9 @@ public class TabSystem : MonoBehaviour
 
         if (probesTabButton != null)
             probesTabButton.onClick.AddListener(() => SwitchToTab(probesPanel, probesTabButton));
+            
+        if (shipTabButton != null)
+            shipTabButton.onClick.AddListener(() => SwitchToTab(shipPanel, shipTabButton));
         
         // Activate default tab (waste collection)
         if (inventoryPanel != null && wasteCollectionButton != null)
@@ -86,6 +91,7 @@ public class TabSystem : MonoBehaviour
         if (upgradesPanel != null) upgradesPanel.SetActive(false);
         if (locationsPanel != null) locationsPanel.SetActive(false);
         if (probesPanel != null) probesPanel.SetActive(false);
+        if (shipPanel != null) shipPanel.SetActive(false);
     }
     
     private void EnsurePersistentUIActive()
@@ -99,6 +105,7 @@ public class TabSystem : MonoBehaviour
         if (upgradesButton != null) upgradesButton.gameObject.SetActive(true);
         if (locationsButton != null) locationsButton.gameObject.SetActive(true);
         if (probesTabButton != null) probesTabButton.gameObject.SetActive(true);
+        if (shipTabButton != null) shipTabButton.gameObject.SetActive(true);
     }
     
     private void UpdateButtonVisuals(Button newActiveButton)
@@ -160,5 +167,18 @@ public class TabSystem : MonoBehaviour
     public void ShowProbesTab()
     {
         SwitchToTab(probesPanel, probesTabButton);
+    }
+    
+    public void ShowShipTab()
+    {
+        SwitchToTab(shipPanel, shipTabButton);
+        
+        // Optional: Refresh ship display if needed
+        ShipUI shipUI = shipPanel.GetComponentInChildren<ShipUI>();
+        if (shipUI != null)
+        {
+            // Update any ship UI elements that need refreshing
+            shipUI.UpdateDetailPanel();
+        }
     }
 }

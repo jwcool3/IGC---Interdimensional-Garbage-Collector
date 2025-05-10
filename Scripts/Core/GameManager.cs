@@ -11,6 +11,7 @@ public class GameManager : MonoBehaviour
     public event Action<WasteItem> OnWasteCollected;
     public event Action<List<WasteItem>> OnWasteUpdated;
     public event Action<float> OnContaminationLevelChanged;
+    public event Action<float> OnWasteDetailLevelChanged;
 
     // Core game systems
     private WasteGenerator wasteGenerator;
@@ -30,6 +31,9 @@ public class GameManager : MonoBehaviour
     }
     public float TotalRecyclingPoints { get; private set; }
     public float FacilityContaminationLevel { get; private set; }
+
+    // Scanner detail level from ship compartment
+    private float wasteDetailLevel = 0f;
 
     private void Awake()
     {
@@ -279,6 +283,26 @@ public class GameManager : MonoBehaviour
             return recyclingPoints;
         }
         return 0f;
+    }
+
+    /// <summary>
+    /// Sets the waste detail level from the Scanner compartment
+    /// </summary>
+    public void SetWasteDetailLevel(float detailLevel)
+    {
+        wasteDetailLevel = Mathf.Clamp01(detailLevel);
+        Debug.Log($"GameManager: Waste detail level set to {wasteDetailLevel:P0}");
+        
+        // Notify listeners of the change
+        OnWasteDetailLevelChanged?.Invoke(wasteDetailLevel);
+    }
+
+    /// <summary>
+    /// Gets the current waste detail level
+    /// </summary>
+    public float GetWasteDetailLevel()
+    {
+        return wasteDetailLevel;
     }
 
     private void OnDestroy()

@@ -15,6 +15,9 @@ public class LocationManager : MonoBehaviour
     [SerializeField] private List<LocationData> unlockedLocations = new List<LocationData>();
     [SerializeField] private List<LocationData> allLocations = new List<LocationData>();
 
+    // Discovery bonus from Bridge compartment
+    private float discoveryBonus = 0f;
+
     private void Awake()
     {
         if (Instance == null)
@@ -190,5 +193,35 @@ public class LocationManager : MonoBehaviour
         unlockedLocations.Add(location);
         OnLocationUnlocked?.Invoke(location);
         Debug.Log($"Location unlocked: {location.displayName}");
+    }
+
+    /// <summary>
+    /// Sets the discovery bonus from the Bridge compartment
+    /// </summary>
+    public void SetDiscoveryBonus(float bonus)
+    {
+        discoveryBonus = Mathf.Clamp01(bonus);
+        Debug.Log($"LocationManager: Discovery bonus set to {discoveryBonus:P0}");
+
+        // Apply the bonus to discovery chances
+        UpdateDiscoveryChances();
+    }
+
+    /// <summary>
+    /// Updates discovery chances based on current bonus
+    /// </summary>
+    private void UpdateDiscoveryChances()
+    {
+        foreach (var location in allLocations)
+        {
+            if (!location.isDiscovered)
+            {
+                // Increase base discovery chance by the bonus
+                location.discoveryChance = Mathf.Min(
+                    location.baseDiscoveryChance * (1f + discoveryBonus),
+                    1f
+                );
+            }
+        }
     }
 }

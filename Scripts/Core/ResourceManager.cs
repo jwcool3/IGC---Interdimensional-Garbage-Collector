@@ -18,11 +18,16 @@ public class ResourceManager : MonoBehaviour
     public event Action<float> OnRecyclingPointsChanged;
     public event Action<float> OnDimensionalPotentialChanged;
     public event Action<float> OnContaminationChanged;
+    public event Action OnResourcesChanged; // General event for any resource change
 
     // Properties with public getters
     public float RecyclingPoints => recyclingPoints;
     public float DimensionalPotential => dimensionalPotential;
     public float ContaminationLevel => contamination;
+
+    // Effect modifiers
+    private float recyclingMultiplier = 1f;
+    private float contaminationReductionModifier = 0f;
 
     private void Awake()
     {
@@ -51,15 +56,10 @@ public class ResourceManager : MonoBehaviour
         recyclingPoints += amount;
         Debug.Log($"Adding recycling points: {amount:F1} (Previous: {previousValue:F1}, New: {recyclingPoints:F1})");
 
-        if (OnRecyclingPointsChanged != null)
-        {
-            OnRecyclingPointsChanged.Invoke(recyclingPoints);
-            Debug.Log("OnRecyclingPointsChanged event fired");
-        }
-        else
-        {
-            Debug.LogWarning("No listeners for OnRecyclingPointsChanged event");
-        }
+        OnRecyclingPointsChanged?.Invoke(recyclingPoints);
+        OnResourcesChanged?.Invoke();
+        
+        Debug.Log("Resource change events fired");
     }
 
     // Spend recycling points if enough are available
@@ -69,6 +69,7 @@ public class ResourceManager : MonoBehaviour
         {
             recyclingPoints -= amount;
             OnRecyclingPointsChanged?.Invoke(recyclingPoints);
+            OnResourcesChanged?.Invoke();
             return true;
         }
         return false;
@@ -87,15 +88,10 @@ public class ResourceManager : MonoBehaviour
         dimensionalPotential += amount;
         Debug.Log($"Adding dimensional potential: {amount:F1} (Previous: {previousValue:F1}, New: {dimensionalPotential:F1})");
 
-        if (OnDimensionalPotentialChanged != null)
-        {
-            OnDimensionalPotentialChanged.Invoke(dimensionalPotential);
-            Debug.Log("OnDimensionalPotentialChanged event fired");
-        }
-        else
-        {
-            Debug.LogWarning("No listeners for OnDimensionalPotentialChanged event");
-        }
+        OnDimensionalPotentialChanged?.Invoke(dimensionalPotential);
+        OnResourcesChanged?.Invoke();
+        
+        Debug.Log("Resource change events fired");
     }
 
     // Spend dimensional potential if enough is available
@@ -105,6 +101,7 @@ public class ResourceManager : MonoBehaviour
         {
             dimensionalPotential -= amount;
             OnDimensionalPotentialChanged?.Invoke(dimensionalPotential);
+            OnResourcesChanged?.Invoke();
             return true;
         }
         return false;
@@ -157,6 +154,25 @@ public class ResourceManager : MonoBehaviour
         OnDimensionalPotentialChanged?.Invoke(dimensionalPotential);
     }
 
+    /// <summary>
+    /// Sets the recycling multiplier from the Lab compartment
+    /// </summary>
+    public void SetRecyclingMultiplier(float multiplier)
+    {
+        recyclingMultiplier = Mathf.Max(1f, multiplier);
+        Debug.Log($"ResourceManager: Recycling multiplier set to {recyclingMultiplier:F2}x");
+    }
+
+    /// <summary>
+    /// Sets the contamination reduction modifier from the Recycling compartment
+    /// </summary>
+    public void SetContaminationReductionModifier(float modifier)
+    {
+        contaminationReductionModifier = Mathf.Clamp01(modifier);
+        Debug.Log($"ResourceManager: Contamination reduction set to {contaminationReductionModifier:P0}");
+    }
+
+    // Modify the existing ProcessWasteItem method to use the recycling multiplier
     public void ProcessWasteItem(WasteItem item)
     {
         if (item == null) return;
@@ -165,9 +181,9 @@ public class ResourceManager : MonoBehaviour
         LocationData currentLocation = LocationManager.Instance?.GetCurrentLocation();
         float locationMultiplier = currentLocation?.averageValueMultiplier ?? 1f;
 
-        // Calculate base values
-        float baseRecyclingPoints = item.RecyclingValue * 10f;
-        float baseDimensionalPotential = item.RecyclingPotential * 5f;
+        // Calculate base values with recycling multiplier
+        float baseRecyclingPoints = item.RecyclingValue * 10f * recyclingMultiplier;
+        float baseDimensionalPotential = item.RecyclingPotential * 5f * recyclingMultiplier;
 
         // Apply location multiplier
         float finalRecyclingPoints = baseRecyclingPoints * locationMultiplier;
@@ -177,14 +193,17 @@ public class ResourceManager : MonoBehaviour
         AddRecyclingPoints(finalRecyclingPoints);
         AddDimensionalPotential(finalDimensionalPotential);
 
-        // Add contamination (affected by danger level)
+        // Add contamination (affected by danger level and reduction modifier)
         float contaminationAmount = item.ContaminationLevel * 0.1f;
         if (currentLocation != null)
         {
             contaminationAmount += currentLocation.dangerLevel * 0.05f;
         }
+        
+        // Apply contamination reduction
+        contaminationAmount *= (1f - contaminationReductionModifier);
         IncreaseContamination(contaminationAmount);
 
-        Debug.Log($"Processed {item.Name} for {finalRecyclingPoints:F1} RP (location multiplier: {locationMultiplier:F1}x)");
+        Debug.Log($"Processed {item.Name} for {finalRecyclingPoints:F1} RP (location: {locationMultiplier:F1}x, recycling: {recyclingMultiplier:F1}x)");
     }
 }

@@ -29,6 +29,13 @@ public class WasteInventoryManager : MonoBehaviour
     // Maximum inventory capacity
     [SerializeField] private int maxCapacity = 100;
 
+    // Base and bonus capacity
+    [SerializeField] private int baseCapacity = 20;
+    private int bonusCapacity = 0;
+
+    // Property to get total capacity
+    public int TotalCapacity => baseCapacity + bonusCapacity;
+
     // Inventory storage
     private Dictionary<string, WasteItem> inventory = new Dictionary<string, WasteItem>();
 
@@ -286,5 +293,17 @@ public class WasteInventoryManager : MonoBehaviour
             }
         }
         return false;
+    }
+
+    /// <summary>
+    /// Increases inventory capacity from ship compartment effects
+    /// </summary>
+    public void IncreaseCapacity(int amount)
+    {
+        bonusCapacity += amount;
+        Debug.Log($"WasteInventoryManager: Capacity increased by {amount}, total: {TotalCapacity}");
+
+        // Fire inventory changed event with current inventory list
+        OnInventoryChanged?.Invoke(GetAllItems());
     }
 }

@@ -4,6 +4,9 @@ using System;
 
 public class WasteGenerator : MonoBehaviour
 {
+    // Singleton pattern
+    public static WasteGenerator Instance { get; private set; }
+
     [System.Serializable]
     public class DimensionType
     {
@@ -29,10 +32,56 @@ public class WasteGenerator : MonoBehaviour
     [Header("Fallback Settings")]
     [SerializeField] private Sprite defaultItemSprite;
 
+    // Effect modifiers from ship compartments
+    private float rarityModifier = 0f;
+    private float stabilityModifier = 0f;
+
     // Procedural generation data
     private string[] prefixes;
     private string[] suffixes;
     private string[] descriptions;
+
+    private void Awake()
+    {
+        // Singleton setup
+        if (Instance == null)
+        {
+            Instance = this;
+            DontDestroyOnLoad(gameObject);
+            
+            // Initialize the generator
+            InitializeGenerator();
+        }
+        else
+        {
+            Destroy(gameObject);
+            return; // Skip the rest of Awake if this is a duplicate
+        }
+    }
+    
+    private void InitializeGenerator()
+    {
+        // Ensure dimensions are initialized
+        if (dimensionTypes.Count == 0)
+        {
+            OnValidate();
+        }
+
+        InitializeGenerationData();
+
+        // Add default sprite loading code
+        if (defaultItemSprite == null)
+        {
+            // Try to load a default sprite
+            defaultItemSprite = Resources.Load<Sprite>("DefaultWasteIcon");
+
+            // If still null, create a fallback
+            if (defaultItemSprite == null)
+            {
+                Debug.LogWarning("No default sprite found! Items may appear without icons.");
+            }
+        }
+    }
 
     private void Start()
     {
@@ -80,30 +129,6 @@ public class WasteGenerator : MonoBehaviour
             dimensionTypes.Add(new DimensionType() { Name = "Temporal Anomaly" });
             dimensionTypes.Add(new DimensionType() { Name = "Ethereal Plane" });
             dimensionTypes.Add(new DimensionType() { Name = "Archaeological Waste" });
-        }
-    }
-
-    private void Awake()
-    {
-        // Ensure dimensions are initialized
-        if (dimensionTypes.Count == 0)
-        {
-            OnValidate();
-        }
-
-        InitializeGenerationData();
-
-        // Add default sprite loading code
-        if (defaultItemSprite == null)
-        {
-            // Try to load a default sprite
-            defaultItemSprite = Resources.Load<Sprite>("DefaultWasteIcon");
-
-            // If still null, create a fallback
-            if (defaultItemSprite == null)
-            {
-                Debug.LogWarning("No default sprite found! Items may appear without icons.");
-            }
         }
     }
 
@@ -212,9 +237,29 @@ public class WasteGenerator : MonoBehaviour
         }
     }
 
+    /// <summary>
+    /// Sets the rarity modifier from the Communications compartment
+    /// </summary>
+    public void SetRarityModifier(float modifier)
+    {
+        rarityModifier = Mathf.Clamp01(modifier);
+        Debug.Log($"WasteGenerator: Rarity modifier set to {rarityModifier:P0}");
+    }
+
+    /// <summary>
+    /// Sets the stability modifier from the Stabilizer compartment
+    /// </summary>
+    public void SetStabilityModifier(float modifier)
+    {
+        stabilityModifier = Mathf.Clamp01(modifier);
+        Debug.Log($"WasteGenerator: Stability modifier set to {stabilityModifier:P0}");
+    }
+
     private WasteRarity GenerateRarityForLocation(LocationData location)
     {
+        // Apply rarity modifier to increase chances of better items
         float roll = UnityEngine.Random.value;
+        roll = Mathf.Max(roll - rarityModifier, 0f); // Higher modifier means better chance of rare items
         float cumulative = 0f;
 
         // Add each rarity chance in order
@@ -314,7 +359,15 @@ public class WasteGenerator : MonoBehaviour
 
     private float RandomizeProperty(float baseValue)
     {
-        return Mathf.Clamp01(baseValue + UnityEngine.Random.Range(-propertyVariance, propertyVariance));
+        // Apply stability modifier to reduce randomness and improve base values
+        float variance = propertyVariance * (1f - stabilityModifier);
+        float minValue = baseValue * (1f - variance);
+        float maxValue = baseValue * (1f + variance);
+        
+        // Higher stability also provides a small bonus to the base value
+        float stabilityBonus = baseValue * (stabilityModifier * 0.2f);
+        
+        return UnityEngine.Random.Range(minValue, maxValue) + stabilityBonus;
     }
 
     private DimensionType GetDimensionType(string dimensionName)
@@ -480,7 +533,9 @@ public class WasteGenerator : MonoBehaviour
 
     private WasteRarity GenerateRarity(DimensionType dimension)
     {
+        // Apply rarity modifier to increase chances of better items
         float roll = UnityEngine.Random.value;
+        roll = Mathf.Max(roll - rarityModifier, 0f); // Higher modifier means better chance of rare items
 
         if (roll < dimension.LegendaryChance)
             return WasteRarity.Legendary;

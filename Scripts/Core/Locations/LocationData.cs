@@ -38,4 +38,10 @@ public class LocationData : ScriptableObject
     [Header("Special Properties")]
     public bool isStartingLocation = false;
     public string[] specialDiscoveryItems;  // Special items that can be found here
+
+    // Discovery properties
+    [Header("Discovery Settings")]
+    public bool isDiscovered = false;
+    public float discoveryChance = 0f;
+    public float baseDiscoveryChance = 0.1f; // Base chance before modifiers
 }
