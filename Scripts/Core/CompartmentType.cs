@@ -53,7 +53,31 @@ public enum CompartmentType
     /// Scanner compartment - Reveals hidden properties of waste items
     /// </summary>
     [Tooltip("Reveals hidden properties of waste items")]
-    Scanner = 7
+    Scanner = 7,
+    
+    /// <summary>
+    /// Weapons Bay compartment - Increases ship's attack power
+    /// </summary>
+    [Tooltip("Increases ship's attack power")]
+    WeaponsBay = 8,
+    
+    /// <summary>
+    /// Shield Generator compartment - Improves ship's defense
+    /// </summary>
+    [Tooltip("Improves ship's defense")]
+    ShieldGenerator = 9,
+    
+    /// <summary>
+    /// Combat AI compartment - Increases critical hit chance
+    /// </summary>
+    [Tooltip("Increases critical hit chance")]
+    CombatAI = 10,
+    
+    /// <summary>
+    /// Targeting System compartment - Improves attack speed
+    /// </summary>
+    [Tooltip("Improves attack speed")]
+    TargetingSystem = 11
 }
 
 /// <summary>
@@ -86,6 +110,14 @@ public static class CompartmentTypeExtensions
                 return "Comms Array";
             case CompartmentType.Scanner:
                 return "Matter Scanner";
+            case CompartmentType.WeaponsBay:
+                return "Weapons Bay";
+            case CompartmentType.ShieldGenerator:
+                return "Shield Generator";
+            case CompartmentType.CombatAI:
+                return "Combat AI Core";
+            case CompartmentType.TargetingSystem:
+                return "Targeting System";
             default:
                 return type.ToString();
         }
@@ -124,6 +156,18 @@ public static class CompartmentTypeExtensions
             case CompartmentType.Scanner:
                 return "Advanced analysis equipment that reveals hidden properties and potential of collected waste items.";
                 
+            case CompartmentType.WeaponsBay:
+                return "Advanced weapons platform that increases the ship's attack power in combat.";
+                
+            case CompartmentType.ShieldGenerator:
+                return "Protective energy field generator that improves the ship's defense against attacks.";
+                
+            case CompartmentType.CombatAI:
+                return "Advanced artificial intelligence that increases the chance of landing critical hits in combat.";
+                
+            case CompartmentType.TargetingSystem:
+                return "Precision targeting computer that improves attack speed and accuracy.";
+                
             default:
                 return "Unknown compartment type.";
         }
@@ -153,6 +197,14 @@ public static class CompartmentTypeExtensions
             case CompartmentType.Communications:
                 return 150f;
             case CompartmentType.Scanner:
+                return 175f;
+            case CompartmentType.WeaponsBay:
+                return 200f;
+            case CompartmentType.ShieldGenerator:
+                return 200f;
+            case CompartmentType.CombatAI:
+                return 225f;
+            case CompartmentType.TargetingSystem:
                 return 175f;
             default:
                 return 100f;
@@ -184,6 +236,14 @@ public static class CompartmentTypeExtensions
                 return 15f;
             case CompartmentType.Scanner:
                 return 18f;
+            case CompartmentType.WeaponsBay:
+                return 20f;
+            case CompartmentType.ShieldGenerator:
+                return 20f;
+            case CompartmentType.CombatAI:
+                return 22f;
+            case CompartmentType.TargetingSystem:
+                return 18f;
             default:
                 return 10f;
         }
@@ -214,6 +274,14 @@ public static class CompartmentTypeExtensions
                 return new Color(0.0f, 0.4f, 0.8f);  // Blue
             case CompartmentType.Scanner:
                 return new Color(1.0f, 0.0f, 0.4f);  // Pink
+            case CompartmentType.WeaponsBay:
+                return new Color(1.0f, 0.2f, 0.2f);  // Red
+            case CompartmentType.ShieldGenerator:
+                return new Color(0.2f, 0.6f, 1.0f);  // Light Blue
+            case CompartmentType.CombatAI:
+                return new Color(0.8f, 0.2f, 0.8f);  // Magenta
+            case CompartmentType.TargetingSystem:
+                return new Color(1.0f, 0.8f, 0.2f);  // Yellow
             default:
                 return Color.white;
         }
@@ -294,6 +362,34 @@ public static class CompartmentTypeExtensions
                 {
                     (3, "Deep Scanning", "Reveal hidden properties of all waste items"),
                     (5, "Predictive Analysis", "Forecast optimal collection times for specific waste types")
+                };
+                
+            case CompartmentType.WeaponsBay:
+                return new[]
+                {
+                    (3, "Advanced Weapons", "Unlock powerful weapons for combat"),
+                    (5, "Energy Pulse", "New weapon that releases a burst of energy")
+                };
+                
+            case CompartmentType.ShieldGenerator:
+                return new[]
+                {
+                    (3, "Energy Shield", "Protects the ship from attacks"),
+                    (5, "Advanced Shield", "Improves the effectiveness of the energy shield")
+                };
+                
+            case CompartmentType.CombatAI:
+                return new[]
+                {
+                    (3, "Combat AI", "Improves the ship's ability to land critical hits in combat"),
+                    (5, "Advanced AI", "Further improves the effectiveness of the Combat AI")
+                };
+                
+            case CompartmentType.TargetingSystem:
+                return new[]
+                {
+                    (3, "Precision Targeting", "Improves the accuracy of attacks"),
+                    (5, "Advanced Targeting", "Further improves the effectiveness of the targeting system")
                 };
                 
             default:

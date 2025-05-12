@@ -192,7 +192,7 @@ public class ShipCompartment : MonoBehaviour, IPointerClickHandler, IPointerEnte
     /// <summary>
     /// Updates the visual representation based on current level
     /// </summary>
-    private void UpdateVisuals()
+    public void UpdateVisuals()
     {
         // Update sprite based on level
         if (compartmentRenderer != null && levelSprites != null && levelSprites.Length > 0)
@@ -250,6 +250,22 @@ public class ShipCompartment : MonoBehaviour, IPointerClickHandler, IPointerEnte
                 
             case CompartmentType.Scanner:
                 ApplyScannerEffects();
+                break;
+                
+            case CompartmentType.WeaponsBay:
+                ApplyWeaponsBayEffects();
+                break;
+                
+            case CompartmentType.ShieldGenerator:
+                ApplyShieldGeneratorEffects();
+                break;
+                
+            case CompartmentType.CombatAI:
+                ApplyCombatAIEffects();
+                break;
+                
+            case CompartmentType.TargetingSystem:
+                ApplyTargetingSystemEffects();
                 break;
         }
         
@@ -445,6 +461,46 @@ public class ShipCompartment : MonoBehaviour, IPointerClickHandler, IPointerEnte
         gameManager.SetWasteDetailLevel(detailLevel);
         
         Debug.Log($"Scanner Lv{currentLevel}: Enhanced waste property visibility to {detailLevel*100:F0}%");
+    }
+    
+    private void ApplyWeaponsBayEffects()
+    {
+        if (CombatManager.Instance == null) return;
+        
+        float attackBonus = GetTotalEffectValue();
+        CombatManager.Instance.attackPower += attackBonus;
+        
+        Debug.Log($"Weapons Bay Lv{currentLevel}: Increased attack power by {attackBonus:F1}");
+    }
+
+    private void ApplyShieldGeneratorEffects()
+    {
+        if (CombatManager.Instance == null) return;
+        
+        float defenseBonus = GetTotalEffectValue();
+        CombatManager.Instance.defense += defenseBonus;
+        
+        Debug.Log($"Shield Generator Lv{currentLevel}: Increased defense by {defenseBonus:F1}");
+    }
+
+    private void ApplyCombatAIEffects()
+    {
+        if (CombatManager.Instance == null) return;
+        
+        float critBonus = GetTotalEffectValue();
+        CombatManager.Instance.criticalChance += critBonus;
+        
+        Debug.Log($"Combat AI Lv{currentLevel}: Increased critical chance by {critBonus:P1}");
+    }
+
+    private void ApplyTargetingSystemEffects()
+    {
+        if (CombatManager.Instance == null) return;
+        
+        float speedBonus = GetTotalEffectValue();
+        CombatManager.Instance.attackSpeed += speedBonus;
+        
+        Debug.Log($"Targeting System Lv{currentLevel}: Increased attack speed by {speedBonus:F1}x");
     }
     
     #endregion

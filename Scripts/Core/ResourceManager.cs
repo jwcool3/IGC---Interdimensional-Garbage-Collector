@@ -29,6 +29,11 @@ public class ResourceManager : MonoBehaviour
     private float recyclingMultiplier = 1f;
     private float contaminationReductionModifier = 0f;
 
+    // Combat resources
+    public int ShipParts { get; private set; }
+    public int AlienTech { get; private set; }
+    public int CombatData { get; private set; }
+
     private void Awake()
     {
         // Singleton setup
@@ -205,5 +210,86 @@ public class ResourceManager : MonoBehaviour
         IncreaseContamination(contaminationAmount);
 
         Debug.Log($"Processed {item.Name} for {finalRecyclingPoints:F1} RP (location: {locationMultiplier:F1}x, recycling: {recyclingMultiplier:F1}x)");
+    }
+
+    /// <summary>
+    /// Add ship parts and notify listeners
+    /// </summary>
+    public void AddShipParts(int amount)
+    {
+        if (amount <= 0) return;
+        
+        ShipParts += amount;
+        Debug.Log($"Added {amount} ship parts. New total: {ShipParts}");
+        OnResourcesChanged?.Invoke();
+    }
+
+    /// <summary>
+    /// Add alien tech and notify listeners
+    /// </summary>
+    public void AddAlienTech(int amount)
+    {
+        if (amount <= 0) return;
+        
+        AlienTech += amount;
+        Debug.Log($"Added {amount} alien tech. New total: {AlienTech}");
+        OnResourcesChanged?.Invoke();
+    }
+
+    /// <summary>
+    /// Add combat data and notify listeners
+    /// </summary>
+    public void AddCombatData(int amount)
+    {
+        if (amount <= 0) return;
+        
+        CombatData += amount;
+        Debug.Log($"Added {amount} combat data. New total: {CombatData}");
+        OnResourcesChanged?.Invoke();
+    }
+
+    /// <summary>
+    /// Attempt to spend ship parts
+    /// </summary>
+    /// <returns>True if successful, false if insufficient resources</returns>
+    public bool SpendShipParts(int amount)
+    {
+        if (amount <= 0) return true;
+        if (ShipParts < amount) return false;
+        
+        ShipParts -= amount;
+        Debug.Log($"Spent {amount} ship parts. Remaining: {ShipParts}");
+        OnResourcesChanged?.Invoke();
+        return true;
+    }
+
+    /// <summary>
+    /// Attempt to spend alien tech
+    /// </summary>
+    /// <returns>True if successful, false if insufficient resources</returns>
+    public bool SpendAlienTech(int amount)
+    {
+        if (amount <= 0) return true;
+        if (AlienTech < amount) return false;
+        
+        AlienTech -= amount;
+        Debug.Log($"Spent {amount} alien tech. Remaining: {AlienTech}");
+        OnResourcesChanged?.Invoke();
+        return true;
+    }
+
+    /// <summary>
+    /// Attempt to spend combat data
+    /// </summary>
+    /// <returns>True if successful, false if insufficient resources</returns>
+    public bool SpendCombatData(int amount)
+    {
+        if (amount <= 0) return true;
+        if (CombatData < amount) return false;
+        
+        CombatData -= amount;
+        Debug.Log($"Spent {amount} combat data. Remaining: {CombatData}");
+        OnResourcesChanged?.Invoke();
+        return true;
     }
 }

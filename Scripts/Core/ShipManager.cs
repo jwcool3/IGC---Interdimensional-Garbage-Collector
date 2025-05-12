@@ -25,11 +25,61 @@ public class ShipManager : MonoBehaviour
         {
             Instance = this;
             DontDestroyOnLoad(gameObject);
+            InitializeShipManager();
         }
         else
         {
             Destroy(gameObject);
         }
+    }
+
+    private void InitializeShipManager()
+    {
+        // Find all ShipCompartment components in the scene if list is empty
+        if (compartments.Count == 0)
+        {
+            ShipCompartment[] foundCompartments = FindObjectsOfType<ShipCompartment>();
+            foreach (var compartment in foundCompartments)
+            {
+                RegisterCompartment(compartment);
+            }
+            Debug.Log($"Found and registered {foundCompartments.Length} compartments");
+        }
+        
+        // Initialize combat stats
+        UpdateCombatStats();
+        
+        // Update visuals for all compartments
+        UpdateAllCompartmentVisuals();
+    }
+
+    /// <summary>
+    /// Update visuals for all registered compartments
+    /// </summary>
+    private void UpdateAllCompartmentVisuals()
+    {
+        foreach (var compartment in compartments)
+        {
+            if (compartment != null)
+            {
+                compartment.UpdateVisuals();
+            }
+        }
+    }
+
+    /// <summary>
+    /// Try to upgrade a compartment by its ID
+    /// </summary>
+    public bool TryUpgradeCompartment(string compartmentId)
+    {
+        var compartment = compartments.Find(c => c.Id == compartmentId);
+        if (compartment == null)
+        {
+            Debug.LogWarning($"No compartment found with ID: {compartmentId}");
+            return false;
+        }
+        
+        return UpgradeCompartment(compartment);
     }
 
     /// <summary>
@@ -80,6 +130,31 @@ public class ShipManager : MonoBehaviour
     }
     
     /// <summary>
+    /// Update all combat-related stats from compartments
+    /// </summary>
+    public void UpdateCombatStats()
+    {
+        if (CombatManager.Instance == null) return;
+        
+        // Reset combat stats to base values
+        CombatManager.Instance.attackPower = 10f;
+        CombatManager.Instance.defense = 5f;
+        CombatManager.Instance.criticalChance = 0.05f;
+        CombatManager.Instance.attackSpeed = 1f;
+        
+        // Apply effects from all compartments
+        foreach (var compartment in compartments)
+        {
+            if (compartment != null)
+            {
+                compartment.ApplyEffects();
+            }
+        }
+        
+        Debug.Log("Updated combat stats from all compartments");
+    }
+    
+    /// <summary>
     /// Attempt to upgrade a compartment using available resources
     /// </summary>
     public bool UpgradeCompartment(ShipCompartment compartment)
@@ -108,6 +183,9 @@ public class ShipManager : MonoBehaviour
         {
             OnCompartmentUpgraded?.Invoke(compartment);
             Debug.Log($"Upgraded {compartment.DisplayName} to level {compartment.CurrentLevel}");
+            
+            // Update combat stats after upgrade
+            UpdateCombatStats();
         }
         
         return success;

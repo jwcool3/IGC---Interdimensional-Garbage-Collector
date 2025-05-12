@@ -9,6 +9,7 @@ public class TabSystem : MonoBehaviour
     [SerializeField] private Button locationsButton;
     [SerializeField] private Button probesTabButton;
     [SerializeField] private Button shipTabButton;
+    [SerializeField] private Button combatTabButton;
     
     [Header("Tab Content")]
     [SerializeField] private GameObject inventoryPanel;
@@ -16,6 +17,7 @@ public class TabSystem : MonoBehaviour
     [SerializeField] private GameObject locationsPanel;
     [SerializeField] private GameObject probesPanel;
     [SerializeField] private GameObject shipPanel;
+    [SerializeField] private GameObject combatPanel;
     
     [Header("Persistent UI")]
     [SerializeField] private GameObject actionPanel; // Always visible
@@ -48,6 +50,9 @@ public class TabSystem : MonoBehaviour
             
         if (shipTabButton != null)
             shipTabButton.onClick.AddListener(() => SwitchToTab(shipPanel, shipTabButton));
+            
+        if (combatTabButton != null)
+            combatTabButton.onClick.AddListener(() => ShowCombatTab());
         
         // Activate default tab (waste collection)
         if (inventoryPanel != null && wasteCollectionButton != null)
@@ -92,6 +97,7 @@ public class TabSystem : MonoBehaviour
         if (locationsPanel != null) locationsPanel.SetActive(false);
         if (probesPanel != null) probesPanel.SetActive(false);
         if (shipPanel != null) shipPanel.SetActive(false);
+        if (combatPanel != null) combatPanel.SetActive(false);
     }
     
     private void EnsurePersistentUIActive()
@@ -106,6 +112,7 @@ public class TabSystem : MonoBehaviour
         if (locationsButton != null) locationsButton.gameObject.SetActive(true);
         if (probesTabButton != null) probesTabButton.gameObject.SetActive(true);
         if (shipTabButton != null) shipTabButton.gameObject.SetActive(true);
+        if (combatTabButton != null) combatTabButton.gameObject.SetActive(true);
     }
     
     private void UpdateButtonVisuals(Button newActiveButton)
@@ -180,5 +187,13 @@ public class TabSystem : MonoBehaviour
             // Update any ship UI elements that need refreshing
             shipUI.UpdateDetailPanel();
         }
+    }
+    
+    public void ShowCombatTab()
+    {
+        SwitchToTab(combatPanel, combatTabButton);
+        
+        // Update combat display
+        CombatUI.Instance?.UpdateAllDisplays();
     }
 }
