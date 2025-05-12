@@ -6,7 +6,7 @@ using UnityEngine.EventSystems;
 /// Represents a single compartment/module of the player's ship.
 /// Each compartment provides specific bonuses and can be upgraded.
 /// </summary>
-public class ShipCompartment : MonoBehaviour, IPointerClickHandler
+public class ShipCompartment : MonoBehaviour, IPointerClickHandler, IPointerEnterHandler, IPointerExitHandler
 {
     [Header("Basic Info")]
     [Tooltip("Unique identifier for this compartment type")]
@@ -454,30 +454,37 @@ public class ShipCompartment : MonoBehaviour, IPointerClickHandler
     /// </summary>
     public void OnPointerClick(PointerEventData eventData)
     {
-        // Notify any listeners that this compartment was clicked
-        OnCompartmentClicked?.Invoke(this);
+        Debug.Log($"Clicked on compartment: {DisplayName}");
         
-        // Also notify the ShipManager
+        // Notify the ShipManager
         if (ShipManager.Instance != null)
         {
             ShipManager.Instance.SelectCompartment(this);
         }
+        
+        // Notify any listeners
+        OnCompartmentClicked?.Invoke(this);
     }
     
     /// <summary>
-    /// Handle direct mouse clicks (fallback for non-EventSystem clicks)
+    /// Handle hover/mouse enter events
     /// </summary>
-    private void OnMouseDown()
+    public void OnPointerEnter(PointerEventData eventData)
     {
-        // Skip if the pointer is over UI elements
-        if (EventSystem.current != null && EventSystem.current.IsPointerOverGameObject())
-            return;
-            
-        // Notify the ShipManager that this compartment was clicked
-        if (ShipManager.Instance != null)
-        {
-            ShipManager.Instance.SelectCompartment(this);
-        }
+        Debug.Log($"Mouse entered compartment: {DisplayName}");
+        
+        // Optional: Highlight the compartment
+        // You could change its color or scale slightly
+    }
+    
+    /// <summary>
+    /// Handle mouse exit events
+    /// </summary>
+    public void OnPointerExit(PointerEventData eventData)
+    {
+        Debug.Log($"Mouse exited compartment: {DisplayName}");
+        
+        // Optional: Remove highlight
     }
     
     /// <summary>
@@ -594,6 +601,23 @@ public class ShipCompartment : MonoBehaviour, IPointerClickHandler
         }
         
         return previewText;
+    }
+    
+    /// <summary>
+    /// Handle direct mouse clicks (fallback for non-EventSystem clicks)
+    /// </summary>
+    private void OnMouseDown()
+    {
+        Debug.Log($"Clicked on compartment: {DisplayName}");
+        
+        // Notify the ShipManager
+        if (ShipManager.Instance != null)
+        {
+            ShipManager.Instance.SelectCompartment(this);
+        }
+        
+        // Notify any listeners
+        OnCompartmentClicked?.Invoke(this);
     }
 }
 

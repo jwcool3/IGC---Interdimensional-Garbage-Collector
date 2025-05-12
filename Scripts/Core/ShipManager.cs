@@ -57,6 +57,8 @@ public class ShipManager : MonoBehaviour
     /// </summary>
     public void SelectCompartment(ShipCompartment compartment)
     {
+        Debug.Log("ShipManager: SelectCompartment called for " + compartment.DisplayName);
+        
         // Deselect current selection
         if (selectedCompartment != null)
         {
@@ -73,6 +75,7 @@ public class ShipManager : MonoBehaviour
         }
         
         // Notify listeners
+        Debug.Log("ShipManager: About to invoke OnCompartmentSelected event");
         OnCompartmentSelected?.Invoke(compartment);
     }
     

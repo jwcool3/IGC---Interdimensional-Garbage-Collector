@@ -28,11 +28,18 @@ public class ShipUI : MonoBehaviour
     
     private void Start()
     {
+        Debug.Log("ShipUI: Start method called");
+        
         // Subscribe to events
         if (ShipManager.Instance != null)
         {
+            Debug.Log("ShipUI: Found ShipManager instance, subscribing to events");
             ShipManager.Instance.OnCompartmentSelected += OnCompartmentSelected;
             ShipManager.Instance.OnCompartmentUpgraded += OnCompartmentUpgraded;
+        }
+        else
+        {
+            Debug.LogError("ShipUI: ShipManager.Instance is null!");
         }
         
         if (ResourceManager.Instance != null)
@@ -43,11 +50,19 @@ public class ShipUI : MonoBehaviour
         // Set up button listener
         if (upgradeButton != null)
             upgradeButton.onClick.AddListener(OnUpgradeButtonClicked);
+        else
+            Debug.LogError("ShipUI: upgradeButton is null!");
             
         // Hide detail panel initially
         if (compartmentDetailPanel != null)
+        {
             compartmentDetailPanel.SetActive(false);
-            
+        }
+        else
+        {
+            Debug.LogError("ShipUI: compartmentDetailPanel is null!");
+        }
+        
         // Initial resource display update
         UpdateResourceDisplay();
     }
@@ -55,7 +70,21 @@ public class ShipUI : MonoBehaviour
     // Handle compartment selection
     private void OnCompartmentSelected(ShipCompartment compartment)
     {
+        Debug.Log("ShipUI: OnCompartmentSelected called for " + compartment.DisplayName);
+        
         selectedCompartment = compartment;
+        
+        // Show the detail panel
+        if (compartmentDetailPanel != null)
+        {
+            compartmentDetailPanel.SetActive(true);
+            Debug.Log("ShipUI: Detail panel activated");
+        }
+        else
+        {
+            Debug.LogError("ShipUI: compartmentDetailPanel is null!");
+        }
+        
         UpdateDetailPanel();
     }
     
