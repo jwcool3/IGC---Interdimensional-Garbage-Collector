@@ -1,5 +1,6 @@
 using UnityEngine;
 using UnityEngine.UI;
+using System.Collections.Generic;
 
 public class TabSystem : MonoBehaviour
 {
@@ -19,10 +20,6 @@ public class TabSystem : MonoBehaviour
     [SerializeField] private GameObject shipPanel;
     [SerializeField] private GameObject combatPanel;
     
-    [Header("Persistent UI")]
-    [SerializeField] private GameObject actionPanel; // Always visible
-    [SerializeField] private GameObject resourcePanel; // Always visible
-    
     [Header("Visual Settings")]
     [SerializeField] private Color activeTabColor = Color.white;
     [SerializeField] private Color inactiveTabColor = new Color(0.7f, 0.7f, 0.7f);
@@ -33,8 +30,21 @@ public class TabSystem : MonoBehaviour
     private GameObject currentActivePanel;
     private Button currentActiveButton;
     
+    private List<GameObject> allPanels;
+    
+    private void Awake()
+    {
+        // Create list of all panels
+        allPanels = new List<GameObject> {
+            inventoryPanel, upgradesPanel, locationsPanel,
+            probesPanel, shipPanel, combatPanel
+        };
+    }
+    
     private void Start()
     {
+        Debug.Log("TabSystem: Start method called");
+        
         // Set up button listeners
         if (wasteCollectionButton != null)
             wasteCollectionButton.onClick.AddListener(() => SwitchToTab(inventoryPanel, wasteCollectionButton));
@@ -52,67 +62,77 @@ public class TabSystem : MonoBehaviour
             shipTabButton.onClick.AddListener(() => SwitchToTab(shipPanel, shipTabButton));
             
         if (combatTabButton != null)
-            combatTabButton.onClick.AddListener(() => ShowCombatTab());
+            combatTabButton.onClick.AddListener(() => SwitchToTab(combatPanel, combatTabButton));
         
-        // Activate default tab (waste collection)
-        if (inventoryPanel != null && wasteCollectionButton != null)
-            SwitchToTab(inventoryPanel, wasteCollectionButton);
-        else if (inventoryPanel != null)
-            SwitchToTab(inventoryPanel, null);
+        // Make sure all panels have CanvasGroup components
+        SetupPanelCanvasGroups();
+        
+        // Start with inventory panel active and hide all others
+        Debug.Log("TabSystem: Activating default tab (inventory)");
+        SwitchToTab(inventoryPanel, wasteCollectionButton);
+    }
+    
+    private void SetupPanelCanvasGroups()
+    {
+        foreach (var panel in allPanels)
+        {
+            if (panel == null) 
+            {
+                Debug.LogWarning("TabSystem: One of the panels is null!");
+                continue;
+            }
             
-        Debug.Log("TabSystem initialized");
+            // Ensure panel has CanvasGroup
+            CanvasGroup canvasGroup = panel.GetComponent<CanvasGroup>();
+            if (canvasGroup == null)
+            {
+                canvasGroup = panel.AddComponent<CanvasGroup>();
+                Debug.Log($"TabSystem: Added CanvasGroup to {panel.name}");
+            }
+        }
     }
     
     public void SwitchToTab(GameObject targetPanel, Button targetButton)
     {
         if (targetPanel == null)
         {
-            Debug.LogError("Target panel is null!");
+            Debug.LogError("TabSystem: Target panel is null!");
             return;
         }
         
-        Debug.Log($"Switching to tab: {targetPanel.name}");
+        Debug.Log($"TabSystem: Switching to tab: {targetPanel.name}");
         
-        // First, deactivate ALL content panels
-        DeactivateAllContentPanels();
+        // Hide all panels first
+        foreach (var panel in allPanels)
+        {
+            if (panel == null) continue;
+            
+            CanvasGroup canvasGroup = panel.GetComponent<CanvasGroup>();
+            
+            if (panel == targetPanel)
+            {
+                // Show this panel
+                canvasGroup.alpha = 1f;
+                canvasGroup.interactable = true;
+                canvasGroup.blocksRaycasts = true;
+                Debug.Log($"TabSystem: Showing panel {panel.name}");
+            }
+            else
+            {
+                // Hide other panels
+                canvasGroup.alpha = 0f;
+                canvasGroup.interactable = false;
+                canvasGroup.blocksRaycasts = false;
+            }
+        }
         
         // Update button visuals
         UpdateButtonVisuals(targetButton);
         
-        // Activate new panel
-        targetPanel.SetActive(true);
+        // Update current active panel reference
         currentActivePanel = targetPanel;
         
-        // CRITICAL: Make sure persistent UI stays active
-        EnsurePersistentUIActive();
-        
-        Debug.Log($"Successfully switched to {targetPanel.name}");
-    }
-    
-    private void DeactivateAllContentPanels()
-    {
-        // Only deactivate content panels, not UI elements
-        if (inventoryPanel != null) inventoryPanel.SetActive(false);
-        if (upgradesPanel != null) upgradesPanel.SetActive(false);
-        if (locationsPanel != null) locationsPanel.SetActive(false);
-        if (probesPanel != null) probesPanel.SetActive(false);
-        if (shipPanel != null) shipPanel.SetActive(false);
-        if (combatPanel != null) combatPanel.SetActive(false);
-    }
-    
-    private void EnsurePersistentUIActive()
-    {
-        // Keep UI panels visible
-        if (actionPanel != null) actionPanel.SetActive(true);
-        if (resourcePanel != null) resourcePanel.SetActive(true);
-        
-        // Ensure all tab buttons remain active
-        if (wasteCollectionButton != null) wasteCollectionButton.gameObject.SetActive(true);
-        if (upgradesButton != null) upgradesButton.gameObject.SetActive(true);
-        if (locationsButton != null) locationsButton.gameObject.SetActive(true);
-        if (probesTabButton != null) probesTabButton.gameObject.SetActive(true);
-        if (shipTabButton != null) shipTabButton.gameObject.SetActive(true);
-        if (combatTabButton != null) combatTabButton.gameObject.SetActive(true);
+        Debug.Log($"TabSystem: Successfully switched to {targetPanel.name}");
     }
     
     private void UpdateButtonVisuals(Button newActiveButton)
@@ -152,23 +172,7 @@ public class TabSystem : MonoBehaviour
     
     public void ShowLocationsTab()
     {
-        // Switch to the location tab
         SwitchToTab(locationsPanel, locationsButton);
-        
-        // Refresh the location display with current location
-        LocationImageDisplay display = locationsPanel.GetComponentInChildren<LocationImageDisplay>();
-        LocationSelectionManager manager = locationsPanel.GetComponentInChildren<LocationSelectionManager>();
-        
-        if (display != null && LocationManager.Instance != null)
-        {
-            display.UpdateLocationDisplay(LocationManager.Instance.GetCurrentLocation());
-        }
-        
-        if (manager != null)
-        {
-            // Refresh selection
-            manager.SelectLocation(LocationManager.Instance.GetCurrentLocation());
-        }
     }
     
     public void ShowProbesTab()
@@ -179,21 +183,10 @@ public class TabSystem : MonoBehaviour
     public void ShowShipTab()
     {
         SwitchToTab(shipPanel, shipTabButton);
-        
-        // Optional: Refresh ship display if needed
-        ShipUI shipUI = shipPanel.GetComponentInChildren<ShipUI>();
-        if (shipUI != null)
-        {
-            // Update any ship UI elements that need refreshing
-            shipUI.UpdateDetailPanel();
-        }
     }
     
     public void ShowCombatTab()
     {
         SwitchToTab(combatPanel, combatTabButton);
-        
-        // Update combat display
-        CombatUI.Instance?.UpdateAllDisplays();
     }
 }

@@ -36,6 +36,7 @@ public class CombatUI : MonoBehaviour
     [SerializeField] private TextMeshProUGUI enemyNameText;
     [SerializeField] private TextMeshProUGUI enemyLevelText;
     [SerializeField] private TextMeshProUGUI enemyTypeText;
+    [SerializeField] private Image enemyTypeIcon; // Add dedicated type icon
     
     [Header("Zone Progress")]
     public TextMeshProUGUI zoneNameText;
@@ -248,6 +249,7 @@ public class CombatUI : MonoBehaviour
             if (enemyNameText != null) enemyNameText.text = "No Enemy";
             if (enemyLevelText != null) enemyLevelText.text = "";
             if (enemyTypeText != null) enemyTypeText.text = "";
+            if (enemyTypeIcon != null) enemyTypeIcon.enabled = false; // Hide type icon
             return;
         }
         
@@ -262,6 +264,25 @@ public class CombatUI : MonoBehaviour
             
         if (enemyTypeText != null)
             enemyTypeText.text = $"Type: {enemy.type}";
+        
+        // Update type icon
+        if (enemyTypeIcon != null && EnemyIconManager.Instance != null)
+        {
+            Sprite typeIcon = EnemyIconManager.Instance.GetTypeIcon(enemy.type);
+            if (typeIcon != null)
+            {
+                enemyTypeIcon.sprite = typeIcon;
+                enemyTypeIcon.enabled = true;
+                enemyTypeIcon.color = Color.white;
+            }
+            else
+            {
+                // If no type icon, use color instead
+                enemyTypeIcon.enabled = true;
+                enemyTypeIcon.sprite = null;
+                enemyTypeIcon.color = EnemyIconManager.Instance.GetColorForEnemyType(enemy.type);
+            }
+        }
     
         // Update enemy ship image
         if (enemyShipImage != null)
@@ -271,15 +292,9 @@ public class CombatUI : MonoBehaviour
             // Approach 1: Try getting ship icon directly by model name if available
             if (!string.IsNullOrEmpty(enemy.shipModelName))
             {
-                // First try EnemyIconManager (which will try ShipDatabase first)
                 if (EnemyIconManager.Instance != null)
                 {
                     shipIcon = EnemyIconManager.Instance.GetIconForShipModel(enemy.shipModelName);
-                }
-                // If that fails, try ShipDatabase directly
-                else if (ShipDatabase.Instance != null)
-                {
-                    shipIcon = ShipDatabase.Instance.GetIconForShip(enemy.shipModelName);
                 }
             }
             

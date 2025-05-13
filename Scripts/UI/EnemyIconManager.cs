@@ -1,6 +1,9 @@
 using UnityEngine;
 using System.Collections.Generic;
 
+/// <summary>
+/// Manages enemy icons with runtime loading and caching
+/// </summary>
 public class EnemyIconManager : MonoBehaviour
 {
     // Singleton pattern
@@ -9,12 +12,17 @@ public class EnemyIconManager : MonoBehaviour
     // Cache for loaded sprites
     private readonly Dictionary<string, Sprite> iconCache = new Dictionary<string, Sprite>();
     
-    // Fallback icons for when specific icons aren't found
-    [Header("Fallback Icons")]
-    [SerializeField] private Sprite defaultScavengerIcon;
-    [SerializeField] private Sprite defaultRivalIcon;
-    [SerializeField] private Sprite defaultAnomalyIcon;
-    [SerializeField] private Sprite defaultBossIcon;
+    [Header("Default Ship Icons")]
+    [SerializeField] private Sprite defaultScavengerShipIcon;
+    [SerializeField] private Sprite defaultRivalShipIcon;
+    [SerializeField] private Sprite defaultAnomalyShipIcon;
+    [SerializeField] private Sprite defaultBossShipIcon;
+    
+    [Header("Type Icons")]
+    [SerializeField] private Sprite scavengerTypeIcon;
+    [SerializeField] private Sprite rivalTypeIcon;
+    [SerializeField] private Sprite anomalyTypeIcon;
+    [SerializeField] private Sprite bossTypeIcon;
     
     private void Awake()
     {
@@ -31,42 +39,81 @@ public class EnemyIconManager : MonoBehaviour
     }
     
     /// <summary>
-    /// Load default icons for each enemy type
+    /// Load default icons for each enemy type if not assigned in inspector
     /// </summary>
     private void LoadDefaultIcons()
     {
-        if (defaultScavengerIcon == null)
-            defaultScavengerIcon = Resources.Load<Sprite>("EnemyIcons/Default/Scavenger");
+        // Load ship icons if not assigned
+        if (defaultScavengerShipIcon == null)
+            defaultScavengerShipIcon = Resources.Load<Sprite>("EnemyIcons/Default/ScavengerShip");
             
-        if (defaultRivalIcon == null)
-            defaultRivalIcon = Resources.Load<Sprite>("EnemyIcons/Default/Rival");
+        if (defaultRivalShipIcon == null)
+            defaultRivalShipIcon = Resources.Load<Sprite>("EnemyIcons/Default/RivalShip");
             
-        if (defaultAnomalyIcon == null)
-            defaultAnomalyIcon = Resources.Load<Sprite>("EnemyIcons/Default/Anomaly");
+        if (defaultAnomalyShipIcon == null)
+            defaultAnomalyShipIcon = Resources.Load<Sprite>("EnemyIcons/Default/AnomalyShip");
             
-        if (defaultBossIcon == null)
-            defaultBossIcon = Resources.Load<Sprite>("EnemyIcons/Default/Boss");
+        if (defaultBossShipIcon == null)
+            defaultBossShipIcon = Resources.Load<Sprite>("EnemyIcons/Default/BossShip");
+            
+        // Load type icons if not assigned
+        if (scavengerTypeIcon == null)
+            scavengerTypeIcon = Resources.Load<Sprite>("EnemyIcons/Types/Scavenger");
+            
+        if (rivalTypeIcon == null)
+            rivalTypeIcon = Resources.Load<Sprite>("EnemyIcons/Types/Rival");
+            
+        if (anomalyTypeIcon == null)
+            anomalyTypeIcon = Resources.Load<Sprite>("EnemyIcons/Types/Anomaly");
+            
+        if (bossTypeIcon == null)
+            bossTypeIcon = Resources.Load<Sprite>("EnemyIcons/Types/Boss");
     }
     
     /// <summary>
-    /// Get an icon for an enemy using the ShipDatabase when available
+    /// Get an icon for an enemy ship using multiple approaches
     /// </summary>
     public Sprite GetIconForEnemy(EnemyType type, int sector, int variation)
     {
-        // First try to get from ShipDatabase if available
+        // 1. Check cache first
+        string cacheKey = $"Ship_{type}_{sector}_{variation}";
+        if (iconCache.TryGetValue(cacheKey, out Sprite cachedIcon))
+            return cachedIcon;
+            
+        Sprite icon = null;
+        
+        // 2. Try ShipDatabase for model-specific icons
         if (ShipDatabase.Instance != null)
         {
-            // Get a ship model appropriate for this enemy type and sector
             ShipModel shipModel = ShipDatabase.Instance.GetRandomShipForTypeAndSector(type, sector);
-            
             if (shipModel != null && shipModel.shipIcon != null)
-            {
-                return shipModel.shipIcon;
-            }
+                icon = shipModel.shipIcon;
         }
         
-        // If that fails, fall back to our default icons
-        return GetDefaultIconForType(type);
+        // 3. Try loading from Resources folder hierarchy
+        if (icon == null)
+        {
+            // Try specific sector/variation
+            string basePath = $"EnemyIcons/Sector{sector}/{type}";
+            string specificPath = $"{basePath}/{type}_{sector}{GetVariationLetter(variation)}";
+            icon = Resources.Load<Sprite>(specificPath);
+            
+            // Try without variation letter
+            if (icon == null)
+                icon = Resources.Load<Sprite>($"{basePath}/{type}_{sector}");
+                
+            // Try sector default
+            if (icon == null)
+                icon = Resources.Load<Sprite>($"{basePath}/Default");
+        }
+        
+        // 4. Use default icon for type if everything else fails
+        if (icon == null)
+            icon = GetDefaultShipIcon(type);
+            
+        // Cache result (even if null)
+        iconCache[cacheKey] = icon;
+        return icon;
     }
     
     /// <summary>
@@ -74,30 +121,81 @@ public class EnemyIconManager : MonoBehaviour
     /// </summary>
     public Sprite GetIconForShipModel(string modelName)
     {
-        if (string.IsNullOrEmpty(modelName) || ShipDatabase.Instance == null)
+        if (string.IsNullOrEmpty(modelName))
             return null;
             
-        return ShipDatabase.Instance.GetIconForShip(modelName);
+        // Check cache first
+        string cacheKey = $"Model_{modelName}";
+        if (iconCache.TryGetValue(cacheKey, out Sprite cachedIcon))
+            return cachedIcon;
+            
+        Sprite icon = null;
+        
+        // Try ShipDatabase if available
+        if (ShipDatabase.Instance != null)
+            icon = ShipDatabase.Instance.GetIconForShip(modelName);
+            
+        // Try loading directly from resources as fallback
+        if (icon == null)
+            icon = Resources.Load<Sprite>($"ShipModels/{modelName}");
+            
+        // Cache the result
+        iconCache[cacheKey] = icon;
+        return icon;
     }
     
     /// <summary>
-    /// Get the default icon for an enemy type
+    /// Get the icon representing an enemy type
     /// </summary>
-    public Sprite GetDefaultIconForType(EnemyType type)
+    public Sprite GetTypeIcon(EnemyType type)
+    {
+        // First try to get from cache
+        string cacheKey = $"TypeIcon_{type}";
+        if (iconCache.TryGetValue(cacheKey, out Sprite cachedIcon))
+        {
+            return cachedIcon;
+        }
+        
+        // Get assigned icon
+        Sprite typeIcon = type switch
+        {
+            EnemyType.Scavenger => scavengerTypeIcon,
+            EnemyType.Rival => rivalTypeIcon,
+            EnemyType.Anomaly => anomalyTypeIcon,
+            EnemyType.Boss => bossTypeIcon,
+            _ => null
+        };
+        
+        // If no icon assigned, try to load from resources
+        if (typeIcon == null)
+        {
+            typeIcon = Resources.Load<Sprite>($"EnemyIcons/Types/{type}");
+        }
+        
+        // Cache the result (even if null)
+        iconCache[cacheKey] = typeIcon;
+        
+        return typeIcon;
+    }
+    
+    /// <summary>
+    /// Get the default ship icon for a given enemy type
+    /// </summary>
+    public Sprite GetDefaultShipIcon(EnemyType type)
     {
         switch (type)
         {
             case EnemyType.Scavenger:
-                return defaultScavengerIcon;
+                return defaultScavengerShipIcon;
                 
             case EnemyType.Rival:
-                return defaultRivalIcon;
+                return defaultRivalShipIcon;
                 
             case EnemyType.Anomaly:
-                return defaultAnomalyIcon;
+                return defaultAnomalyShipIcon;
                 
             case EnemyType.Boss:
-                return defaultBossIcon;
+                return defaultBossShipIcon;
                 
             default:
                 return null;
@@ -127,4 +225,21 @@ public class EnemyIconManager : MonoBehaviour
                 return Color.white;
         }
     }
-} 
+    
+    /// <summary>
+    /// Convert numeric variation to letter (0=A, 1=B, etc.)
+    /// </summary>
+    private string GetVariationLetter(int variation)
+    {
+        return ((char)('A' + variation)).ToString();
+    }
+    
+    private void OnDestroy()
+    {
+        // Clear cache when destroyed
+        iconCache.Clear();
+        
+        // Unload unused assets
+        Resources.UnloadUnusedAssets();
+    }
+}

@@ -64,6 +64,11 @@ public class CombatManager : MonoBehaviour
     
     private void Update()
     {
+        if (!gameObject.activeInHierarchy)
+        {
+            return;
+        }
+
         if (autoCombatEnabled && currentEnemy != null)
         {
             // Increment combat timer
@@ -199,6 +204,12 @@ public class CombatManager : MonoBehaviour
     /// </summary>
     public void PerformAttack()
     {
+        if (!gameObject.activeInHierarchy)
+        {
+            Debug.LogWarning("CombatManager is inactive, skipping attack");
+            return;
+        }
+
         if (currentEnemy == null) return;
         
         // Calculate damage
@@ -216,8 +227,11 @@ public class CombatManager : MonoBehaviour
         // Process enemy attack if still alive
         if (!enemyDefeated)
         {
-            // Short delay before enemy attacks back
-            StartCoroutine(EnemyAttackAfterDelay(0.5f));
+            // Only start coroutine if the game object is active
+            if (gameObject.activeInHierarchy)
+            {
+                StartCoroutine(EnemyAttackAfterDelay(0.5f));
+            }
         }
         else
         {
@@ -234,7 +248,20 @@ public class CombatManager : MonoBehaviour
     /// </summary>
     private IEnumerator EnemyAttackAfterDelay(float delay)
     {
+        if (!gameObject.activeInHierarchy)
+        {
+            Debug.LogWarning("CombatManager is inactive, skipping enemy attack");
+            yield break;
+        }
+
         yield return new WaitForSeconds(delay);
+        
+        // Check again after the delay in case the object was deactivated
+        if (!gameObject.activeInHierarchy)
+        {
+            Debug.LogWarning("CombatManager became inactive during delay, skipping enemy attack");
+            yield break;
+        }
         
         float enemyDamage = currentEnemy.CalculateDamage();
         

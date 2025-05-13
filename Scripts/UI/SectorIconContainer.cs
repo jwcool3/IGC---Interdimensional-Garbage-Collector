@@ -37,12 +37,6 @@ public class SectorIconContainer : MonoBehaviour
     [Header("Sector Icon Sets")]
     public List<SectorIconSet> sectorIcons = new List<SectorIconSet>();
 
-    [Header("Default Icons")]
-    public Sprite defaultScavengerIcon;
-    public Sprite defaultRivalIcon;
-    public Sprite defaultAnomalyIcon;
-    public Sprite defaultBossIcon;
-
     private void Awake()
     {
         // Set up singleton
@@ -99,23 +93,19 @@ public class SectorIconContainer : MonoBehaviour
     }
 
     /// <summary>
-    /// Get the default icon for an enemy type
+    /// Get the default icon for an enemy type - now uses EnemyIconManager
     /// </summary>
     public Sprite GetDefaultIcon(EnemyType type)
     {
-        switch (type)
+        // Use EnemyIconManager for defaults if available
+        if (EnemyIconManager.Instance != null)
         {
-            case EnemyType.Scavenger:
-                return defaultScavengerIcon;
-            case EnemyType.Rival:
-                return defaultRivalIcon;
-            case EnemyType.Anomaly:
-                return defaultAnomalyIcon;
-            case EnemyType.Boss:
-                return defaultBossIcon;
-            default:
-                return null;
+            return EnemyIconManager.Instance.GetDefaultShipIcon(type);
         }
+        
+        // Fallback to basic color if EnemyIconManager not available
+        Debug.LogWarning("EnemyIconManager not available for default icons");
+        return null;
     }
 
     /// <summary>
