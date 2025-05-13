@@ -142,17 +142,21 @@ public class CombatManager : MonoBehaviour
         // Check if this should be a boss
         bool isBoss = (enemiesDefeatedInZone + 1) % 10 == 0;
         
-        string shipModelName = "";
         EnemyType enemyType = isBoss ? EnemyType.Boss : GetRandomEnemyType();
+        ShipModel shipModel = null;
+        string shipModelName = "";
+        string displayName = "";
         
         // Try to get a ship model from the database
         if (ShipDatabase.Instance != null)
         {
-            ShipModel shipModel = ShipDatabase.Instance.GetRandomShipForTypeAndSector(enemyType, currentZone.sectorNumber);
+            shipModel = ShipDatabase.Instance.GetRandomShipForTypeAndSector(enemyType, currentZone.sectorNumber);
             
             if (shipModel != null)
             {
                 shipModelName = shipModel.modelName;
+                // Use the model name as the display name
+                displayName = shipModel.modelName;
                 Debug.Log($"Using ship model: {shipModelName} for {enemyType} in sector {currentZone.sectorNumber}");
             }
             else
@@ -160,6 +164,7 @@ public class CombatManager : MonoBehaviour
                 Debug.LogWarning($"No ship model found for {enemyType} in sector {currentZone.sectorNumber}");
                 // Use a fallback name based on type
                 shipModelName = $"Default{enemyType}Ship";
+                displayName = $"{enemyType} Ship";
             }
         }
         else
@@ -167,13 +172,14 @@ public class CombatManager : MonoBehaviour
             Debug.LogWarning("ShipDatabase not found, using default ship model names");
             // Use a fallback name based on type
             shipModelName = $"Default{enemyType}Ship";
+            displayName = $"{enemyType} Ship";
         }
         
         // Generate enemy with the selected ship model
         if (isBoss)
         {
             currentEnemy = new EnemyShip(
-                "Zone Boss",
+                displayName,
                 shipModelName,
                 enemyLevel * 1.5f,
                 EnemyType.Boss,
@@ -185,7 +191,7 @@ public class CombatManager : MonoBehaviour
         else
         {
             currentEnemy = new EnemyShip(
-                GetRandomEnemyName(),
+                displayName,
                 shipModelName,
                 enemyLevel,
                 enemyType,
