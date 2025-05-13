@@ -26,7 +26,9 @@ public class CombatManager : MonoBehaviour
     // Combat state
     public bool autoCombatEnabled = true;
     private float combatTimer = 0f;
-    private float timeBetweenAttacks = 3f;
+    private float timeBetweenAttacks = 1f;
+    private float uiUpdateTimer = 0f;
+    private float uiUpdateInterval = 0.2f; // Update UI 5 times per second
     
     // Combat rewards
     public int shipParts = 0;
@@ -72,6 +74,15 @@ public class CombatManager : MonoBehaviour
             {
                 PerformAttack();
                 combatTimer = 0f;
+            }
+            
+            // Update UI periodically
+            uiUpdateTimer += Time.deltaTime;
+            if (uiUpdateTimer >= uiUpdateInterval)
+            {
+                CombatUI.Instance?.UpdateCombatDisplay();
+                CombatUI.Instance?.UpdateStatsDisplay();
+                uiUpdateTimer = 0f;
             }
         }
     }
@@ -165,8 +176,8 @@ public class CombatManager : MonoBehaviour
         // Show damage effect on player
         CombatUI.Instance?.ShowDamageEffect(true);
         
-        // Update UI after enemy attack
-        CombatUI.Instance?.UpdateCombatDisplay();
+        // Update UI after enemy attack - make sure to update everything
+        CombatUI.Instance?.UpdateAllDisplays();
     }
     
     private float CalculateDamage()
@@ -187,6 +198,9 @@ public class CombatManager : MonoBehaviour
         return damage;
     }
     
+    /// <summary>
+    /// Apply damage to the player
+    /// </summary>
     public bool TakeDamage(float damage)
     {
         // Apply defense reduction
@@ -194,6 +208,12 @@ public class CombatManager : MonoBehaviour
         
         // Apply damage
         currentHP -= reducedDamage;
+        
+        Debug.Log($"Took {reducedDamage:F1} damage (reduced from {damage:F1} by defense)");
+        
+        // Update UI immediately after taking damage
+        CombatUI.Instance?.UpdateCombatDisplay();
+        CombatUI.Instance?.UpdateStatsDisplay();
         
         // Check if defeated
         if (currentHP <= 0)
@@ -246,16 +266,23 @@ public class CombatManager : MonoBehaviour
         CombatUI.Instance?.ShowZoneComplete(currentZone.zoneName);
     }
     
+    /// <summary>
+    /// Process player defeat
+    /// </summary>
     private void ProcessDefeat()
     {
-        // Stop auto combat
+        Debug.Log("Player defeated!");
+        
+        // Disable auto-combat
         autoCombatEnabled = false;
+        CombatUI.Instance?.UpdateAutoButtonState(false);
         
-        // Restore some HP
-        currentHP = maxHP * 0.5f;
-        
-        // Notify UI
+        // Show defeat effects and UI
         CombatUI.Instance?.ShowDefeat();
+        CombatUI.Instance?.UpdateAllDisplays();
+        
+        // Return to first zone
+        ChangeZone(0);
     }
     
     /// <summary>
@@ -296,10 +323,25 @@ public class CombatManager : MonoBehaviour
     }
     
     // Public methods for UI interaction
+    /// <summary>
+    /// Toggle auto-combat mode
+    /// </summary>
     public void ToggleAutoCombat()
     {
         autoCombatEnabled = !autoCombatEnabled;
+        
+        // Reset timers when enabling auto-combat
+        if (autoCombatEnabled)
+        {
+            combatTimer = 0f;
+            uiUpdateTimer = 0f;
+        }
+        
+        // Update UI state
         CombatUI.Instance?.UpdateAutoButtonState(autoCombatEnabled);
+        CombatUI.Instance?.UpdateAllDisplays();
+        
+        Debug.Log($"Auto-combat {(autoCombatEnabled ? "enabled" : "disabled")}");
     }
     
     public void ManualAttack()
