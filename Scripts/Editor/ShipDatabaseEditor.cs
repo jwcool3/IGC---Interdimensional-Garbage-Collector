@@ -218,23 +218,28 @@ public class ShipDatabaseEditor : EditorWindow
     private void AddManualShipModel(Sprite sprite, EnemyType type, int sector)
     {
         serializedObject.Update();
-
+        
         // Add a new element to the array
         shipModelsProperty.arraySize++;
-
+        
         // Get the new element
         SerializedProperty newShip = shipModelsProperty.GetArrayElementAtIndex(shipModelsProperty.arraySize - 1);
-
+        
+        // Clean the sprite name
+        string cleanName = (targetDatabase != null) 
+            ? targetDatabase.CleanSpriteName(sprite.name) 
+            : sprite.name.EndsWith("_0") ? sprite.name.Substring(0, sprite.name.Length - 2) : sprite.name;
+        
         // Set properties
-        newShip.FindPropertyRelative("modelName").stringValue = sprite.name;
+        newShip.FindPropertyRelative("modelName").stringValue = cleanName;
         newShip.FindPropertyRelative("shipType").enumValueIndex = (int)type;
         newShip.FindPropertyRelative("minSectorLevel").intValue = sector;
         newShip.FindPropertyRelative("shipIcon").objectReferenceValue = sprite;
         newShip.FindPropertyRelative("description").stringValue = "";
-
+        
         serializedObject.ApplyModifiedProperties();
-
-        Debug.Log($"Manually added ship model: {sprite.name}");
+        
+        Debug.Log($"Manually added ship model: {cleanName}");
     }
 
     private void DrawShipModelsList(int size)

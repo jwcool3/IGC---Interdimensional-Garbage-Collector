@@ -121,8 +121,9 @@ public class ShipDatabase : MonoBehaviour
         {
             if (ship != null && !string.IsNullOrEmpty(ship.modelName))
             {
-                existingModels[ship.modelName] = ship;
-                Debug.Log($"Registered existing model: {ship.modelName} (Type: {ship.shipType}, Sector: {ship.minSectorLevel})");
+                string cleanName = CleanSpriteName(ship.modelName);
+                existingModels[cleanName] = ship;
+                Debug.Log($"Registered existing model: {cleanName} (Type: {ship.shipType}, Sector: {ship.minSectorLevel})");
             }
         }
         
@@ -179,7 +180,35 @@ public class ShipDatabase : MonoBehaviour
     }
 
     /// <summary>
-    /// Populate the database using sprites found directly
+    /// Clean sprite name by removing unwanted suffixes like "_0"
+    /// </summary>
+    public string CleanSpriteName(string spriteName)
+    {
+        // Remove "_0" suffix which often comes from sprite sheet extraction
+        if (spriteName.EndsWith("_0"))
+        {
+            return spriteName.Substring(0, spriteName.Length - 2);
+        }
+        
+        // Remove any "_XX" suffixes where XX is a number
+        if (spriteName.Length > 3)
+        {
+            int underscorePos = spriteName.LastIndexOf('_');
+            if (underscorePos > 0 && underscorePos == spriteName.Length - 3)
+            {
+                string suffix = spriteName.Substring(underscorePos + 1);
+                if (int.TryParse(suffix, out _))
+                {
+                    return spriteName.Substring(0, underscorePos);
+                }
+            }
+        }
+        
+        return spriteName;
+    }
+
+    /// <summary>
+    /// Populate the database using sprites found directly, removing "_0" suffixes
     /// </summary>
     private void AutoPopulateFromSprites(Sprite[] allSprites)
     {
@@ -199,8 +228,11 @@ public class ShipDatabase : MonoBehaviour
         {
             if (sprite == null) continue;
             
+            // Clean the sprite name (remove "_0" suffix)
+            string cleanName = CleanSpriteName(sprite.name);
+            
             // Skip if already exists
-            if (existingModels.ContainsKey(sprite.name)) continue;
+            if (existingModels.ContainsKey(cleanName)) continue;
             
             // Try to determine type and sector from asset path
             string path = UnityEditor.AssetDatabase.GetAssetPath(sprite);
@@ -210,17 +242,17 @@ public class ShipDatabase : MonoBehaviour
             int sector = 1; // Default
             
             // Get type from path or name
-            if (path.Contains("rival") || sprite.name.ToLower().Contains("rival"))
+            if (path.Contains("rival") || cleanName.ToLower().Contains("rival"))
                 type = EnemyType.Rival;
-            else if (path.Contains("anomaly") || sprite.name.ToLower().Contains("anomaly"))
+            else if (path.Contains("anomaly") || cleanName.ToLower().Contains("anomaly"))
                 type = EnemyType.Anomaly;
-            else if (path.Contains("boss") || sprite.name.ToLower().Contains("boss"))
+            else if (path.Contains("boss") || cleanName.ToLower().Contains("boss"))
                 type = EnemyType.Boss;
             
             // Get sector from path or name
             for (int i = 1; i <= 5; i++)
             {
-                if (path.Contains($"sector{i}") || sprite.name.ToLower().Contains($"sector{i}"))
+                if (path.Contains($"sector{i}") || cleanName.ToLower().Contains($"sector{i}"))
                 {
                     sector = i;
                     break;
@@ -230,7 +262,7 @@ public class ShipDatabase : MonoBehaviour
             // Create new model
             ShipModel newModel = new ShipModel
             {
-                modelName = sprite.name,
+                modelName = cleanName,
                 shipType = type,
                 minSectorLevel = sector,
                 shipIcon = sprite,
@@ -238,7 +270,7 @@ public class ShipDatabase : MonoBehaviour
             };
             
             newModels.Add(newModel);
-            Debug.Log($"Added new ship from sprite: {sprite.name} (Type: {type}, Sector: {sector})");
+            Debug.Log($"Added new ship from sprite: {cleanName} (Type: {type}, Sector: {sector})");
         }
         
         // Add all models to database
@@ -283,7 +315,8 @@ public class ShipDatabase : MonoBehaviour
         {
             if (sprite == null) continue;
             
-            string modelName = sprite.name;
+            // Clean the sprite name
+            string modelName = CleanSpriteName(sprite.name);
             Debug.Log($"Processing default sprite: {modelName}");
             
             // Try to determine enemy type from name
@@ -372,7 +405,8 @@ public class ShipDatabase : MonoBehaviour
             {
                 if (sprite == null) continue;
                 
-                string modelName = sprite.name;
+                // Clean the sprite name
+                string modelName = CleanSpriteName(sprite.name);
                 Debug.Log($"Processing sprite: {modelName}");
                 
                 // Try to determine enemy type from name
@@ -450,7 +484,8 @@ public class ShipDatabase : MonoBehaviour
         {
             if (sprite == null) continue;
             
-            string modelName = sprite.name;
+            // Clean the sprite name
+            string modelName = CleanSpriteName(sprite.name);
             Debug.Log($"Processing sprite: {modelName}");
             
             // Check if this model already exists
@@ -701,4 +736,23 @@ public class ShipDatabase : MonoBehaviour
             InitializeLookups(); // Refresh lookups when adding models
         }
     }
+
+#if UNITY_EDITOR
+    private void OnValidate()
+    {
+        // Clean up any "_0" suffixes in existing entries
+        for (int i = 0; i < shipModels.Count; i++)
+        {
+            if (shipModels[i] != null && !string.IsNullOrEmpty(shipModels[i].modelName))
+            {
+                string cleanName = CleanSpriteName(shipModels[i].modelName);
+                if (cleanName != shipModels[i].modelName)
+                {
+                    Debug.Log($"Cleaning model name: {shipModels[i].modelName} -> {cleanName}");
+                    shipModels[i].modelName = cleanName;
+                }
+            }
+        }
+    }
+#endif
 }
