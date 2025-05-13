@@ -129,42 +129,68 @@ public class CombatManager : MonoBehaviour
     /// </summary>
     public void SpawnEnemy()
     {
-        if (currentZone == null)
-        {
-            Debug.LogError("Cannot spawn enemy - no current zone set!");
-            return;
-        }
+        if (currentZone == null) return;
         
+        // Calculate enemy level based on zone and progress
         float enemyLevel = currentZone.zoneLevel + (enemiesDefeatedInZone * 0.2f);
+        
+        // Check if this should be a boss
         bool isBoss = (enemiesDefeatedInZone + 1) % 10 == 0;
         
-        if (isBoss)
+        string shipModelName = "";
+        EnemyType enemyType = isBoss ? EnemyType.Boss : GetRandomEnemyType();
+        
+        // Try to get a ship model from the database
+        if (ShipDatabase.Instance != null)
         {
-            // Use the zone's specific boss variation
-            currentEnemy = new EnemyShip(
-                "Zone Boss", 
-                enemyLevel * 1.5f, 
-                EnemyType.Boss, 
-                currentZone.bossVariation
-            );
+            ShipModel shipModel = ShipDatabase.Instance.GetRandomShipForTypeAndSector(enemyType, currentZone.sectorNumber);
+            
+            if (shipModel != null)
+            {
+                shipModelName = shipModel.modelName;
+                Debug.Log($"Using ship model: {shipModelName} for {enemyType} in sector {currentZone.sectorNumber}");
+            }
+            else
+            {
+                Debug.LogWarning($"No ship model found for {enemyType} in sector {currentZone.sectorNumber}");
+                // Use a fallback name based on type
+                shipModelName = $"Default{enemyType}Ship";
+            }
         }
         else
         {
-            // Get a random enemy type based on zone probabilities
-            EnemyType enemyType = GetRandomEnemyType();
-            
-            // Get a random variation appropriate for this zone
-            int variation = currentZone.GetRandomVariationForType(enemyType);
-            
-            currentEnemy = new EnemyShip(
-                GetRandomEnemyName(), 
-                enemyLevel, 
-                enemyType, 
-                variation
-            );
+            Debug.LogWarning("ShipDatabase not found, using default ship model names");
+            // Use a fallback name based on type
+            shipModelName = $"Default{enemyType}Ship";
         }
         
-        // Update UI
+        // Generate enemy with the selected ship model
+        if (isBoss)
+        {
+            currentEnemy = new EnemyShip(
+                "Zone Boss",
+                shipModelName,
+                enemyLevel * 1.5f,
+                EnemyType.Boss,
+                currentZone.sectorNumber
+            );
+            
+            Debug.Log($"Spawned boss enemy: {currentEnemy.name} with model {shipModelName}");
+        }
+        else
+        {
+            currentEnemy = new EnemyShip(
+                GetRandomEnemyName(),
+                shipModelName,
+                enemyLevel,
+                enemyType,
+                currentZone.sectorNumber
+            );
+            
+            Debug.Log($"Spawned regular enemy: {currentEnemy.name} with model {shipModelName}");
+        }
+        
+        // Update UI to show the new enemy
         CombatUI.Instance?.UpdateEnemyDisplay();
     }
     

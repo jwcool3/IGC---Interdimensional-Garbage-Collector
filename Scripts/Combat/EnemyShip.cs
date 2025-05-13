@@ -1,3 +1,5 @@
+using UnityEngine;
+
 public enum EnemyType
 {
     Scavenger,
@@ -12,8 +14,8 @@ public class EnemyShip
     public string shipModelName;  // Specific ship model name (for icon lookup)
     public float level;
     public EnemyType type;
-    public int iconVariation; // Track which icon variation this enemy uses
-    public int sectorNumber; // Add sector number
+    public int iconVariation;     // Track which icon variation this enemy uses
+    public int sectorNumber;      // Add sector number
     
     // Combat stats
     public float maxHP;
@@ -37,8 +39,9 @@ public class EnemyShip
     }
     
     /// <summary>
-    /// Constructor for backward compatibility
+    /// Constructor for backward compatibility - Deprecated, use the other constructor instead
     /// </summary>
+    [System.Obsolete("Use the constructor with shipModelName parameter instead")]
     public EnemyShip(string displayName, float level, EnemyType type)
     {
         this.name = displayName;
@@ -97,7 +100,7 @@ public class EnemyShip
         float damage = attackPower;
         
         // Apply random variance (+-10%)
-        damage *= UnityEngine.Random.Range(0.9f, 1.1f);
+        damage *= Random.Range(0.9f, 1.1f);
         
         return damage;
     }

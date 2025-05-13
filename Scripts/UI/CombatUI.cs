@@ -33,15 +33,15 @@ public class CombatUI : MonoBehaviour
     public TextMeshProUGUI critText;
     
     [Header("Enemy Info")]
-    public TextMeshProUGUI enemyNameText;
-    public TextMeshProUGUI enemyLevelText;
-    public TextMeshProUGUI enemyTypeText;
-    public Image enemyTypeIcon;  // New reference for type-specific icon
+    [SerializeField] private TextMeshProUGUI enemyNameText;
+    [SerializeField] private TextMeshProUGUI enemyLevelText;
+    [SerializeField] private TextMeshProUGUI enemyTypeText;
     
     [Header("Zone Progress")]
     public TextMeshProUGUI zoneNameText;
     public TextMeshProUGUI zoneProgressText;
-    [SerializeField] private Dropdown zoneSelector;
+    public Image zoneIconImage;
+    [SerializeField] private TMP_Dropdown zoneSelector;
     
     [Header("Controls")]
     public Button attackButton;
@@ -87,7 +87,7 @@ public class CombatUI : MonoBehaviour
             GameObject selectorObj = GameObject.Find("ZoneSelector");
             if (selectorObj != null)
             {
-                zoneSelector = selectorObj.GetComponent<Dropdown>();
+                zoneSelector = selectorObj.GetComponent<TMP_Dropdown>();
                 Debug.Log("Found zone selector by name");
             }
             
@@ -97,7 +97,7 @@ public class CombatUI : MonoBehaviour
                 // Try looking for any dropdown in the combat panel
                 if (combatPanel != null)
                 {
-                    zoneSelector = combatPanel.GetComponentInChildren<Dropdown>();
+                    zoneSelector = combatPanel.GetComponentInChildren<TMP_Dropdown>();
                     if (zoneSelector != null)
                     {
                         Debug.Log("Found zone selector in combat panel");
@@ -245,7 +245,6 @@ public class CombatUI : MonoBehaviour
         {
             // Hide enemy display elements when no enemy
             if (enemyShipImage != null) enemyShipImage.enabled = false;
-            if (enemyTypeIcon != null) enemyTypeIcon.enabled = false;
             if (enemyNameText != null) enemyNameText.text = "No Enemy";
             if (enemyLevelText != null) enemyLevelText.text = "";
             if (enemyTypeText != null) enemyTypeText.text = "";
@@ -263,55 +262,38 @@ public class CombatUI : MonoBehaviour
             
         if (enemyTypeText != null)
             enemyTypeText.text = $"Type: {enemy.type}";
-        
-        // Get the ship icon
-        Sprite shipIcon = null;
-        
-        if (ShipDatabase.Instance != null && !string.IsNullOrEmpty(enemy.shipModelName))
-        {
-            // Get the icon for this specific ship model
-            shipIcon = ShipDatabase.Instance.GetIconForShip(enemy.shipModelName);
-        }
-        
-        // Update enemy type icon
-        if (enemyTypeIcon != null)
-        {
-            if (shipIcon != null)
-            {
-                enemyTypeIcon.sprite = shipIcon;
-                enemyTypeIcon.enabled = true;
-            }
-            else
-            {
-                // Try to get a fallback icon from the EnemyIconManager
-                if (EnemyIconManager.Instance != null)
-                {
-                    Sprite fallbackIcon = EnemyIconManager.Instance.GetIconForEnemy(
-                        enemy.type,
-                        enemy.sectorNumber,
-                        0 // Use base variation
-                    );
-                    
-                    if (fallbackIcon != null)
-                    {
-                        enemyTypeIcon.sprite = fallbackIcon;
-                        enemyTypeIcon.enabled = true;
-                    }
-                    else
-                    {
-                        enemyTypeIcon.enabled = false;
-                    }
-                }
-                else
-                {
-                    enemyTypeIcon.enabled = false;
-                }
-            }
-        }
-        
+    
         // Update enemy ship image
         if (enemyShipImage != null)
         {
+            Sprite shipIcon = null;
+            
+            // Approach 1: Try getting ship icon directly by model name if available
+            if (!string.IsNullOrEmpty(enemy.shipModelName))
+            {
+                // First try EnemyIconManager (which will try ShipDatabase first)
+                if (EnemyIconManager.Instance != null)
+                {
+                    shipIcon = EnemyIconManager.Instance.GetIconForShipModel(enemy.shipModelName);
+                }
+                // If that fails, try ShipDatabase directly
+                else if (ShipDatabase.Instance != null)
+                {
+                    shipIcon = ShipDatabase.Instance.GetIconForShip(enemy.shipModelName);
+                }
+            }
+            
+            // Approach 2: If no icon found by model name, try getting by type and sector
+            if (shipIcon == null && EnemyIconManager.Instance != null)
+            {
+                shipIcon = EnemyIconManager.Instance.GetIconForEnemy(
+                    enemy.type,
+                    enemy.sectorNumber,
+                    0  // Default variation
+                );
+            }
+            
+            // Set the icon if found
             if (shipIcon != null)
             {
                 enemyShipImage.sprite = shipIcon;
@@ -320,39 +302,32 @@ public class CombatUI : MonoBehaviour
             }
             else
             {
-                // Fallback to color coding
-                SetEnemyColorByType(enemy.type);
-            }
-        }
-    }
-    
-    private void SetEnemyColorByType(EnemyType type)
-    {
-        if (enemyShipImage == null) return;
-        
-        enemyShipImage.enabled = true;
-        
-        // Use color coding as fallback when sprites aren't available
-        if (EnemyIconManager.Instance != null)
-        {
-            enemyShipImage.color = EnemyIconManager.Instance.GetColorForEnemyType(type);
-        }
-        else
-        {
-            switch (type)
-            {
-                case EnemyType.Scavenger:
-                    enemyShipImage.color = new Color(0.5f, 0.5f, 0.5f); // Gray
-                    break;
-                case EnemyType.Rival:
-                    enemyShipImage.color = new Color(0.2f, 0.6f, 1f); // Blue
-                    break;
-                case EnemyType.Anomaly:
-                    enemyShipImage.color = new Color(1f, 0.4f, 0.8f); // Pink
-                    break;
-                case EnemyType.Boss:
-                    enemyShipImage.color = new Color(1f, 0.2f, 0.2f); // Red
-                    break;
+                // Use a default shape with color coding as absolute fallback
+                enemyShipImage.enabled = true;
+                
+                if (EnemyIconManager.Instance != null)
+                {
+                    enemyShipImage.color = EnemyIconManager.Instance.GetColorForEnemyType(enemy.type);
+                }
+                else
+                {
+                    // Hardcoded fallback colors if EnemyIconManager is missing
+                    switch (enemy.type)
+                    {
+                        case EnemyType.Scavenger:
+                            enemyShipImage.color = new Color(0.5f, 0.5f, 0.5f); // Gray
+                            break;
+                        case EnemyType.Rival:
+                            enemyShipImage.color = new Color(0.2f, 0.6f, 1f); // Blue
+                            break;
+                        case EnemyType.Anomaly:
+                            enemyShipImage.color = new Color(1f, 0.4f, 0.8f); // Pink
+                            break;
+                        case EnemyType.Boss:
+                            enemyShipImage.color = new Color(1f, 0.2f, 0.2f); // Red
+                            break;
+                    }
+                }
             }
         }
     }
@@ -364,8 +339,30 @@ public class CombatUI : MonoBehaviour
         var zone = CombatManager.Instance.currentZone;
         var progress = CombatManager.Instance.enemiesDefeatedInZone;
         
-        zoneNameText.text = zone.zoneName;
-        zoneProgressText.text = $"{progress}/{zone.enemiesInZone} Enemies";
+        if (zoneNameText != null)
+            zoneNameText.text = zone.zoneName;
+            
+        if (zoneProgressText != null)
+            zoneProgressText.text = $"{progress}/{zone.enemiesInZone} Enemies";
+        
+        // Update zone icon
+        if (zoneIconImage != null)
+        {
+            Sprite zoneIcon = zone.GetZoneIcon();
+            
+            if (zoneIcon != null)
+            {
+                zoneIconImage.sprite = zoneIcon;
+                zoneIconImage.color = Color.white;
+                zoneIconImage.enabled = true;
+            }
+            else
+            {
+                // No icon found, use a color based on sector
+                zoneIconImage.enabled = true;
+                zoneIconImage.color = GetColorForSector(zone.sectorNumber);
+            }
+        }
     }
     
     private void PopulateZoneSelector()
@@ -378,10 +375,22 @@ public class CombatUI : MonoBehaviour
         
         zoneSelector.ClearOptions();
         
-        List<string> options = new List<string>();
+        List<TMP_Dropdown.OptionData> options = new List<TMP_Dropdown.OptionData>();
         foreach (var zone in CombatManager.Instance.availableZones)
         {
-            string option = zone.isLocked ? $"LOCKED: {zone.zoneName}" : zone.zoneName;
+            string optionText = zone.isLocked ? $"LOCKED: {zone.zoneName}" : zone.zoneName;
+            
+            // Create option with icon if available
+            TMP_Dropdown.OptionData option = new TMP_Dropdown.OptionData();
+            option.text = optionText;
+            
+            // Try to get icon
+            Sprite zoneIcon = zone.GetZoneIcon();
+            if (zoneIcon != null)
+            {
+                option.image = zoneIcon;
+            }
+            
             options.Add(option);
         }
         
@@ -397,6 +406,25 @@ public class CombatUI : MonoBehaviour
         {
             Debug.LogWarning($"Invalid zone index: {currentIndex}. Setting to 0.");
             zoneSelector.value = 0;
+        }
+        
+        zoneSelector.RefreshShownValue();
+    }
+    
+    private Color GetColorForSector(int sectorNumber)
+    {
+        switch (sectorNumber)
+        {
+            case 1:
+                return new Color(0.2f, 0.6f, 1f); // Blue
+            case 2:
+                return new Color(0.2f, 1f, 0.4f); // Green
+            case 3:
+                return new Color(1f, 0.6f, 0.2f); // Orange
+            case 4:
+                return new Color(1f, 0.2f, 0.6f); // Pink
+            default:
+                return new Color(0.7f, 0.7f, 0.7f); // Gray
         }
     }
     
