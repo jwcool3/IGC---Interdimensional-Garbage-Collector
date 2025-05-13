@@ -36,6 +36,7 @@ public class CombatUI : MonoBehaviour
     public TextMeshProUGUI enemyNameText;
     public TextMeshProUGUI enemyLevelText;
     public TextMeshProUGUI enemyTypeText;
+    public Image enemyTypeIcon;  // New reference for type-specific icon
     
     [Header("Zone Progress")]
     public TextMeshProUGUI zoneNameText;
@@ -240,32 +241,119 @@ public class CombatUI : MonoBehaviour
     
     public void UpdateEnemyDisplay()
     {
-        if (CombatManager.Instance == null || CombatManager.Instance.currentEnemy == null) return;
+        if (CombatManager.Instance == null || CombatManager.Instance.currentEnemy == null)
+        {
+            // Hide enemy display elements when no enemy
+            if (enemyShipImage != null) enemyShipImage.enabled = false;
+            if (enemyTypeIcon != null) enemyTypeIcon.enabled = false;
+            if (enemyNameText != null) enemyNameText.text = "No Enemy";
+            if (enemyLevelText != null) enemyLevelText.text = "";
+            if (enemyTypeText != null) enemyTypeText.text = "";
+            return;
+        }
         
         var enemy = CombatManager.Instance.currentEnemy;
         
-        enemyNameText.text = enemy.name;
-        enemyLevelText.text = $"Level: {enemy.level:F1}";
-        enemyTypeText.text = $"Type: {enemy.type}";
+        // Update text displays
+        if (enemyNameText != null)
+            enemyNameText.text = enemy.name;
+            
+        if (enemyLevelText != null)
+            enemyLevelText.text = $"Level: {enemy.level:F1}";
+            
+        if (enemyTypeText != null)
+            enemyTypeText.text = $"Type: {enemy.type}";
         
-        // Update enemy sprite based on type
-        switch (enemy.type)
+        // Get the ship icon
+        Sprite shipIcon = null;
+        
+        if (ShipDatabase.Instance != null && !string.IsNullOrEmpty(enemy.shipModelName))
         {
-            case EnemyType.Scavenger:
-                enemyShipImage.color = new Color(0.5f, 0.5f, 0.5f); // Gray
-                break;
-                
-            case EnemyType.Rival:
-                enemyShipImage.color = new Color(0.2f, 0.6f, 1f); // Blue
-                break;
-                
-            case EnemyType.Anomaly:
-                enemyShipImage.color = new Color(1f, 0.4f, 0.8f); // Pink
-                break;
-                
-            case EnemyType.Boss:
-                enemyShipImage.color = new Color(1f, 0.2f, 0.2f); // Red
-                break;
+            // Get the icon for this specific ship model
+            shipIcon = ShipDatabase.Instance.GetIconForShip(enemy.shipModelName);
+        }
+        
+        // Update enemy type icon
+        if (enemyTypeIcon != null)
+        {
+            if (shipIcon != null)
+            {
+                enemyTypeIcon.sprite = shipIcon;
+                enemyTypeIcon.enabled = true;
+            }
+            else
+            {
+                // Try to get a fallback icon from the EnemyIconManager
+                if (EnemyIconManager.Instance != null)
+                {
+                    Sprite fallbackIcon = EnemyIconManager.Instance.GetIconForEnemy(
+                        enemy.type,
+                        enemy.sectorNumber,
+                        0 // Use base variation
+                    );
+                    
+                    if (fallbackIcon != null)
+                    {
+                        enemyTypeIcon.sprite = fallbackIcon;
+                        enemyTypeIcon.enabled = true;
+                    }
+                    else
+                    {
+                        enemyTypeIcon.enabled = false;
+                    }
+                }
+                else
+                {
+                    enemyTypeIcon.enabled = false;
+                }
+            }
+        }
+        
+        // Update enemy ship image
+        if (enemyShipImage != null)
+        {
+            if (shipIcon != null)
+            {
+                enemyShipImage.sprite = shipIcon;
+                enemyShipImage.color = Color.white;
+                enemyShipImage.enabled = true;
+            }
+            else
+            {
+                // Fallback to color coding
+                SetEnemyColorByType(enemy.type);
+            }
+        }
+    }
+    
+    private void SetEnemyColorByType(EnemyType type)
+    {
+        if (enemyShipImage == null) return;
+        
+        enemyShipImage.enabled = true;
+        
+        // Use color coding as fallback when sprites aren't available
+        if (EnemyIconManager.Instance != null)
+        {
+            enemyShipImage.color = EnemyIconManager.Instance.GetColorForEnemyType(type);
+        }
+        else
+        {
+            switch (type)
+            {
+                case EnemyType.Scavenger:
+                    enemyShipImage.color = new Color(0.5f, 0.5f, 0.5f); // Gray
+                    break;
+                case EnemyType.Rival:
+                    enemyShipImage.color = new Color(0.2f, 0.6f, 1f); // Blue
+                    break;
+                case EnemyType.Anomaly:
+                    enemyShipImage.color = new Color(1f, 0.4f, 0.8f); // Pink
+                    break;
+                case EnemyType.Boss:
+                    enemyShipImage.color = new Color(1f, 0.2f, 0.2f); // Red
+                    break;
+            }
         }
     }
     

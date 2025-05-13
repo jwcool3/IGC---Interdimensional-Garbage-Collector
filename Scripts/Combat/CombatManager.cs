@@ -89,11 +89,11 @@ public class CombatManager : MonoBehaviour
     
     private void CreateZones()
     {
-        // Create sample zones with increasing difficulty
-        availableZones.Add(new CombatZone("Alpha Sector", 1, 10));
-        availableZones.Add(new CombatZone("Beta Sector", 2, 10));
-        availableZones.Add(new CombatZone("Gamma Sector", 3, 15));
-        availableZones.Add(new CombatZone("Delta Sector", 4, 15));
+        // Create sample zones with increasing difficulty and sector assignments
+        availableZones.Add(new CombatZone("Alpha Sector", 1, 1, 10));
+        availableZones.Add(new CombatZone("Beta Sector", 2, 1, 10)); // Still sector 1
+        availableZones.Add(new CombatZone("Gamma Sector", 3, 2, 15)); // Sector 2
+        availableZones.Add(new CombatZone("Delta Sector", 4, 2, 15)); // Sector 2
         
         // Lock all zones except the first
         for (int i = 1; i < availableZones.Count; i++)
@@ -102,24 +102,69 @@ public class CombatManager : MonoBehaviour
         }
     }
     
+    /// <summary>
+    /// Get a random enemy type based on current zone probabilities
+    /// </summary>
+    private EnemyType GetRandomEnemyType()
+    {
+        // Use zone-specific enemy distribution if available
+        if (currentZone != null)
+        {
+            return currentZone.GetRandomEnemyType();
+        }
+        
+        // Fallback to default distribution
+        float roll = Random.value;
+        
+        if (roll < 0.6f)
+            return EnemyType.Scavenger;
+        else if (roll < 0.85f)
+            return EnemyType.Rival;
+        else
+            return EnemyType.Anomaly;
+    }
+    
+    /// <summary>
+    /// Spawn a new enemy based on current zone settings
+    /// </summary>
     public void SpawnEnemy()
     {
-        // Create a new enemy based on current zone
-        float enemyLevel = currentZone.zoneLevel + (enemiesDefeatedInZone * 0.2f);
+        if (currentZone == null)
+        {
+            Debug.LogError("Cannot spawn enemy - no current zone set!");
+            return;
+        }
         
-        // Boss enemy every 10 enemies
+        float enemyLevel = currentZone.zoneLevel + (enemiesDefeatedInZone * 0.2f);
         bool isBoss = (enemiesDefeatedInZone + 1) % 10 == 0;
         
         if (isBoss)
         {
-            currentEnemy = new EnemyShip("Zone Boss", enemyLevel * 1.5f, EnemyType.Boss);
+            // Use the zone's specific boss variation
+            currentEnemy = new EnemyShip(
+                "Zone Boss", 
+                enemyLevel * 1.5f, 
+                EnemyType.Boss, 
+                currentZone.bossVariation
+            );
         }
         else
         {
-            currentEnemy = new EnemyShip(GetRandomEnemyName(), enemyLevel, GetRandomEnemyType());
+            // Get a random enemy type based on zone probabilities
+            EnemyType enemyType = GetRandomEnemyType();
+            
+            // Get a random variation appropriate for this zone
+            int variation = currentZone.GetRandomVariationForType(enemyType);
+            
+            currentEnemy = new EnemyShip(
+                GetRandomEnemyName(), 
+                enemyLevel, 
+                enemyType, 
+                variation
+            );
         }
         
-        // Notify UI of new enemy
+        // Update UI
         CombatUI.Instance?.UpdateEnemyDisplay();
     }
     
@@ -349,18 +394,36 @@ public class CombatManager : MonoBehaviour
         PerformAttack();
     }
     
+    /// <summary>
+    /// Change to a different zone
+    /// </summary>
     public void ChangeZone(int zoneIndex)
     {
         if (zoneIndex < 0 || zoneIndex >= availableZones.Count)
+        {
+            Debug.LogError($"Invalid zone index: {zoneIndex}");
             return;
-            
-        if (availableZones[zoneIndex].isLocked)
+        }
+        
+        CombatZone newZone = availableZones[zoneIndex];
+        
+        if (newZone.isLocked)
+        {
+            Debug.LogWarning($"Cannot change to locked zone: {newZone.zoneName}");
             return;
-            
-        currentZone = availableZones[zoneIndex];
+        }
+        
+        // Reset zone progress
+        currentZone = newZone;
         enemiesDefeatedInZone = 0;
+        
+        // Validate zone probabilities
+        currentZone.ValidateProbabilities();
+        
+        // Spawn first enemy in new zone
         SpawnEnemy();
         
+        // Update UI
         CombatUI.Instance?.UpdateZoneDisplay();
     }
     
@@ -373,18 +436,5 @@ public class CombatManager : MonoBehaviour
         };
         
         return names[UnityEngine.Random.Range(0, names.Length)];
-    }
-    
-    private EnemyType GetRandomEnemyType()
-    {
-        // Weighted random type
-        float roll = UnityEngine.Random.value;
-        
-        if (roll < 0.6f)
-            return EnemyType.Scavenger;
-        else if (roll < 0.85f)
-            return EnemyType.Rival;
-        else
-            return EnemyType.Anomaly;
     }
 }

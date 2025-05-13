@@ -8,20 +8,46 @@ public enum EnemyType
 
 public class EnemyShip
 {
-    public string name;
+    public string name;           // Display name (for UI)
+    public string shipModelName;  // Specific ship model name (for icon lookup)
     public float level;
     public EnemyType type;
+    public int iconVariation; // Track which icon variation this enemy uses
+    public int sectorNumber; // Add sector number
     
+    // Combat stats
     public float maxHP;
     public float currentHP;
     public float attackPower;
     public float defense;
     
-    public EnemyShip(string name, float level, EnemyType type)
+    /// <summary>
+    /// Constructor with ship model name
+    /// </summary>
+    public EnemyShip(string displayName, string shipModelName, float level, EnemyType type, int sector)
     {
-        this.name = name;
+        this.name = displayName;
+        this.shipModelName = shipModelName;
         this.level = level;
         this.type = type;
+        this.sectorNumber = sector;
+        
+        // Calculate stats based on level and type
+        CalculateStats();
+    }
+    
+    /// <summary>
+    /// Constructor for backward compatibility
+    /// </summary>
+    public EnemyShip(string displayName, float level, EnemyType type)
+    {
+        this.name = displayName;
+        this.level = level;
+        this.type = type;
+        this.sectorNumber = Mathf.RoundToInt(level);
+        
+        // Use display name as ship model name by default
+        this.shipModelName = displayName.Replace(" ", "");
         
         // Calculate stats based on level and type
         CalculateStats();
