@@ -12,6 +12,7 @@ public class TabSystem : MonoBehaviour
     [SerializeField] private Button shipTabButton;
     [SerializeField] private Button combatTabButton;
     [SerializeField] private Button scannerTabButton;
+    [SerializeField] private Button contactsTabButton;
 
     [Header("Tab Content")]
     [SerializeField] private GameObject inventoryPanel;
@@ -21,6 +22,7 @@ public class TabSystem : MonoBehaviour
     [SerializeField] private GameObject shipPanel;
     [SerializeField] private GameObject combatPanel;
     [SerializeField] private GameObject scannerPanel;
+    [SerializeField] private GameObject contactsPanel;
 
     [Header("Visual Settings")]
     [SerializeField] private Color activeTabColor = Color.white;
@@ -68,6 +70,7 @@ public class TabSystem : MonoBehaviour
         if (shipPanel != null) allPanels.Add(shipPanel);
         if (combatPanel != null) allPanels.Add(combatPanel);
         if (scannerPanel != null) allPanels.Add(scannerPanel);
+        if (contactsPanel != null) allPanels.Add(contactsPanel);
 
         Debug.Log($"TabSystem: Found {allPanels.Count} valid panels");
 
@@ -109,6 +112,7 @@ public class TabSystem : MonoBehaviour
         if (shipPanel == null) Debug.LogWarning("TabSystem: shipPanel reference is missing!");
         if (combatPanel == null) Debug.LogWarning("TabSystem: combatPanel reference is missing!");
         if (scannerPanel == null) Debug.LogWarning("TabSystem: scannerPanel reference is missing!");
+        if (contactsPanel == null) Debug.LogWarning("TabSystem: contactsPanel reference is missing!");
     }
 
     private void SetupButtonListeners()
@@ -147,6 +151,11 @@ public class TabSystem : MonoBehaviour
             scannerTabButton.onClick.AddListener(() => SwitchToTab(scannerPanel, scannerTabButton));
         else
             Debug.LogWarning("TabSystem: scannerTabButton reference is missing!");
+
+        if (contactsTabButton != null)
+            contactsTabButton.onClick.AddListener(() => SwitchToTab(contactsPanel, contactsTabButton));
+        else
+            Debug.LogWarning("TabSystem: contactsTabButton reference is missing!");
     }
 
     private void SetupPanelCanvasGroups()
@@ -291,5 +300,13 @@ public class TabSystem : MonoBehaviour
             SwitchToTab(scannerPanel, scannerTabButton);
         else
             Debug.LogError("TabSystem: Cannot show scanner tab - scannerPanel is null!");
+    }
+
+    public void ShowContactsTab()
+    {
+        if (contactsPanel != null)
+            SwitchToTab(contactsPanel, contactsTabButton);
+        else
+            Debug.LogError("TabSystem: Cannot show contacts tab - contactsPanel is null!");
     }
 }
