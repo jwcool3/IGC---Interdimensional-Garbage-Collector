@@ -164,22 +164,22 @@ public class DiscoveredShip
     }
     
     /// <summary>
-    /// Convert to enemy for combat system
+    /// Convert to EnemyShip for combat system
     /// </summary>
-    public Enemy ToEnemy()
+    public EnemyShip ToEnemyShip()
     {
-        return new Enemy
-        {
-            name = ShipName,
-            type = ConvertToEnemyType(),
-            level = Level,
-            maxHP = Health,
-            currentHP = CurrentHealth,
-            attackPower = AttackPower,
-            defense = Defense,
-            sectorNumber = 1, // Default sector
-            shipModelName = ShipType
-        };
+        EnemyType enemyType = ConvertToEnemyType();
+        
+        // Create enemy ship using your existing constructor
+        EnemyShip enemyShip = new EnemyShip(ShipName, ShipType, Level, enemyType, 1);
+        
+        // Override stats with our discovered ship's stats
+        enemyShip.maxHP = Health;
+        enemyShip.currentHP = CurrentHealth;
+        enemyShip.attackPower = AttackPower;
+        enemyShip.defense = Defense;
+        
+        return enemyShip;
     }
     
     /// <summary>
