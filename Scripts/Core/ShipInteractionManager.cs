@@ -1,25 +1,25 @@
 using UnityEngine;
-using System;
 using System.Collections.Generic;
 
 /// <summary>
-/// Manages interactions with discovered ships (combat, trading, etc.)
+/// Manages interactions with discovered ships (fighting and trading)
 /// </summary>
 public class ShipInteractionManager : MonoBehaviour
 {
     // Singleton pattern
     public static ShipInteractionManager Instance { get; private set; }
-
-    [Header("Trading Settings")]
-    [SerializeField] private float baseTradeRatio = 2f; // How much waste per ship part
-    [SerializeField] private float rarityTradeMultiplier = 1.5f;
-
-    // Events
-    public event Action<DiscoveredShip> OnCombatStarted;
-    public event Action<DiscoveredShip, bool> OnCombatEnded; // ship, playerWon
-    public event Action<DiscoveredShip, string[]> OnTradeCompleted; // ship, itemsReceived
-    public event Action<DiscoveredShip> OnShipDestroyed;
-
+    
+    [Header("Combat Settings")]
+    [SerializeField] private bool autoSwitchToCombatTab = true;
+    [SerializeField] private bool returnToContactsAfterCombat = true;
+    
+    [Header("Trade Settings")]
+    [SerializeField] private int baseTradeReward = 10; // Base ship parts reward
+    
+    // Track the ship we're currently fighting
+    private DiscoveredShip currentFightingShip;
+    private bool subscribedToCombatEvents = false;
+    
     private void Awake()
     {
         // Singleton setup
@@ -34,457 +34,481 @@ public class ShipInteractionManager : MonoBehaviour
             Destroy(gameObject);
         }
     }
-
-    private void Start()
-    {
-        // Note: We don't subscribe to combat events since we're working with existing combat system
-        // Instead, we'll check combat state in Update()
-    }
-
+    
     /// <summary>
     /// Start combat with a discovered ship
     /// </summary>
     public bool StartCombatWithShip(DiscoveredShip ship)
     {
-        if (ship == null)
+        if (ship == null || !ship.CanFight)
         {
-            Debug.LogError("Cannot start combat: ship is null");
+            Debug.LogWarning("ShipInteractionManager: Cannot start combat with this ship");
             return false;
         }
-
-        if (!ship.CanFight)
-        {
-            Debug.LogWarning($"Cannot fight {ship.ShipName}: already fought or destroyed");
-            return false;
-        }
-
+        
         if (CombatManager.Instance == null)
         {
-            Debug.LogError("Cannot start combat: CombatManager not found");
+            Debug.LogError("ShipInteractionManager: CombatManager not found!");
             return false;
         }
-
-        // Check if player can fight (has HP)
-        if (CombatManager.Instance.currentHP <= 0)
-        {
-            Debug.LogWarning("Cannot start combat: player has no health");
-            return false;
-        }
-
-        // Convert ship to EnemyShip
+        
+        Debug.Log($"ShipInteractionManager: Starting combat with {ship.ShipName}");
+        
+        // Convert discovered ship to enemy ship for combat system
         EnemyShip enemyShip = ship.ToEnemyShip();
-
-        // Store reference to the ship for later
-        currentInteractionShip = ship;
-
-        // Set the enemy in combat manager (replacing current enemy)
-        CombatManager.Instance.currentEnemy = enemyShip;
-
-        // Disable auto-combat for manual ship fights
-        bool wasAutoCombat = CombatManager.Instance.autoCombatEnabled;
-        CombatManager.Instance.autoCombatEnabled = false;
-
-        // Store the previous auto-combat state to restore later
-        previousAutoCombatState = wasAutoCombat;
-
-        // Notify listeners
-        OnCombatStarted?.Invoke(ship);
-
-        Debug.Log($"Started combat with {ship.ShipName} - Auto-combat disabled for ship fight");
+        
+        // Store reference to the discovered ship for post-combat processing
+        currentFightingShip = ship;
+        
+        // Set up single ship combat mode
+        SetupSingleShipCombat(enemyShip);
+        
+        // Switch to combat tab
+        if (autoSwitchToCombatTab)
+        {
+            TabSystem tabSystem = FindObjectOfType<TabSystem>();
+            if (tabSystem != null)
+            {
+                tabSystem.ShowCombatTab();
+            }
+        }
+        
+        Debug.Log($"ShipInteractionManager: Combat started with {ship.ShipName}");
         return true;
     }
-
+    
+    /// <summary>
+    /// Set up combat manager for single ship combat
+    /// </summary>
+    private void SetupSingleShipCombat(EnemyShip enemyShip)
+    {
+        // Use the new CombatManager method for single ship combat
+        CombatManager.Instance.StartSingleShipCombat(enemyShip, $"Encounter: {enemyShip.name}");
+        
+        // Subscribe to combat events to handle victory/defeat
+        SubscribeToCombatEvents();
+        
+        Debug.Log($"ShipInteractionManager: Single ship combat setup complete for {enemyShip.name}");
+    }
+    
     /// <summary>
     /// Attempt to trade with a discovered ship
     /// </summary>
     public bool TryTradeWithShip(DiscoveredShip ship)
     {
-        if (ship == null)
+        if (ship == null || !ship.CanTrade)
         {
-            Debug.LogError("Cannot trade: ship is null");
+            Debug.LogWarning("ShipInteractionManager: Cannot trade with this ship");
             return false;
         }
-
-        if (!ship.CanTrade)
-        {
-            Debug.LogWarning($"Cannot trade with {ship.ShipName}: already traded or destroyed");
-            return false;
-        }
-
+        
         if (WasteInventoryManager.Instance == null)
         {
-            Debug.LogError("Cannot trade: WasteInventoryManager not found");
+            Debug.LogError("ShipInteractionManager: WasteInventoryManager not found!");
             return false;
         }
-
+        
+        if (ResourceManager.Instance == null)
+        {
+            Debug.LogError("ShipInteractionManager: ResourceManager not found!");
+            return false;
+        }
+        
+        Debug.Log($"ShipInteractionManager: Attempting trade with {ship.ShipName}");
+        
         // Check if player has enough waste items
-        var wasteItems = WasteInventoryManager.Instance.GetAllItems();
-        int totalWasteValue = CalculateTotalWasteValue(wasteItems);
-
-        if (totalWasteValue < ship.TradeValue)
+        int availableWaste = WasteInventoryManager.Instance.GetInventoryCount();
+        if (availableWaste < ship.TradeValue)
         {
-            Debug.LogWarning($"Insufficient waste for trade. Need {ship.TradeValue}, have {totalWasteValue}");
+            Debug.LogWarning($"ShipInteractionManager: Not enough waste items! Need {ship.TradeValue}, have {availableWaste}");
             return false;
         }
-
+        
         // Perform the trade
-        return ExecuteTrade(ship, wasteItems);
-    }
-
-    /// <summary>
-    /// Calculate total value of waste items for trading
-    /// </summary>
-    private int CalculateTotalWasteValue(List<WasteItem> wasteItems)
-    {
-        int totalValue = 0;
-
-        foreach (var waste in wasteItems)
+        bool success = PerformTrade(ship);
+        
+        if (success)
         {
-            // Base value from recycling value
-            float itemValue = waste.RecyclingValue;
-
-            // Bonus for rarity
-            float rarityMultiplier = 1f + ((int)waste.Rarity * 0.2f);
-
-            // Final value
-            int finalValue = Mathf.RoundToInt(itemValue * rarityMultiplier);
-            totalValue += finalValue * waste.Quantity;
+            // Mark ship as traded
+            ship.MarkAsTraded();
+            Debug.Log($"ShipInteractionManager: Trade completed with {ship.ShipName}");
         }
-
-        return totalValue;
+        
+        return success;
     }
-
+    
     /// <summary>
-    /// Execute the trade with a ship
+    /// Perform the actual trade transaction
     /// </summary>
-    private bool ExecuteTrade(DiscoveredShip ship, List<WasteItem> wasteItems)
+    private bool PerformTrade(DiscoveredShip ship)
     {
-        // Calculate what waste to consume
-        List<WasteItem> wasteToRemove = new List<WasteItem>();
-        int remainingTradeValue = ship.TradeValue;
-
-        // Select waste items to trade (prioritize lower value items first)
-        var sortedWaste = new List<WasteItem>(wasteItems);
-        sortedWaste.Sort((a, b) => a.RecyclingValue.CompareTo(b.RecyclingValue));
-
-        foreach (var waste in sortedWaste)
+        // Remove required waste items from inventory
+        List<WasteItem> allWaste = WasteInventoryManager.Instance.GetAllItems();
+        int wasteRemoved = 0;
+        int wasteNeeded = ship.TradeValue;
+        
+        // Remove waste items until we have enough
+        for (int i = allWaste.Count - 1; i >= 0 && wasteRemoved < wasteNeeded; i--)
         {
-            if (remainingTradeValue <= 0) break;
-
-            float itemValue = waste.RecyclingValue * (1f + ((int)waste.Rarity * 0.2f));
-            int itemTradeValue = Mathf.RoundToInt(itemValue);
-
-            if (itemTradeValue <= remainingTradeValue)
+            WasteItem item = allWaste[i];
+            int itemQuantity = item.Quantity;
+            int toRemove = Mathf.Min(itemQuantity, wasteNeeded - wasteRemoved);
+            
+            if (toRemove >= itemQuantity)
             {
-                wasteToRemove.Add(waste);
-                remainingTradeValue -= itemTradeValue;
+                // Remove entire stack
+                WasteInventoryManager.Instance.RemoveWasteItem(item);
+                wasteRemoved += itemQuantity;
+            }
+            else
+            {
+                // Remove partial stack
+                WasteInventoryManager.Instance.RemoveQuantity(item.Id, toRemove);
+                wasteRemoved += toRemove;
             }
         }
-
-        // Remove waste items from inventory
-        foreach (var waste in wasteToRemove)
+        
+        if (wasteRemoved < wasteNeeded)
         {
-            WasteInventoryManager.Instance.RemoveWasteItem(waste);
+            Debug.LogError($"ShipInteractionManager: Failed to remove enough waste! Removed {wasteRemoved}, needed {wasteNeeded}");
+            return false;
         }
-
-        // Give ship parts to player
-        if (ResourceManager.Instance != null)
-        {
-            int shipPartsToGive = CalculateShipPartsReward(ship);
-            ResourceManager.Instance.AddShipParts(shipPartsToGive);
-
-            Debug.Log($"Trade completed! Gave {wasteToRemove.Count} waste items, received {shipPartsToGive} ship parts");
-        }
-
-        // Mark ship as traded
-        ship.MarkAsTraded();
-
-        // Notify listeners
-        OnTradeCompleted?.Invoke(ship, ship.AvailableTradeItems);
-
-        // Clear the ship from scanner
-        if (ShipScanner.Instance != null)
-        {
-            ShipScanner.Instance.ClearCurrentShip();
-        }
-
+        
+        // Give rewards
+        GiveTradeRewards(ship);
+        
+        Debug.Log($"ShipInteractionManager: Trade successful - removed {wasteRemoved} waste items");
         return true;
     }
-
+    
     /// <summary>
-    /// Calculate ship parts reward from trading
+    /// Give rewards for completing a trade
+    /// </summary>
+    private void GiveTradeRewards(DiscoveredShip ship)
+    {
+        // Calculate rewards based on ship rarity and level
+        int shipPartsReward = CalculateShipPartsReward(ship);
+        int alienTechReward = CalculateAlienTechReward(ship);
+        float recyclingPointsReward = CalculateRecyclingPointsReward(ship);
+        
+        // Give rewards through ResourceManager
+        ResourceManager.Instance.AddShipParts(shipPartsReward);
+        ResourceManager.Instance.AddAlienTech(alienTechReward);
+        ResourceManager.Instance.AddRecyclingPoints(recyclingPointsReward);
+        
+        Debug.Log($"ShipInteractionManager: Trade rewards - " +
+                 $"Ship Parts: {shipPartsReward}, " +
+                 $"Alien Tech: {alienTechReward}, " +
+                 $"RP: {recyclingPointsReward}");
+    }
+    
+    /// <summary>
+    /// Calculate ship parts reward based on ship properties
     /// </summary>
     private int CalculateShipPartsReward(DiscoveredShip ship)
     {
-        int baseReward = 1;
-
-        // Bonus based on ship rarity
-        switch (ship.Rarity)
-        {
-            case ShipRarity.VeryCommon:
-                baseReward = 1;
-                break;
-            case ShipRarity.Common:
-                baseReward = 2;
-                break;
-            case ShipRarity.SlightlyRare:
-                baseReward = 3;
-                break;
-            case ShipRarity.Rare:
-                baseReward = 5;
-                break;
-            case ShipRarity.Epic:
-                baseReward = 8;
-                break;
-            case ShipRarity.Legendary:
-                baseReward = 12;
-                break;
-            case ShipRarity.Anomaly:
-                baseReward = 20;
-                break;
-        }
-
-        // Add some randomness
-        return UnityEngine.Random.Range(baseReward, baseReward * 2);
+        int baseReward = baseTradeReward;
+        int rarityMultiplier = (int)ship.Rarity + 1;
+        int levelBonus = ship.Level;
+        
+        return baseReward * rarityMultiplier + levelBonus;
     }
-
+    
     /// <summary>
-    /// Get trading information for UI display
+    /// Calculate alien tech reward based on ship properties
     /// </summary>
-    public string GetTradeInfoText(DiscoveredShip ship)
+    private int CalculateAlienTechReward(DiscoveredShip ship)
     {
-        if (ship == null || !ship.CanTrade)
-            return "No trade available";
-
-        int playerWasteValue = 0;
-        if (WasteInventoryManager.Instance != null)
+        // Alien tech is rarer, so smaller amounts
+        int baseReward = baseTradeReward / 3;
+        int rarityMultiplier = (int)ship.Rarity + 1;
+        
+        // Only give alien tech for rare category ships
+        if (ship.IsRareCategory())
         {
-            playerWasteValue = CalculateTotalWasteValue(WasteInventoryManager.Instance.GetAllItems());
+            return baseReward * rarityMultiplier;
         }
-
-        int shipPartsReward = CalculateShipPartsReward(ship);
-
-        string tradeInfo = $"TRADE OFFER:\n\n";
-        tradeInfo += $"They Want: {ship.TradeValue} waste value\n";
-        tradeInfo += $"You Have: {playerWasteValue} waste value\n\n";
-        tradeInfo += $"They Offer: {shipPartsReward} Ship Parts\n";
-        tradeInfo += $"Items: {ship.GetTradeItemsText()}\n\n";
-
-        if (playerWasteValue >= ship.TradeValue)
-        {
-            tradeInfo += "✓ Trade Available";
-        }
-        else
-        {
-            tradeInfo += "✗ Insufficient Waste";
-        }
-
-        return tradeInfo;
+        
+        return 0;
     }
-
+    
     /// <summary>
-    /// Get combat information for UI display
+    /// Calculate recycling points reward based on ship properties
+    /// </summary>
+    private float CalculateRecyclingPointsReward(DiscoveredShip ship)
+    {
+        float baseReward = baseTradeReward * 5f; // More generous with RP
+        float rarityMultiplier = (int)ship.Rarity + 1;
+        float levelBonus = ship.Level * 2f;
+        
+        return baseReward * rarityMultiplier + levelBonus;
+    }
+    
+    /// <summary>
+    /// Get combat information text for UI display
     /// </summary>
     public string GetCombatInfoText(DiscoveredShip ship)
     {
-        if (ship == null || !ship.CanFight)
+        if (ship == null) return "No ship selected";
+        
+        if (ship.IsDestroyed)
+            return "Ship has been destroyed";
+        
+        if (ship.HasFought)
+            return "Already fought this ship";
+        
+        if (!ship.CanFight)
             return "Cannot fight this ship";
-
-        string combatInfo = $"COMBAT INFO:\n\n";
-        combatInfo += $"Enemy: {ship.ShipName}\n";
-        combatInfo += $"Type: {ship.ShipType}\n";
-        combatInfo += $"Level: {ship.Level}\n";
-        combatInfo += $"Rarity: {ship.GetRarityDisplayText()}\n\n";
-
-        combatInfo += $"Enemy Stats:\n";
-        combatInfo += $"HP: {ship.Health:F0}\n";
-        combatInfo += $"Attack: {ship.AttackPower:F1}\n";
-        combatInfo += $"Defense: {ship.Defense:F1}\n\n";
-
-        if (CombatManager.Instance != null)
-        {
-            combatInfo += $"Your Stats:\n";
-            combatInfo += $"HP: {CombatManager.Instance.currentHP:F0}/{CombatManager.Instance.maxHP:F0}\n";
-            combatInfo += $"Attack: {CombatManager.Instance.attackPower:F1}\n";
-            combatInfo += $"Defense: {CombatManager.Instance.defense:F1}\n\n";
-
-            // Simple difficulty assessment
-            float playerPower = CombatManager.Instance.attackPower + CombatManager.Instance.defense + CombatManager.Instance.currentHP;
-            float enemyPower = ship.AttackPower + ship.Defense + ship.Health;
-
-            if (playerPower > enemyPower * 1.2f)
-                combatInfo += "Difficulty: Easy";
-            else if (playerPower > enemyPower * 0.8f)
-                combatInfo += "Difficulty: Moderate";
-            else
-                combatInfo += "Difficulty: Hard";
-        }
-
-        return combatInfo;
+        
+        return $"Combat Stats:\n" +
+               $"Health: {ship.CurrentHealth:F0}/{ship.Health:F0}\n" +
+               $"Attack: {ship.AttackPower:F0}\n" +
+               $"Defense: {ship.Defense:F0}\n" +
+               $"Level: {ship.Level}";
     }
-
-    // Store current ship being interacted with for combat callbacks
-    private DiscoveredShip currentInteractionShip;
-    private bool previousAutoCombatState;
-
+    
     /// <summary>
-    /// Check if the current enemy is our discovered ship and handle victory/defeat
+    /// Get trade information text for UI display
     /// </summary>
-    private void Update()
+    public string GetTradeInfoText(DiscoveredShip ship)
     {
-        // Check if we're tracking a ship combat and the enemy was defeated
-        if (currentInteractionShip != null && CombatManager.Instance != null)
-        {
-            var currentEnemy = CombatManager.Instance.currentEnemy;
-
-            // Check if our tracked enemy is defeated or replaced
-            if (currentEnemy == null || currentEnemy.currentHP <= 0)
-            {
-                // Enemy was defeated - player won
-                HandleCombatEnd(true);
-            }
-            else if (CombatManager.Instance.currentHP <= 0)
-            {
-                // Player was defeated
-                HandleCombatEnd(false);
-            }
-        }
+        if (ship == null) return "No ship selected";
+        
+        if (ship.IsDestroyed)
+            return "Ship has been destroyed";
+        
+        if (ship.HasTraded)
+            return "Already traded with this ship";
+        
+        if (!ship.CanTrade)
+            return "Cannot trade with this ship";
+        
+        int availableWaste = WasteInventoryManager.Instance?.GetInventoryCount() ?? 0;
+        bool canAffordTrade = availableWaste >= ship.TradeValue;
+        
+        string affordText = canAffordTrade ? "✓ Can Afford" : "✗ Cannot Afford";
+        
+        return $"Trade Requirements:\n" +
+               $"Wants: {ship.TradeValue} waste items\n" +
+               $"You have: {availableWaste} items\n" +
+               $"Status: {affordText}\n\n" +
+               $"Offers: {ship.GetTradeItemsText()}";
     }
-
+    
     /// <summary>
-    /// Handle end of combat with discovered ship
+    /// Subscribe to combat events to handle post-combat processing
     /// </summary>
-    private void HandleCombatEnd(bool playerWon)
+    private void SubscribeToCombatEvents()
     {
-        if (currentInteractionShip == null) return;
-
-        Debug.Log($"Ship combat ended. Player won: {playerWon}");
-
-        // Mark ship based on outcome
-        if (playerWon)
+        if (subscribedToCombatEvents) return;
+        
+        // We'll create custom events in CombatManager for this
+        // For now, we'll use a coroutine to check combat status
+        StartCoroutine(MonitorCombat());
+        subscribedToCombatEvents = true;
+    }
+    
+    /// <summary>
+    /// Monitor combat progress and handle completion
+    /// </summary>
+    private System.Collections.IEnumerator MonitorCombat()
+    {
+        while (currentFightingShip != null && CombatManager.Instance != null)
         {
-            currentInteractionShip.MarkAsFought(true); // Ship defeated
-            OnShipDestroyed?.Invoke(currentInteractionShip);
-
-            // Clear the ship from scanner
-            if (ShipScanner.Instance != null)
+            // Wait a frame
+            yield return null;
+            
+            // Check if the enemy is defeated
+            if (CombatManager.Instance.currentEnemy == null || 
+                CombatManager.Instance.currentEnemy.currentHP <= 0)
             {
-                ShipScanner.Instance.ClearCurrentShip();
+                // Player won - mark ship as defeated
+                HandleCombatVictory();
+                break;
+            }
+            
+            // Check if player is defeated
+            if (CombatManager.Instance.currentHP <= 0)
+            {
+                // Player lost - ship survives but is marked as fought
+                HandleCombatDefeat();
+                break;
             }
         }
-        else
-        {
-            currentInteractionShip.MarkAsFought(false); // Player defeated, ship survives
-        }
-
-        // Restore previous auto-combat state
-        if (CombatManager.Instance != null)
-        {
-            CombatManager.Instance.autoCombatEnabled = previousAutoCombatState;
-        }
-
-        // Notify listeners
-        OnCombatEnded?.Invoke(currentInteractionShip, playerWon);
-
-        // Clear reference
-        currentInteractionShip = null;
+        
+        subscribedToCombatEvents = false;
     }
-
+    
     /// <summary>
-    /// Check if player can start combat (has health)
+    /// Handle combat victory
     /// </summary>
-    public bool CanStartCombat()
+    private void HandleCombatVictory()
     {
-        return CombatManager.Instance != null && CombatManager.Instance.currentHP > 0;
+        if (currentFightingShip == null) return;
+        
+        Debug.Log($"ShipInteractionManager: Player defeated {currentFightingShip.ShipName}!");
+        
+        // Mark ship as fought and defeated
+        currentFightingShip.MarkAsFought(true);
+        
+        // Give additional rewards for defeating a discovered ship
+        GiveCombatVictoryRewards(currentFightingShip);
+        
+        // Clear the current ship from scanner if it's the same one
+        if (ShipScanner.Instance != null && 
+            ShipScanner.Instance.CurrentShip == currentFightingShip)
+        {
+            ShipScanner.Instance.ClearCurrentShip();
+        }
+        
+        // End single ship combat mode
+        CombatManager.Instance.EndSingleShipCombat();
+        
+        // Return to contacts tab if enabled
+        if (returnToContactsAfterCombat)
+        {
+            StartCoroutine(DelayedTabSwitch("Contacts", 2f));
+        }
+        
+        // Clear current fighting ship
+        currentFightingShip = null;
     }
-
+    
     /// <summary>
-    /// Check if player can afford to trade with a ship
+    /// Handle combat defeat
+    /// </summary>
+    private void HandleCombatDefeat()
+    {
+        if (currentFightingShip == null) return;
+        
+        Debug.Log($"ShipInteractionManager: Player was defeated by {currentFightingShip.ShipName}!");
+        
+        // Mark ship as fought but not defeated
+        currentFightingShip.MarkAsFought(false);
+        
+        // Ship remains available for future interactions (if it had trade options)
+        // The player can try again later or choose to trade instead
+        
+        // End single ship combat mode
+        CombatManager.Instance.EndSingleShipCombat();
+        
+        // Return to contacts tab if enabled
+        if (returnToContactsAfterCombat)
+        {
+            StartCoroutine(DelayedTabSwitch("Contacts", 3f));
+        }
+        
+        // Clear current fighting ship
+        currentFightingShip = null;
+    }
+    
+    /// <summary>
+    /// Give additional rewards for defeating a discovered ship
+    /// </summary>
+    private void GiveCombatVictoryRewards(DiscoveredShip ship)
+    {
+        // Calculate bonus rewards for defeating discovered ships
+        int bonusShipParts = CalculateCombatShipPartsReward(ship);
+        int bonusAlienTech = CalculateCombatAlienTechReward(ship);
+        float bonusRP = CalculateCombatRPReward(ship);
+        float bonusDP = CalculateCombatDPReward(ship);
+        
+        // Give rewards through ResourceManager
+        ResourceManager.Instance.AddShipParts(bonusShipParts);
+        ResourceManager.Instance.AddAlienTech(bonusAlienTech);
+        ResourceManager.Instance.AddRecyclingPoints(bonusRP);
+        ResourceManager.Instance.AddDimensionalPotential(bonusDP);
+        
+        Debug.Log($"ShipInteractionManager: Combat victory rewards - " +
+                 $"Ship Parts: {bonusShipParts}, " +
+                 $"Alien Tech: {bonusAlienTech}, " +
+                 $"RP: {bonusRP}, " +
+                 $"DP: {bonusDP}");
+    }
+    
+    /// <summary>
+    /// Calculate ship parts reward for combat victory
+    /// </summary>
+    private int CalculateCombatShipPartsReward(DiscoveredShip ship)
+    {
+        int baseReward = 15; // Higher than trade reward
+        int rarityMultiplier = (int)ship.Rarity + 1;
+        int levelBonus = ship.Level * 2;
+        
+        return baseReward * rarityMultiplier + levelBonus;
+    }
+    
+    /// <summary>
+    /// Calculate alien tech reward for combat victory
+    /// </summary>
+    private int CalculateCombatAlienTechReward(DiscoveredShip ship)
+    {
+        int baseReward = 5;
+        int rarityMultiplier = (int)ship.Rarity + 1;
+        
+        // Give alien tech for rare ships, chance for common ships
+        if (ship.IsRareCategory() || UnityEngine.Random.value < 0.3f)
+        {
+            return baseReward * rarityMultiplier;
+        }
+        
+        return 0;
+    }
+    
+    /// <summary>
+    /// Calculate recycling points reward for combat victory
+    /// </summary>
+    private float CalculateCombatRPReward(DiscoveredShip ship)
+    {
+        float baseReward = 25f;
+        float rarityMultiplier = (int)ship.Rarity + 1;
+        float levelBonus = ship.Level * 3f;
+        
+        return baseReward * rarityMultiplier + levelBonus;
+    }
+    
+    /// <summary>
+    /// Calculate dimensional potential reward for combat victory
+    /// </summary>
+    private float CalculateCombatDPReward(DiscoveredShip ship)
+    {
+        float baseReward = 5f;
+        float rarityMultiplier = (int)ship.Rarity + 1;
+        float levelBonus = ship.Level * 0.5f;
+        
+        return baseReward * rarityMultiplier + levelBonus;
+    }
+    
+    /// <summary>
+    /// Switch tabs after a delay
+    /// </summary>
+    private System.Collections.IEnumerator DelayedTabSwitch(string tabName, float delay)
+    {
+        yield return new WaitForSeconds(delay);
+        
+        TabSystem tabSystem = FindObjectOfType<TabSystem>();
+        if (tabSystem != null)
+        {
+            switch (tabName.ToLower())
+            {
+                case "contacts":
+                    tabSystem.ShowContactsTab();
+                    break;
+                case "scanner":
+                    tabSystem.ShowScannerTab();
+                    break;
+            }
+        }
+    }
+    
+    /// <summary>
+    /// Check if player can afford a trade
     /// </summary>
     public bool CanAffordTrade(DiscoveredShip ship)
     {
         if (ship == null || !ship.CanTrade) return false;
-
-        if (WasteInventoryManager.Instance == null) return false;
-
-        var wasteItems = WasteInventoryManager.Instance.GetAllItems();
-        int totalWasteValue = CalculateTotalWasteValue(wasteItems);
-
-        return totalWasteValue >= ship.TradeValue;
-    }
-
-    /// <summary>
-    /// Get available interaction options for a ship
-    /// </summary>
-    public string[] GetAvailableInteractions(DiscoveredShip ship)
-    {
-        if (ship == null) return new string[0];
-
-        List<string> interactions = new List<string>();
-
-        if (ship.CanFight && CanStartCombat())
-        {
-            interactions.Add("Fight");
-        }
-
-        if (ship.CanTrade && CanAffordTrade(ship))
-        {
-            interactions.Add("Trade");
-        }
-
-        if (interactions.Count == 0)
-        {
-            interactions.Add("No Actions Available");
-        }
-
-        return interactions.ToArray();
-    }
-
-    /// <summary>
-    /// Force end any current interaction (for cleanup)
-    /// </summary>
-    public void ForceEndInteraction()
-    {
-        if (currentInteractionShip != null)
-        {
-            Debug.Log("Forcing end of ship interaction");
-            currentInteractionShip = null;
-        }
-
-        // Note: Your existing CombatManager handles combat state automatically
-        // No need to manually end combat as it's managed by the existing system
-    }
-
-    /// <summary>
-    /// Get detailed ship information for display
-    /// </summary>
-    public string GetShipDetailsText(DiscoveredShip ship)
-    {
-        if (ship == null) return "No ship data";
-
-        string details = $"{ship.ShipName}\n";
-        details += $"{ship.ShipType}\n";
-        details += $"Level {ship.Level} {ship.GetRarityDisplayText()}\n\n";
-
-        details += $"Combat Stats:\n";
-        details += $"Health: {ship.Health:F0}\n";
-        details += $"Attack: {ship.AttackPower:F1}\n";
-        details += $"Defense: {ship.Defense:F1}\n\n";
-
-        if (ship.CanTrade)
-        {
-            details += $"Trade Value: {ship.TradeValue}\n";
-            details += $"Offers: {ship.GetTradeItemsText()}\n\n";
-        }
-
-        details += $"Status: {ship.GetAvailableActionsText()}\n";
-        details += $"Discovered: {ship.DiscoveryTime:HH:mm}";
-
-        return details;
-    }
-
-    private void OnDestroy()
-    {
-        // No event subscriptions to clean up since we're using Update() method
+        
+        int availableWaste = WasteInventoryManager.Instance?.GetInventoryCount() ?? 0;
+        return availableWaste >= ship.TradeValue;
     }
 }

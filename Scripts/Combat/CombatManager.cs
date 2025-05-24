@@ -22,9 +22,11 @@ public class CombatManager : MonoBehaviour
     public List<CombatZone> availableZones = new List<CombatZone>();
     public CombatZone currentZone;
     public int enemiesDefeatedInZone = 0;
+    private CombatZone previousZone; // Store previous zone to return to
     
     // Combat state
     public bool autoCombatEnabled = true;
+    public bool isSingleShipMode = false;
     private float combatTimer = 0f;
     private float timeBetweenAttacks = 1f;
     private float uiUpdateTimer = 0f;
@@ -335,18 +337,31 @@ public class CombatManager : MonoBehaviour
         // Award resources
         GiveRewards(currentEnemy);
         
-        // Increment enemy counter
-        enemiesDefeatedInZone++;
-        
-        // Check for zone completion
-        if (enemiesDefeatedInZone >= currentZone.enemiesInZone)
+        if (isSingleShipMode)
         {
-            CompleteZone();
+            Debug.Log("CombatManager: Single ship combat victory!");
+            
+            // In single ship mode, end the encounter after victory
+            currentEnemy = null;
+            
+            // Don't spawn new enemy, let ShipInteractionManager handle cleanup
+            // The ShipInteractionManager will detect the victory and handle post-combat processing
         }
         else
         {
-            // Spawn next enemy
-            SpawnEnemy();
+            // Normal zone-based combat
+            enemiesDefeatedInZone++;
+            
+            // Check for zone completion
+            if (enemiesDefeatedInZone >= currentZone.enemiesInZone)
+            {
+                CompleteZone();
+            }
+            else
+            {
+                // Spawn next enemy
+                SpawnEnemy();
+            }
         }
     }
     
@@ -385,8 +400,18 @@ public class CombatManager : MonoBehaviour
         CombatUI.Instance?.ShowDefeat();
         CombatUI.Instance?.UpdateAllDisplays();
         
-        // Return to first zone
-        ChangeZone(0);
+        if (isSingleShipMode)
+        {
+            Debug.Log("CombatManager: Player defeated in single ship combat");
+            
+            // In single ship mode, the ShipInteractionManager will handle this
+            // Don't change zones or reset - let the interaction manager decide
+        }
+        else
+        {
+            // Normal combat - return to first zone
+            ChangeZone(0);
+        }
     }
     
     /// <summary>
@@ -472,6 +497,14 @@ public class CombatManager : MonoBehaviour
             return;
         }
         
+        // End single ship mode if active
+        if (isSingleShipMode)
+        {
+            isSingleShipMode = false;
+            previousZone = null;
+            Debug.Log("CombatManager: Ended single ship mode due to zone change");
+        }
+        
         // Reset zone progress
         currentZone = newZone;
         enemiesDefeatedInZone = 0;
@@ -495,5 +528,86 @@ public class CombatManager : MonoBehaviour
         };
         
         return names[UnityEngine.Random.Range(0, names.Length)];
+    }
+    
+    /// <summary>
+    /// Set up single ship combat mode
+    /// </summary>
+    public void StartSingleShipCombat(EnemyShip enemy, string encounterName = "Special Encounter")
+    {
+        Debug.Log($"CombatManager: Starting single ship combat with {enemy.name}");
+        
+        // Store previous zone to return to later
+        if (!isSingleShipMode && currentZone != null)
+        {
+            previousZone = currentZone;
+        }
+        
+        // Set single ship mode
+        isSingleShipMode = true;
+        
+        // Create temporary zone for this encounter
+        CombatZone singleShipZone = new CombatZone(
+            encounterName,
+            Mathf.RoundToInt(enemy.level),
+            enemy.sectorNumber,
+            1, // Only 1 enemy
+            false // Not locked
+        );
+        
+        // Set up the encounter
+        currentZone = singleShipZone;
+        currentEnemy = enemy;
+        enemiesDefeatedInZone = 0;
+        
+        // Reset player health if defeated (optional - you might want to keep damage)
+        if (currentHP <= 0)
+        {
+            currentHP = maxHP * 0.5f; // Restore to half health for the encounter
+        }
+        
+        // Disable auto-combat initially so player can see what they're fighting
+        autoCombatEnabled = false;
+        
+        // Update UI to show the new enemy and zone
+        CombatUI.Instance?.UpdateAllDisplays();
+        
+        Debug.Log($"CombatManager: Single ship combat ready - {enemy.name} (Level {enemy.level})");
+    }
+
+    /// <summary>
+    /// End single ship combat and return to previous state
+    /// </summary>
+    public void EndSingleShipCombat()
+    {
+        if (!isSingleShipMode) return;
+        
+        Debug.Log("CombatManager: Ending single ship combat");
+        
+        // Reset single ship mode
+        isSingleShipMode = false;
+        
+        // Return to previous zone if we had one
+        if (previousZone != null)
+        {
+            currentZone = previousZone;
+            previousZone = null;
+            
+            // Spawn a new enemy in the previous zone
+            SpawnEnemy();
+        }
+        else
+        {
+            // Return to first zone
+            if (availableZones.Count > 0)
+            {
+                ChangeZone(0);
+            }
+        }
+        
+        // Update UI
+        CombatUI.Instance?.UpdateAllDisplays();
+        
+        Debug.Log("CombatManager: Returned to normal combat mode");
     }
 }

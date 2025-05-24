@@ -355,10 +355,32 @@ public class CombatUI : MonoBehaviour
         var progress = CombatManager.Instance.enemiesDefeatedInZone;
         
         if (zoneNameText != null)
-            zoneNameText.text = zone.zoneName;
+        {
+            if (CombatManager.Instance.isSingleShipMode)
+            {
+                zoneNameText.text = $"⚔️ {zone.zoneName}";
+                zoneNameText.color = Color.yellow; // Highlight single ship encounters
+            }
+            else
+            {
+                zoneNameText.text = zone.zoneName;
+                zoneNameText.color = Color.white;
+            }
+        }
             
         if (zoneProgressText != null)
-            zoneProgressText.text = $"{progress}/{zone.enemiesInZone} Enemies";
+        {
+            if (CombatManager.Instance.isSingleShipMode)
+            {
+                zoneProgressText.text = "Single Ship Encounter";
+                zoneProgressText.color = Color.yellow;
+            }
+            else
+            {
+                zoneProgressText.text = $"{progress}/{zone.enemiesInZone} Enemies";
+                zoneProgressText.color = Color.white;
+            }
+        }
         
         // Update zone icon
         if (zoneIconImage != null)
@@ -368,14 +390,16 @@ public class CombatUI : MonoBehaviour
             if (zoneIcon != null)
             {
                 zoneIconImage.sprite = zoneIcon;
-                zoneIconImage.color = Color.white;
+                zoneIconImage.color = CombatManager.Instance.isSingleShipMode ? Color.yellow : Color.white;
                 zoneIconImage.enabled = true;
             }
             else
             {
                 // No icon found, use a color based on sector
                 zoneIconImage.enabled = true;
-                zoneIconImage.color = GetColorForSector(zone.sectorNumber);
+                Color baseColor = GetColorForSector(zone.sectorNumber);
+                zoneIconImage.color = CombatManager.Instance.isSingleShipMode ? 
+                    Color.Lerp(baseColor, Color.yellow, 0.5f) : baseColor;
             }
         }
     }

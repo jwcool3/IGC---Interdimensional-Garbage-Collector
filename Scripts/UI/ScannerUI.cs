@@ -30,6 +30,7 @@ public class ScannerUI : MonoBehaviour
     [SerializeField] private GameObject resultPanel;
     [SerializeField] private TextMeshProUGUI resultText;
     [SerializeField] private Button viewContactsButton;
+    [SerializeField] private Button fightNowButton;
     
     [Header("Scanner Info")]
     [SerializeField] private TextMeshProUGUI scannerLevelText;
@@ -59,6 +60,9 @@ public class ScannerUI : MonoBehaviour
             
         if (viewContactsButton != null)
             viewContactsButton.onClick.AddListener(OnViewContactsClicked);
+            
+        if (fightNowButton != null)
+            fightNowButton.onClick.AddListener(OnFightNowClicked);
         
         // Subscribe to scanner events
         if (ShipScanner.Instance != null)
@@ -229,6 +233,14 @@ public class ScannerUI : MonoBehaviour
             viewContactsButton.interactable = hasShip;
             viewContactsButton.gameObject.SetActive(hasShip);
         }
+        
+        // Fight now button
+        if (fightNowButton != null)
+        {
+            bool canFight = hasShip && ShipScanner.Instance.CurrentShip.CanFight;
+            fightNowButton.interactable = canFight;
+            fightNowButton.gameObject.SetActive(hasShip);
+        }
     }
     
     /// <summary>
@@ -314,9 +326,59 @@ public class ScannerUI : MonoBehaviour
     {
         Debug.Log("ScannerUI: View contacts clicked - switching to contacts tab");
         
-        // Switch to contacts tab (we'll implement this when we create the contacts tab)
-        // For now, just show a message
-        ShowScanStatus("Contacts tab coming soon!", Color.yellow);
+        // Switch to contacts tab
+        TabSystem tabSystem = FindObjectOfType<TabSystem>();
+        if (tabSystem != null)
+        {
+            tabSystem.ShowContactsTab();
+        }
+        else
+        {
+            ShowScanStatus("Contacts tab coming soon!", Color.yellow);
+        }
+    }
+    
+    /// <summary>
+    /// Handle fight now button click
+    /// </summary>
+    private void OnFightNowClicked()
+    {
+        if (ShipScanner.Instance?.CurrentShip == null)
+        {
+            Debug.LogWarning("ScannerUI: No ship to fight!");
+            return;
+        }
+        
+        var ship = ShipScanner.Instance.CurrentShip;
+        if (!ship.CanFight)
+        {
+            Debug.LogWarning("ScannerUI: Cannot fight this ship!");
+            ShowScanStatus("Cannot fight this ship", Color.red);
+            return;
+        }
+        
+        Debug.Log($"ScannerUI: Fighting {ship.ShipName} directly from scanner");
+        
+        // Use ShipInteractionManager to start combat
+        if (ShipInteractionManager.Instance != null)
+        {
+            bool success = ShipInteractionManager.Instance.StartCombatWithShip(ship);
+            if (success)
+            {
+                Debug.Log("ScannerUI: Combat started successfully from scanner");
+                ShowScanStatus("Entering combat...", Color.red);
+            }
+            else
+            {
+                Debug.LogWarning("ScannerUI: Failed to start combat from scanner");
+                ShowScanStatus("Failed to start combat", Color.red);
+            }
+        }
+        else
+        {
+            Debug.LogError("ScannerUI: ShipInteractionManager not found!");
+            ShowScanStatus("Combat system unavailable", Color.red);
+        }
     }
     
     /// <summary>
