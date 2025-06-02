@@ -3,31 +3,23 @@ using System.Collections.Generic;
 using System.Linq;
 
 /// <summary>
-/// Fixed ScannerShipDatabase - simplified static implementation to prevent loading issues
+/// Updated ScannerShipDatabase that uses a ScriptableObject for persistence
+/// This acts as a bridge between the persistent data and the game systems
 /// </summary>
 public class ScannerShipDatabase : MonoBehaviour
 {
     // Singleton pattern
     public static ScannerShipDatabase Instance { get; private set; }
     
-    [Header("Scanner Ship Database")]
-    [SerializeField] private List<ScannerShipModel> scannerShips = new List<ScannerShipModel>();
+    [Header("Database Reference")]
+    [SerializeField] private ScannerShipDatabaseSO databaseAsset;
     
-    [Header("Auto-Population Settings")]
-    [SerializeField] private string resourceBasePath = "ScannerShips";
-    [SerializeField] private bool autoPopulateOnAwake = true;
-    [SerializeField] private bool clearOnAutoPopulate = false;
+    [Header("Auto-Setup")]
+    [SerializeField] private bool autoFindDatabase = true;
+    [SerializeField] private bool initializeOnAwake = true;
     
-    // SIMPLIFIED: Non-static lookup dictionaries first, static later
-    private Dictionary<ShipRarity, List<ScannerShipModel>> shipsByRarity = new Dictionary<ShipRarity, List<ScannerShipModel>>();
-    private Dictionary<string, List<ScannerShipModel>> shipsByLocation = new Dictionary<string, List<ScannerShipModel>>();
-    private Dictionary<string, ScannerShipModel> shipsByName = new Dictionary<string, ScannerShipModel>();
-    
-    // Static lookups - only populated when needed
-    private static Dictionary<ShipRarity, List<ScannerShipModel>> staticShipsByRarity;
-    private static Dictionary<string, List<ScannerShipModel>> staticShipsByLocation;
-    private static Dictionary<string, ScannerShipModel> staticShipsByName;
-    private static bool staticDataReady = false;
+    // Static reference to the database for easy access
+    private static ScannerShipDatabaseSO staticDatabase;
     
     private void Awake()
     {
@@ -36,14 +28,10 @@ public class ScannerShipDatabase : MonoBehaviour
             Instance = this;
             DontDestroyOnLoad(gameObject);
             
-            // SIMPLIFIED: Just initialize instance data first
-            if (autoPopulateOnAwake)
+            if (initializeOnAwake)
             {
-                SimpleAutoPopulate();
+                InitializeDatabase();
             }
-            
-            InitializeLookups();
-            Debug.Log($"ScannerShipDatabase: Initialized with {scannerShips.Count} ships");
         }
         else
         {
@@ -52,347 +40,237 @@ public class ScannerShipDatabase : MonoBehaviour
     }
     
     /// <summary>
-    /// SIMPLIFIED: Basic auto-populate without complex logic
+    /// Initialize the database system
     /// </summary>
-    private void SimpleAutoPopulate()
+    public void InitializeDatabase()
     {
-        if (clearOnAutoPopulate)
+        // Try to find the database asset if not assigned
+        if (databaseAsset == null && autoFindDatabase)
         {
-            scannerShips.Clear();
+            FindDatabaseAsset();
         }
         
-        // Add defaults if empty
-        if (scannerShips.Count == 0)
+        if (databaseAsset == null)
         {
-            AddBasicDefaultShips();
+            Debug.LogError("ScannerShipDatabase: No database asset found! Please assign it in the inspector or create one.");
+            return;
         }
+        
+        // Set the static reference
+        staticDatabase = databaseAsset;
+        
+        // Initialize the database
+        databaseAsset.Initialize();
+        
+        Debug.Log($"ScannerShipDatabase: Initialized with {databaseAsset.GetTotalShipCount()} ships from persistent storage");
     }
     
     /// <summary>
-    /// SIMPLIFIED: Just add 3 basic ships, no complex logic
+    /// Try to automatically find the database asset
     /// </summary>
-    private void AddBasicDefaultShips()
+    private void FindDatabaseAsset()
     {
-        scannerShips.Add(CreateBasicShip("Basic Scavenger", ShipRarity.Common, "Scavenger Vessel", 10, 20));
-        scannerShips.Add(CreateBasicShip("Trade Runner", ShipRarity.Common, "Trading Vessel", 15, 25));
-        scannerShips.Add(CreateBasicShip("Research Probe", ShipRarity.Rare, "Science Vessel", 30, 50));
+        // Look for the database asset in the Resources folder
+        databaseAsset = Resources.Load<ScannerShipDatabaseSO>("ScannerShipDatabase");
         
-        Debug.Log($"ScannerShipDatabase: Added {scannerShips.Count} default ships");
-    }
-    
-    /// <summary>
-    /// Helper to create basic ships
-    /// </summary>
-    private ScannerShipModel CreateBasicShip(string name, ShipRarity rarity, string shipClass, int minTrade, int maxTrade)
-    {
-        return new ScannerShipModel
+        #if UNITY_EDITOR
+        if (databaseAsset == null)
         {
-            shipName = name,
-            rarity = rarity,
-            shipClass = shipClass,
-            description = $"A {rarity} {shipClass} found in space.",
-            availableLocations = new List<string> { "All Locations" },
-            minTradeValue = minTrade,
-            maxTradeValue = maxTrade,
-            availableTradeGoods = new List<string> { "Basic Components", "Ship Parts" }
-        };
-    }
-    
-    /// <summary>
-    /// SIMPLIFIED: Build instance lookups only
-    /// </summary>
-    private void InitializeLookups()
-    {
-        shipsByRarity.Clear();
-        shipsByLocation.Clear();
-        shipsByName.Clear();
-        
-        // Initialize rarity dictionary
-        foreach (ShipRarity rarity in System.Enum.GetValues(typeof(ShipRarity)))
-        {
-            shipsByRarity[rarity] = new List<ScannerShipModel>();
-        }
-        
-        // Process ships
-        foreach (var ship in scannerShips)
-        {
-            if (ship == null || string.IsNullOrEmpty(ship.shipName)) continue;
-            
-            shipsByRarity[ship.rarity].Add(ship);
-            
-            foreach (var location in ship.availableLocations)
+            // Try a broader search (Editor only)
+            string[] guids = UnityEditor.AssetDatabase.FindAssets("t:ScannerShipDatabaseSO");
+            if (guids.Length > 0)
             {
-                if (!shipsByLocation.ContainsKey(location))
-                {
-                    shipsByLocation[location] = new List<ScannerShipModel>();
-                }
-                shipsByLocation[location].Add(ship);
-            }
-            
-            shipsByName[ship.shipName] = ship;
-        }
-        
-        Debug.Log($"ScannerShipDatabase: Lookups built for {scannerShips.Count} ships");
-    }
-    
-    /// <summary>
-    /// Copy instance data to static lookups when needed
-    /// </summary>
-    private void EnsureStaticData()
-    {
-        if (staticDataReady) return;
-        
-        staticShipsByRarity = new Dictionary<ShipRarity, List<ScannerShipModel>>();
-        staticShipsByLocation = new Dictionary<string, List<ScannerShipModel>>();
-        staticShipsByName = new Dictionary<string, ScannerShipModel>();
-        
-        // Copy from instance data
-        foreach (var kvp in shipsByRarity)
-        {
-            staticShipsByRarity[kvp.Key] = new List<ScannerShipModel>(kvp.Value);
-        }
-        foreach (var kvp in shipsByLocation)
-        {
-            staticShipsByLocation[kvp.Key] = new List<ScannerShipModel>(kvp.Value);
-        }
-        foreach (var kvp in shipsByName)
-        {
-            staticShipsByName[kvp.Key] = kvp.Value;
-        }
-        
-        staticDataReady = true;
-    }
-    
-    // ===== STATIC METHODS (simplified) =====
-    
-    /// <summary>
-    /// STATIC: Get total ship count
-    /// </summary>
-    public static int GetTotalShipCountStatic()
-    {
-        if (Instance == null) return 0;
-        Instance.EnsureStaticData();
-        return staticShipsByRarity?.SelectMany(kvp => kvp.Value).Count() ?? 0;
-    }
-    
-    /// <summary>
-    /// STATIC: Get random ship by rarity
-    /// </summary>
-    public static ScannerShipModel GetRandomShipByRarityStatic(ShipRarity rarity)
-    {
-        if (Instance == null) return null;
-        Instance.EnsureStaticData();
-        
-        if (staticShipsByRarity?.ContainsKey(rarity) == true && staticShipsByRarity[rarity].Count > 0)
-        {
-            var ships = staticShipsByRarity[rarity];
-            return ships[Random.Range(0, ships.Count)];
-        }
-        
-        return null;
-    }
-    
-    /// <summary>
-    /// STATIC: Get random ship by rarity and location
-    /// </summary>
-    public static ScannerShipModel GetRandomShipByRarityAndLocationStatic(ShipRarity rarity, string currentLocation)
-    {
-        if (Instance == null) return null;
-        Instance.EnsureStaticData();
-        
-        if (staticShipsByRarity?.ContainsKey(rarity) == true && staticShipsByRarity[rarity].Count > 0)
-        {
-            var availableShips = staticShipsByRarity[rarity]
-                .Where(ship => ship.availableLocations.Contains(currentLocation) || 
-                              ship.availableLocations.Contains("All Locations") ||
-                              ship.availableLocations.Count == 0)
-                .ToList();
-            
-            if (availableShips.Count > 0)
-            {
-                return availableShips[Random.Range(0, availableShips.Count)];
+                string path = UnityEditor.AssetDatabase.GUIDToAssetPath(guids[0]);
+                databaseAsset = UnityEditor.AssetDatabase.LoadAssetAtPath<ScannerShipDatabaseSO>(path);
+                Debug.Log($"Found database asset at: {path}");
             }
         }
+        #endif
         
-        // Fallback to any ship of this rarity
-        return GetRandomShipByRarityStatic(rarity);
+        if (databaseAsset == null)
+        {
+            Debug.LogWarning("ScannerShipDatabase: Could not auto-find database asset. Please assign it manually or create a new one.");
+        }
     }
     
     /// <summary>
-    /// STATIC: Get ship by name
+    /// Create a new database asset if none exists
     /// </summary>
-    public static ScannerShipModel GetShipByNameStatic(string shipName)
+    [ContextMenu("Create New Database Asset")]
+    public void CreateNewDatabaseAsset()
     {
-        if (Instance == null) return null;
-        Instance.EnsureStaticData();
+        #if UNITY_EDITOR
+        // Create a new database asset
+        var newDatabase = ScriptableObject.CreateInstance<ScannerShipDatabaseSO>();
         
-        return staticShipsByName?.TryGetValue(shipName, out ScannerShipModel ship) == true ? ship : null;
+        // Create the Databases folder if it doesn't exist
+        if (!UnityEditor.AssetDatabase.IsValidFolder("Assets/Databases"))
+        {
+            UnityEditor.AssetDatabase.CreateFolder("Assets", "Databases");
+        }
+        
+        // Save the asset
+        string assetPath = "Assets/Databases/ScannerShipDatabase.asset";
+        UnityEditor.AssetDatabase.CreateAsset(newDatabase, assetPath);
+        UnityEditor.AssetDatabase.SaveAssets();
+        UnityEditor.AssetDatabase.Refresh();
+        
+        // Assign it to this component
+        databaseAsset = newDatabase;
+        
+        // Initialize it
+        databaseAsset.Initialize();
+        
+        Debug.Log($"Created new database asset at: {assetPath}");
+        #endif
     }
+    
+    // ===== STATIC METHODS FOR EASY ACCESS =====
     
     /// <summary>
-    /// STATIC: Add ship
-    /// </summary>
-    public static void AddShipStatic(ScannerShipModel ship)
-    {
-        if (Instance == null || ship == null) return;
-        
-        Instance.scannerShips.Add(ship);
-        Instance.InitializeLookups();
-        staticDataReady = false; // Force refresh
-    }
-    
-    // ===== INSTANCE METHODS (for backwards compatibility) =====
-    
-    public ScannerShipModel GetRandomShipByRarity(ShipRarity rarity)
-    {
-        return GetRandomShipByRarityStatic(rarity);
-    }
-    
-    public ScannerShipModel GetRandomShipByRarityAndLocation(ShipRarity rarity, string currentLocation)
-    {
-        return GetRandomShipByRarityAndLocationStatic(rarity, currentLocation);
-    }
-    
-    public ScannerShipModel GetShipByName(string shipName)
-    {
-        return GetShipByNameStatic(shipName);
-    }
-    
-    public int GetTotalShipCount()
-    {
-        return scannerShips.Count;
-    }
-    
-    public void AddShip(ScannerShipModel ship)
-    {
-        AddShipStatic(ship);
-    }
-    
-    public bool RemoveShip(string shipName)
-    {
-        var ship = scannerShips.FirstOrDefault(s => s.shipName == shipName);
-        if (ship != null)
-        {
-            scannerShips.Remove(ship);
-            InitializeLookups();
-            staticDataReady = false;
-            return true;
-        }
-        return false;
-    }
-    
-    public void RefreshDatabase()
-    {
-        InitializeLookups();
-        staticDataReady = false;
-    }
-    
-    public Dictionary<ShipRarity, int> GetShipCountByRarity()
-    {
-        Dictionary<ShipRarity, int> counts = new Dictionary<ShipRarity, int>();
-        foreach (var rarity in System.Enum.GetValues(typeof(ShipRarity)))
-        {
-            ShipRarity rarityEnum = (ShipRarity)rarity;
-            counts[rarityEnum] = shipsByRarity.ContainsKey(rarityEnum) ? shipsByRarity[rarityEnum].Count : 0;
-        }
-        return counts;
-    }
-    
-    [ContextMenu("Show Database Statistics")]
-    public void ShowDatabaseStatistics()
-    {
-        Debug.Log("=== SCANNER SHIP DATABASE STATISTICS ===");
-        Debug.Log($"Total Ships: {scannerShips.Count}");
-        Debug.Log($"Static Data Ready: {staticDataReady}");
-        
-        var rarityBreakdown = GetShipCountByRarity();
-        foreach (var kvp in rarityBreakdown)
-        {
-            if (kvp.Value > 0)
-                Debug.Log($"{kvp.Key}: {kvp.Value} ships");
-        }
-    }
-
-    /// <summary>
-    /// ADDED: Initialize static database - can be called from anywhere
+    /// Initialize static database - can be called from anywhere
     /// </summary>
     public static void InitializeStaticDatabase()
     {
         if (Instance == null)
         {
-            Debug.LogWarning("ScannerShipDatabase: No instance found, creating minimal database");
+            Debug.LogWarning("ScannerShipDatabase: No instance found, creating one...");
             var go = new GameObject("ScannerShipDatabase");
             Instance = go.AddComponent<ScannerShipDatabase>();
-            Instance.SimpleAutoPopulate();
         }
         
-        Instance.InitializeLookups();
-        Instance.EnsureStaticData();
-        Debug.Log($"ScannerShipDatabase: Static database initialized with {Instance.GetTotalShipCount()} ships");
+        Instance.InitializeDatabase();
     }
-
+    
     /// <summary>
-    /// ADDED: Get detailed database statistics
+    /// Get total ship count
+    /// </summary>
+    public static int GetTotalShipCountStatic()
+    {
+        if (staticDatabase == null) InitializeStaticDatabase();
+        return staticDatabase?.GetTotalShipCount() ?? 0;
+    }
+    
+    /// <summary>
+    /// Get random ship by rarity
+    /// </summary>
+    public static ScannerShipModel GetRandomShipByRarityStatic(ShipRarity rarity)
+    {
+        if (staticDatabase == null) InitializeStaticDatabase();
+        return staticDatabase?.GetRandomShipByRarity(rarity);
+    }
+    
+    /// <summary>
+    /// Get random ship by rarity and location
+    /// </summary>
+    public static ScannerShipModel GetRandomShipByRarityAndLocationStatic(ShipRarity rarity, string currentLocation)
+    {
+        if (staticDatabase == null) InitializeStaticDatabase();
+        return staticDatabase?.GetRandomShipByRarityAndLocation(rarity, currentLocation);
+    }
+    
+    /// <summary>
+    /// Get ship by name
+    /// </summary>
+    public static ScannerShipModel GetShipByNameStatic(string shipName)
+    {
+        if (staticDatabase == null) InitializeStaticDatabase();
+        return staticDatabase?.GetShipByName(shipName);
+    }
+    
+    /// <summary>
+    /// Add ship to database
+    /// </summary>
+    public static void AddShipStatic(ScannerShipModel ship)
+    {
+        if (staticDatabase == null) InitializeStaticDatabase();
+        staticDatabase?.AddShip(ship);
+    }
+    
+    /// <summary>
+    /// Get database statistics
     /// </summary>
     public static Dictionary<string, object> GetDatabaseStatistics()
     {
-        if (Instance == null) return new Dictionary<string, object>();
-        Instance.EnsureStaticData();
+        if (staticDatabase == null) InitializeStaticDatabase();
         
         var stats = new Dictionary<string, object>();
-        
-        // Basic counts
-        stats["TotalShips"] = Instance.GetTotalShipCount();
-        stats["UniqueLocations"] = Instance.shipsByLocation.Keys.Count;
-        
-        // Rarity breakdown
-        stats["RarityBreakdown"] = Instance.GetShipCountByRarity();
-        
-        // Level range analysis
-        var allShips = Instance.scannerShips;
-        if (allShips.Any())
+        if (staticDatabase != null)
         {
-            stats["MinLevel"] = allShips.Min(s => s.minLevel);
-            stats["MaxLevel"] = allShips.Max(s => s.maxLevel);
-            stats["AvgTradeValue"] = allShips.Average(s => (s.minTradeValue + s.maxTradeValue) / 2f);
+            stats["TotalShips"] = staticDatabase.GetTotalShipCount();
+            stats["RarityBreakdown"] = staticDatabase.GetShipCountByRarity();
         }
-        
-        // Location distribution
-        var locationStats = new Dictionary<string, int>();
-        foreach (var kvp in Instance.shipsByLocation)
-        {
-            locationStats[kvp.Key] = kvp.Value.Count;
-        }
-        stats["LocationDistribution"] = locationStats;
-        
         return stats;
     }
-
+    
+    // ===== INSTANCE METHODS FOR BACKWARDS COMPATIBILITY =====
+    
+    public ScannerShipModel GetRandomShipByRarity(ShipRarity rarity)
+    {
+        return databaseAsset?.GetRandomShipByRarity(rarity);
+    }
+    
+    public ScannerShipModel GetRandomShipByRarityAndLocation(ShipRarity rarity, string currentLocation)
+    {
+        return databaseAsset?.GetRandomShipByRarityAndLocation(rarity, currentLocation);
+    }
+    
+    public ScannerShipModel GetShipByName(string shipName)
+    {
+        return databaseAsset?.GetShipByName(shipName);
+    }
+    
+    public int GetTotalShipCount()
+    {
+        return databaseAsset?.GetTotalShipCount() ?? 0;
+    }
+    
+    public void AddShip(ScannerShipModel ship)
+    {
+        databaseAsset?.AddShip(ship);
+    }
+    
+    public bool RemoveShip(string shipName)
+    {
+        return databaseAsset?.RemoveShip(shipName) ?? false;
+    }
+    
+    public void RefreshDatabase()
+    {
+        databaseAsset?.BuildLookups();
+    }
+    
+    public Dictionary<ShipRarity, int> GetShipCountByRarity()
+    {
+        return databaseAsset?.GetShipCountByRarity() ?? new Dictionary<ShipRarity, int>();
+    }
+    
     /// <summary>
-    /// ADDED: Reload the entire database
+    /// Reload the entire database
     /// </summary>
     [ContextMenu("Reload Database")]
     public void ReloadDatabase()
     {
-        Debug.Log("ScannerShipDatabase: Reloading database...");
-        
-        // Clear existing data
-        scannerShips.Clear();
-        shipsByRarity.Clear();
-        shipsByLocation.Clear();
-        shipsByName.Clear();
-        
-        // Reset static data
-        staticDataReady = false;
-        staticShipsByRarity = null;
-        staticShipsByLocation = null;
-        staticShipsByName = null;
-        
-        // Repopulate
-        SimpleAutoPopulate();
-        InitializeLookups();
-        EnsureStaticData();
-        
-        Debug.Log($"ScannerShipDatabase: Database reloaded with {scannerShips.Count} ships");
+        if (databaseAsset != null)
+        {
+            databaseAsset.Initialize();
+            Debug.Log($"ScannerShipDatabase: Database reloaded with {databaseAsset.GetTotalShipCount()} ships");
+        }
+    }
+    
+    /// <summary>
+    /// Show database statistics
+    /// </summary>
+    [ContextMenu("Show Database Statistics")]
+    public void ShowDatabaseStatistics()
+    {
+        if (databaseAsset != null)
+        {
+            databaseAsset.ShowDatabaseStatistics();
+        }
+        else
+        {
+            Debug.LogError("No database asset assigned!");
+        }
     }
 }

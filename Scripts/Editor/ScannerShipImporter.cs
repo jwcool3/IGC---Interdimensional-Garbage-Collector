@@ -7,22 +7,71 @@ using System.Collections;
 
 /// <summary>
 /// Imports scanner ships from JSON files created by AI analysis
+/// Updated to work with the new persistent ScannerShipDatabaseSO
 /// </summary>
 public class ScannerShipImporter : MonoBehaviour
 {
+    [Header("Database Reference")]
+    [SerializeField] private ScannerShipDatabaseSO targetDatabase;
+    
     [Header("Import Settings")]
     [SerializeField] private string importFolderPath = "StreamingAssets/ScannerShips";
     [SerializeField] private bool importOnStart = false;
     [SerializeField] private bool replaceExistingShips = false;
+    [SerializeField] private bool autoFindDatabase = true;
     
     [Header("Debug")]
     [SerializeField] private bool showDebugLogs = true;
     
     private void Start()
     {
+        // Try to find the database if not assigned
+        if (targetDatabase == null && autoFindDatabase)
+        {
+            FindTargetDatabase();
+        }
+        
         if (importOnStart)
         {
             ImportAllShips();
+        }
+    }
+    
+    /// <summary>
+    /// Try to automatically find the database asset
+    /// </summary>
+    private void FindTargetDatabase()
+    {
+        // First try Resources folder
+        targetDatabase = Resources.Load<ScannerShipDatabaseSO>("Databases/ScannerShipDatabase");
+        
+        if (targetDatabase == null)
+        {
+            // Try root Resources folder
+            targetDatabase = Resources.Load<ScannerShipDatabaseSO>("ScannerShipDatabase");
+        }
+        
+        #if UNITY_EDITOR
+        if (targetDatabase == null)
+        {
+            // Editor-only: Search entire project
+            string[] guids = UnityEditor.AssetDatabase.FindAssets("t:ScannerShipDatabaseSO");
+            if (guids.Length > 0)
+            {
+                string path = UnityEditor.AssetDatabase.GUIDToAssetPath(guids[0]);
+                targetDatabase = UnityEditor.AssetDatabase.LoadAssetAtPath<ScannerShipDatabaseSO>(path);
+                LogDebug($"Found database asset at: {path}");
+            }
+        }
+        #endif
+        
+        if (targetDatabase == null)
+        {
+            Debug.LogError("ScannerShipImporter: Could not find database asset! Please assign it manually in the inspector.");
+        }
+        else
+        {
+            LogDebug($"Found target database: {targetDatabase.name}");
         }
     }
     
@@ -32,6 +81,12 @@ public class ScannerShipImporter : MonoBehaviour
     [ContextMenu("Import All Ships")]
     public void ImportAllShips()
     {
+        if (targetDatabase == null)
+        {
+            Debug.LogError("No target database assigned! Please assign a ScannerShipDatabaseSO in the inspector.");
+            return;
+        }
+        
         string fullPath = Path.Combine(Application.streamingAssetsPath, "ScannerShips");
         
         if (!Directory.Exists(fullPath))
@@ -52,6 +107,8 @@ public class ScannerShipImporter : MonoBehaviour
         
         int successCount = 0;
         int errorCount = 0;
+        
+        LogDebug($"Starting import of {jsonFiles.Length} JSON files...");
         
         foreach (string filePath in jsonFiles)
         {
@@ -75,10 +132,21 @@ public class ScannerShipImporter : MonoBehaviour
         
         LogDebug($"Import complete: {successCount} ships imported, {errorCount} errors");
         
-        // Refresh the database
+        // Mark the database as dirty so Unity saves the changes
+        #if UNITY_EDITOR
+        if (successCount > 0)
+        {
+            UnityEditor.EditorUtility.SetDirty(targetDatabase);
+            UnityEditor.AssetDatabase.SaveAssets();
+            LogDebug("Database marked as dirty and saved");
+        }
+        #endif
+        
+        // Refresh any runtime instances
         if (ScannerShipDatabase.Instance != null && successCount > 0)
         {
             ScannerShipDatabase.Instance.RefreshDatabase();
+            LogDebug("Refreshed runtime database instance");
         }
     }
     
@@ -102,6 +170,12 @@ public class ScannerShipImporter : MonoBehaviour
     /// </summary>
     public bool ImportShipFromJson(string jsonContent, string sourceName = "Unknown")
     {
+        if (targetDatabase == null)
+        {
+            Debug.LogError("No target database assigned!");
+            return false;
+        }
+        
         try
         {
             ShipJsonData shipData = JsonUtility.FromJson<ShipJsonData>(jsonContent);
@@ -120,36 +194,36 @@ public class ScannerShipImporter : MonoBehaviour
                 return false;
             }
             
-            // Check if ship already exists
-            if (ScannerShipDatabase.Instance != null)
+            // Validate the ship model
+            if (!ship.IsValid())
             {
-                if (ScannerShipDatabase.Instance.GetShipByName(ship.shipName) != null)
-                {
-                    if (!replaceExistingShips)
-                    {
-                        LogDebug($"Ship '{ship.shipName}' already exists, skipping import");
-                        return false;
-                    }
-                    else
-                    {
-                        ScannerShipDatabase.Instance.RemoveShip(ship.shipName);
-                        LogDebug($"Replaced existing ship: {ship.shipName}");
-                    }
-                }
-                
-                ScannerShipDatabase.Instance.AddShip(ship);
-                LogDebug($"Successfully imported ship: {ship.shipName} ({ship.rarity})");
-                return true;
-            }
-            else
-            {
-                Debug.LogError("ScannerShipDatabase not found!");
+                Debug.LogError($"Invalid ship model created from {sourceName}");
                 return false;
             }
+            
+            // Check if ship already exists
+            if (targetDatabase.GetShipByName(ship.shipName) != null)
+            {
+                if (!replaceExistingShips)
+                {
+                    LogDebug($"Ship '{ship.shipName}' already exists, skipping import");
+                    return false;
+                }
+                else
+                {
+                    targetDatabase.RemoveShip(ship.shipName);
+                    LogDebug($"Replaced existing ship: {ship.shipName}");
+                }
+            }
+            
+            // Add the ship to the database
+            targetDatabase.AddShip(ship);
+            LogDebug($"Successfully imported ship: {ship.shipName} ({ship.rarity})");
+            return true;
         }
         catch (System.Exception e)
         {
-            Debug.LogError($"Error importing ship from {sourceName}: {e.Message}");
+            Debug.LogError($"Error importing ship from {sourceName}: {e.Message}\n{e.StackTrace}");
             return false;
         }
     }
@@ -162,37 +236,48 @@ public class ScannerShipImporter : MonoBehaviour
         ScannerShipModel ship = new ScannerShipModel();
         
         // Basic Info
-        ship.shipName = jsonShip.basicInfo.shipName;
-        ship.shipClass = jsonShip.basicInfo.shipClass;
-        ship.description = jsonShip.basicInfo.description;
-        ship.rarity = ParseRarity(jsonShip.basicInfo.rarity);
+        ship.shipName = jsonShip.basicInfo?.shipName ?? "Unknown Ship";
+        ship.shipClass = jsonShip.basicInfo?.shipClass ?? "Unknown Class";
+        ship.description = jsonShip.basicInfo?.description ?? "No description available.";
+        ship.rarity = ParseRarity(jsonShip.basicInfo?.rarity);
         
         // Visual
-        ship.shipColor = ParseColor(jsonShip.visual.primaryColor);
+        ship.shipColor = ParseColor(jsonShip.visual?.primaryColor);
         
         // Availability
-        ship.availableLocations = jsonShip.availability.preferredLocations ?? new List<string>();
-        ship.spawnWeight = jsonShip.availability.spawnWeight;
-        ship.isUnique = jsonShip.availability.isUnique;
+        ship.availableLocations = jsonShip.availability?.preferredLocations ?? new List<string> { "All Locations" };
+        ship.spawnWeight = jsonShip.availability?.spawnWeight ?? 1f;
+        ship.isUnique = jsonShip.availability?.isUnique ?? false;
         
         // Trading
-        ship.minTradeValue = jsonShip.trading.minTradeValue;
-        ship.maxTradeValue = jsonShip.trading.maxTradeValue;
+        ship.minTradeValue = Math.Max(1, jsonShip.trading?.minTradeValue ?? 10);
+        ship.maxTradeValue = Math.Max(ship.minTradeValue, jsonShip.trading?.maxTradeValue ?? 20);
         ship.availableTradeGoods = new List<string>();
-        if (jsonShip.trading.primaryTradeGoods != null)
+        
+        if (jsonShip.trading?.primaryTradeGoods != null)
             ship.availableTradeGoods.AddRange(jsonShip.trading.primaryTradeGoods);
-        if (jsonShip.trading.secondaryTradeGoods != null)
+        if (jsonShip.trading?.secondaryTradeGoods != null)
             ship.availableTradeGoods.AddRange(jsonShip.trading.secondaryTradeGoods);
         
+        // Ensure at least one trade good
+        if (ship.availableTradeGoods.Count == 0)
+        {
+            ship.availableTradeGoods.Add("Basic Components");
+        }
+        
         // Combat
-        ship.minLevel = jsonShip.combat.levelRange.min;
-        ship.maxLevel = jsonShip.combat.levelRange.max;
-        ship.attackMultiplier = jsonShip.combat.statMultipliers.attack;
-        ship.defenseMultiplier = jsonShip.combat.statMultipliers.defense;
-        ship.healthMultiplier = jsonShip.combat.statMultipliers.health;
+        ship.minLevel = Math.Max(1, jsonShip.combat?.levelRange?.min ?? 1);
+        ship.maxLevel = Math.Max(ship.minLevel, jsonShip.combat?.levelRange?.max ?? 5);
+        ship.attackMultiplier = Math.Max(0.1f, jsonShip.combat?.statMultipliers?.attack ?? 1f);
+        ship.defenseMultiplier = Math.Max(0.1f, jsonShip.combat?.statMultipliers?.defense ?? 1f);
+        ship.healthMultiplier = Math.Max(0.1f, jsonShip.combat?.statMultipliers?.health ?? 1f);
         
         // Special abilities
-        ship.specialAbilities = jsonShip.combat.specialAbilities ?? new List<string>();
+        ship.specialAbilities = jsonShip.combat?.specialAbilities ?? new List<string>();
+        
+        // Set defaults for interaction flags
+        ship.canAlwaysFight = true;
+        ship.canAlwaysTrade = true;
         
         return ship;
     }
@@ -202,6 +287,11 @@ public class ScannerShipImporter : MonoBehaviour
     /// </summary>
     private ShipRarity ParseRarity(string rarityString)
     {
+        if (string.IsNullOrEmpty(rarityString))
+        {
+            return ShipRarity.Common;
+        }
+        
         if (System.Enum.TryParse<ShipRarity>(rarityString, true, out ShipRarity rarity))
         {
             return rarity;
@@ -313,14 +403,35 @@ public class ScannerShipImporter : MonoBehaviour
         Debug.Log("=== IMPORT SYSTEM DEBUG ===");
         
         // Check if database exists
-        if (ScannerShipDatabase.Instance != null)
+        if (targetDatabase != null)
         {
-            Debug.Log($"✅ ScannerShipDatabase found with {ScannerShipDatabase.Instance.GetTotalShipCount()} ships");
+            Debug.Log($"✅ Target database found: {targetDatabase.name} with {targetDatabase.GetTotalShipCount()} ships");
         }
         else
         {
-            Debug.LogError("❌ ScannerShipDatabase.Instance is NULL!");
+            Debug.LogError("❌ Target database is NULL!");
+            
+            // Try to find it
+            if (autoFindDatabase)
+            {
+                Debug.Log("Attempting to find database...");
+                FindTargetDatabase();
+                if (targetDatabase != null)
+                {
+                    Debug.Log($"✅ Found database: {targetDatabase.name}");
+                }
+            }
             return;
+        }
+        
+        // Check runtime database instance
+        if (ScannerShipDatabase.Instance != null)
+        {
+            Debug.Log($"✅ Runtime database instance found with {ScannerShipDatabase.Instance.GetTotalShipCount()} ships");
+        }
+        else
+        {
+            Debug.LogWarning("⚠️ Runtime database instance not found (this may be normal in edit mode)");
         }
         
         // Check file path
@@ -358,8 +469,8 @@ public class ScannerShipImporter : MonoBehaviour
         }
         
         // Check what ships are currently in database
-        Debug.Log("Current ships in database:");
-        var rarityBreakdown = ScannerShipDatabase.Instance.GetShipCountByRarity();
+        Debug.Log("Current ships in target database:");
+        var rarityBreakdown = targetDatabase.GetShipCountByRarity();
         foreach (var kvp in rarityBreakdown)
         {
             if (kvp.Value > 0)
@@ -368,37 +479,56 @@ public class ScannerShipImporter : MonoBehaviour
     }
     
     /// <summary>
-    /// Test the import system by manually clearing and reloading the database
+    /// Test the import system by clearing and importing from JSON
     /// </summary>
-    [ContextMenu("Manual Import Test")]
-    public void ManualImportTest()
+    [ContextMenu("Test Import (Clear and Import)")]
+    public void TestImport()
     {
-        Debug.Log("=== MANUAL IMPORT TEST ===");
-        
-        // First clear the database to see pure import results
-        if (ScannerShipDatabase.Instance != null)
+        if (targetDatabase == null)
         {
-            Debug.Log("Clearing existing ships from database...");
-            // We need to access the private field, so let's use the ReloadDatabase method instead
-            // This will clear and re-add defaults, then import JSON
-            ScannerShipDatabase.Instance.ReloadDatabase();
-        }
-        else
-        {
-            Debug.LogError("ScannerShipDatabase not found!");
+            Debug.LogError("No target database assigned!");
             return;
         }
         
-        Debug.Log($"After reload: {ScannerShipDatabase.Instance.GetTotalShipCount()} ships in database");
+        Debug.Log("=== TEST IMPORT ===");
         
-        // Show what we have
-        Debug.Log("Ships after reload:");
-        var rarityBreakdown = ScannerShipDatabase.Instance.GetShipCountByRarity();
-        foreach (var kvp in rarityBreakdown)
+        int initialCount = targetDatabase.GetTotalShipCount();
+        Debug.Log($"Initial ship count: {initialCount}");
+        
+        // Import ships
+        ImportAllShips();
+        
+        int finalCount = targetDatabase.GetTotalShipCount();
+        Debug.Log($"Final ship count: {finalCount}");
+        Debug.Log($"Ships added: {finalCount - initialCount}");
+    }
+    
+    /// <summary>
+    /// Clear database and add fresh default ships
+    /// </summary>
+    [ContextMenu("Reset Database with Defaults")]
+    public void ResetDatabaseWithDefaults()
+    {
+        if (targetDatabase == null)
         {
-            if (kvp.Value > 0)
-                Debug.Log($"  {kvp.Key}: {kvp.Value} ships");
+            Debug.LogError("No target database assigned!");
+            return;
         }
+        
+        Debug.Log("Clearing database and adding defaults...");
+        
+        // Clear existing ships
+        targetDatabase.ClearAllShips();
+        
+        // Add default ships
+        targetDatabase.AddDefaultShips();
+        
+        Debug.Log($"Database reset. New ship count: {targetDatabase.GetTotalShipCount()}");
+        
+        #if UNITY_EDITOR
+        UnityEditor.EditorUtility.SetDirty(targetDatabase);
+        UnityEditor.AssetDatabase.SaveAssets();
+        #endif
     }
     
     /// <summary>
@@ -410,20 +540,21 @@ public class ScannerShipImporter : MonoBehaviour
         float timeout = 5f;
         float elapsed = 0f;
         
-        while (ScannerShipDatabase.Instance == null && elapsed < timeout)
+        while (targetDatabase == null && elapsed < timeout)
         {
             elapsed += Time.deltaTime;
+            FindTargetDatabase();
             yield return null;
         }
         
-        if (ScannerShipDatabase.Instance != null)
+        if (targetDatabase != null)
         {
             Debug.Log("Database found! Starting import...");
             ImportAllShips();
         }
         else
         {
-            Debug.LogError("Timeout waiting for ScannerShipDatabase to initialize!");
+            Debug.LogError("Timeout waiting for database to be found!");
         }
     }
 
@@ -433,7 +564,7 @@ public class ScannerShipImporter : MonoBehaviour
     [ContextMenu("Safe Import All Ships")]
     public void SafeImportAllShips()
     {
-        if (ScannerShipDatabase.Instance != null)
+        if (targetDatabase != null)
         {
             ImportAllShips();
         }
@@ -441,6 +572,28 @@ public class ScannerShipImporter : MonoBehaviour
         {
             Debug.Log("Database not ready, waiting...");
             StartCoroutine(WaitForDatabaseAndImport());
+        }
+    }
+    
+    /// <summary>
+    /// Import specific JSON content (for testing)
+    /// </summary>
+    public void ImportJsonString(string jsonContent, string name = "Manual Import")
+    {
+        if (ImportShipFromJson(jsonContent, name))
+        {
+            LogDebug($"Successfully imported ship from manual JSON: {name}");
+            
+            #if UNITY_EDITOR
+            if (targetDatabase != null)
+            {
+                UnityEditor.EditorUtility.SetDirty(targetDatabase);
+            }
+            #endif
+        }
+        else
+        {
+            Debug.LogError($"Failed to import ship from manual JSON: {name}");
         }
     }
     
@@ -453,7 +606,7 @@ public class ScannerShipImporter : MonoBehaviour
     }
 }
 
-// JSON data structures for parsing
+// Keep all the JSON data structures (unchanged)
 [System.Serializable]
 public class ShipJsonData
 {
