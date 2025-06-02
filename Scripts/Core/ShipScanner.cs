@@ -198,7 +198,7 @@ public class ShipScanner : MonoBehaviour
     }
     
     /// <summary>
-    /// Generate a discovered ship based on scan type
+    /// Generate a discovered ship based on scan type using the Scanner Ship Database
     /// </summary>
     private DiscoveredShip GenerateDiscoveredShip(bool isCommonScan)
     {
@@ -229,14 +229,61 @@ public class ShipScanner : MonoBehaviour
                 rarity = ShipRarity.Anomaly;
         }
         
-        // For now, generate a basic ship - we'll expand this with ShipDatabase later
+        // Get current location for location-based ship filtering
+        string currentLocation = GetCurrentLocationName();
+        
+        // Try to get a ship from the Scanner Ship Database
+        ScannerShipModel shipModel = null;
+        if (ScannerShipDatabase.Instance != null)
+        {
+            shipModel = ScannerShipDatabase.Instance.GetRandomShipByRarityAndLocation(rarity, currentLocation);
+            
+            if (shipModel != null)
+            {
+                Debug.Log($"ShipScanner: Using scanner ship model '{shipModel.shipName}' from database");
+                return shipModel.CreateDiscoveredShip();
+            }
+            else
+            {
+                Debug.LogWarning($"ShipScanner: No ship model found for rarity {rarity} in location {currentLocation}");
+            }
+        }
+        else
+        {
+            Debug.LogWarning("ShipScanner: ScannerShipDatabase not found, using fallback generation");
+        }
+        
+        // Fallback to procedural generation if database is unavailable
+        return GenerateFallbackShip(rarity);
+    }
+    
+    /// <summary>
+    /// Get the current location name for ship filtering
+    /// </summary>
+    private string GetCurrentLocationName()
+    {
+        if (LocationManager.Instance?.GetCurrentLocation() != null)
+        {
+            return LocationManager.Instance.GetCurrentLocation().displayName;
+        }
+        
+        return "Unknown Sector";
+    }
+    
+    /// <summary>
+    /// Fallback ship generation when database is unavailable
+    /// </summary>
+    private DiscoveredShip GenerateFallbackShip(ShipRarity rarity)
+    {
+        Debug.Log($"ShipScanner: Generating fallback ship for rarity {rarity}");
+        
         DiscoveredShip ship = new DiscoveredShip
         {
             ShipName = GenerateShipName(rarity),
             Rarity = rarity,
             Level = CalculateShipLevel(rarity),
             ShipType = GenerateShipType(rarity),
-            DiscoveryTime = DateTime.Now,
+            DiscoveryTime = System.DateTime.Now,
             
             // Basic stats based on rarity
             AttackPower = CalculateShipStat(rarity, 10f, 50f),
