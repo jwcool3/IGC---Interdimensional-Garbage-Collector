@@ -11,27 +11,27 @@ public class ShipScanner : MonoBehaviour
 {
     // Singleton pattern
     public static ShipScanner Instance { get; private set; }
-    
+
     [Header("Energy System")]
     [SerializeField] private float maxScannerEnergy = 100f;
     [SerializeField] private float currentScannerEnergy = 100f;
     [SerializeField] private float energyRegenRate = 5f; // Energy per second
     [SerializeField] private float commonScanCost = 15f;
     [SerializeField] private float rareScanCost = 35f;
-    
+
     [Header("Success Rates")]
     [SerializeField] private float baseCommonSuccessRate = 0.8f; // 80% base
     [SerializeField] private float baseRareSuccessRate = 0.3f;   // 30% base
     [SerializeField] private float scannerLevelBonus = 0.1f;     // 10% per scanner level
     [SerializeField] private float locationDifficultyModifier = 1f; // Adjusted by current location
-    
+
     [Header("Scan Timing")]
     [SerializeField] private float scanDuration = 3f; // How long a scan takes
     [SerializeField] private bool isScanning = false;
-    
+
     // Current discovered ship
     private DiscoveredShip currentDiscoveredShip;
-    
+
     // Events
     public event Action<float> OnEnergyChanged;
     public event Action<DiscoveredShip> OnShipDiscovered;
@@ -39,14 +39,14 @@ public class ShipScanner : MonoBehaviour
     public event Action OnScanCompleted;
     public event Action OnScanFailed;
     public event Action OnShipInteracted; // When ship is fought/traded with
-    
+
     // Properties
     public float CurrentEnergy => currentScannerEnergy;
     public float MaxEnergy => maxScannerEnergy;
     public bool IsScanning => isScanning;
     public bool HasDiscoveredShip => currentDiscoveredShip != null;
     public DiscoveredShip CurrentShip => currentDiscoveredShip;
-    
+
     private void Awake()
     {
         // Singleton setup
@@ -61,26 +61,26 @@ public class ShipScanner : MonoBehaviour
             Destroy(gameObject);
         }
     }
-    
+
     private void Start()
     {
         // Start energy regeneration
         StartCoroutine(RegenerateEnergy());
-        
+
         // Initialize energy to full
         currentScannerEnergy = maxScannerEnergy;
         OnEnergyChanged?.Invoke(currentScannerEnergy);
-        
+
         // Ensure the static database is initialized
         ScannerShipDatabase.InitializeStaticDatabase();
     }
-    
+
     private void Update()
     {
         // Update location difficulty modifier based on current location
         UpdateLocationDifficulty();
     }
-    
+
     /// <summary>
     /// Attempt to scan for a common ship
     /// </summary>
@@ -88,11 +88,11 @@ public class ShipScanner : MonoBehaviour
     {
         if (!CanScan(true))
             return false;
-            
+
         StartCoroutine(PerformScan(true));
         return true;
     }
-    
+
     /// <summary>
     /// Attempt to scan for a rare ship
     /// </summary>
@@ -100,11 +100,11 @@ public class ShipScanner : MonoBehaviour
     {
         if (!CanScan(false))
             return false;
-            
+
         StartCoroutine(PerformScan(false));
         return true;
     }
-    
+
     /// <summary>
     /// Check if we can perform a scan
     /// </summary>
@@ -115,23 +115,23 @@ public class ShipScanner : MonoBehaviour
             Debug.Log("Already scanning!");
             return false;
         }
-        
+
         if (HasDiscoveredShip)
         {
             Debug.Log("Must interact with current ship before scanning again!");
             return false;
         }
-        
+
         float requiredEnergy = isCommonScan ? commonScanCost : rareScanCost;
         if (currentScannerEnergy < requiredEnergy)
         {
             Debug.Log($"Insufficient energy! Need {requiredEnergy}, have {currentScannerEnergy}");
             return false;
         }
-        
+
         return true;
     }
-    
+
     /// <summary>
     /// Perform the actual scanning process
     /// </summary>
@@ -140,29 +140,29 @@ public class ShipScanner : MonoBehaviour
         // Start scanning
         isScanning = true;
         OnScanStarted?.Invoke();
-        
+
         // Consume energy
         float energyCost = isCommonScan ? commonScanCost : rareScanCost;
         ConsumeEnergy(energyCost);
-        
+
         Debug.Log($"Starting {(isCommonScan ? "common" : "rare")} scan... Energy cost: {energyCost}");
-        
+
         // Wait for scan duration
         yield return new WaitForSeconds(scanDuration);
-        
+
         // Calculate success chance
         float successRate = CalculateSuccessRate(isCommonScan);
         bool success = UnityEngine.Random.value <= successRate;
-        
+
         isScanning = false;
         OnScanCompleted?.Invoke();
-        
+
         if (success)
         {
             // Generate discovered ship
             currentDiscoveredShip = GenerateDiscoveredShip(isCommonScan);
             OnShipDiscovered?.Invoke(currentDiscoveredShip);
-            
+
             Debug.Log($"Scan successful! Discovered: {currentDiscoveredShip.ShipName} ({currentDiscoveredShip.Rarity})");
         }
         else
@@ -171,14 +171,14 @@ public class ShipScanner : MonoBehaviour
             Debug.Log("Scan failed - no ships detected");
         }
     }
-    
+
     /// <summary>
     /// Calculate success rate based on scan type, scanner level, and location
     /// </summary>
     private float CalculateSuccessRate(bool isCommonScan)
     {
         float baseRate = isCommonScan ? baseCommonSuccessRate : baseRareSuccessRate;
-        
+
         // Add scanner compartment bonus
         float scannerBonus = 0f;
         if (ShipManager.Instance != null)
@@ -190,18 +190,18 @@ public class ShipScanner : MonoBehaviour
                 scannerBonus = (scannerCompartment.CurrentLevel - 1) * scannerLevelBonus;
             }
         }
-        
+
         // Apply location difficulty
         float finalRate = (baseRate + scannerBonus) * locationDifficultyModifier;
-        
+
         // Clamp between 0 and 1
         finalRate = Mathf.Clamp01(finalRate);
-        
+
         Debug.Log($"Success rate calculation: Base={baseRate:P1}, Scanner Bonus={scannerBonus:P1}, Location Modifier={locationDifficultyModifier:F2}, Final={finalRate:P1}");
-        
+
         return finalRate;
     }
-    
+
     /// <summary>
     /// IMPROVED: Enhanced ship generation with better fallback handling
     /// </summary>
@@ -209,30 +209,30 @@ public class ShipScanner : MonoBehaviour
     {
         ShipRarity rarity = DetermineShipRarity(isCommonScan);
         string currentLocation = GetCurrentLocationName();
-        
+
         // Try multiple approaches to find a suitable ship
         ScannerShipModel shipModel = null;
-        
+
         // Approach 1: Try exact location match
         shipModel = ScannerShipDatabase.GetRandomShipByRarityAndLocationStatic(rarity, currentLocation);
-        
+
         // Approach 2: Try with "All Locations" if no location-specific ship found
         if (shipModel == null)
         {
             shipModel = ScannerShipDatabase.GetRandomShipByRarityAndLocationStatic(rarity, "All Locations");
         }
-        
+
         // Approach 3: Try any ship of this rarity regardless of location
         if (shipModel == null)
         {
             shipModel = ScannerShipDatabase.GetRandomShipByRarityStatic(rarity);
         }
-        
+
         // Approach 4: Try a different rarity in the same category (common/rare)
         if (shipModel == null)
         {
             Debug.LogWarning($"ShipScanner: No {rarity} ships found, trying fallback rarities");
-            
+
             if (isCommonScan)
             {
                 // Try other common rarities
@@ -270,7 +270,7 @@ public class ShipScanner : MonoBehaviour
                 }
             }
         }
-        
+
         // Final approach: Generate procedurally if all else fails
         if (shipModel != null)
         {
@@ -283,7 +283,7 @@ public class ShipScanner : MonoBehaviour
             return GenerateFallbackShip(rarity);
         }
     }
-    
+
     /// <summary>
     /// IMPROVED: Cleaner rarity determination
     /// </summary>
@@ -307,7 +307,7 @@ public class ShipScanner : MonoBehaviour
             return ShipRarity.Anomaly;
         }
     }
-    
+
     /// <summary>
     /// Get the current location name for ship filtering
     /// </summary>
@@ -317,17 +317,17 @@ public class ShipScanner : MonoBehaviour
         {
             return LocationManager.Instance.GetCurrentLocation().displayName;
         }
-        
+
         return "Unknown Sector";
     }
-    
+
     /// <summary>
     /// Fallback ship generation when database has no suitable ships
     /// </summary>
     private DiscoveredShip GenerateFallbackShip(ShipRarity rarity)
     {
         Debug.Log($"ShipScanner: Generating fallback ship for rarity {rarity}");
-        
+
         DiscoveredShip ship = new DiscoveredShip
         {
             ShipName = GenerateShipName(rarity),
@@ -335,21 +335,21 @@ public class ShipScanner : MonoBehaviour
             Level = CalculateShipLevel(rarity),
             ShipType = GenerateShipType(rarity),
             DiscoveryTime = System.DateTime.Now,
-            
+
             // Basic stats based on rarity
             AttackPower = CalculateShipStat(rarity, 10f, 50f),
             Defense = CalculateShipStat(rarity, 5f, 25f),
             Health = CalculateShipStat(rarity, 50f, 200f),
-            
+
             // Trade values
             TradeValue = CalculateTradeValue(rarity),
             AvailableTradeItems = GenerateTradeItems(rarity)
         };
-        
+
         ship.CurrentHealth = ship.Health;
         return ship;
     }
-    
+
     /// <summary>
     /// Generate a ship name based on rarity
     /// </summary>
@@ -358,25 +358,25 @@ public class ShipScanner : MonoBehaviour
         string[] prefixes = { "Stellar", "Void", "Quantum", "Nebula", "Cosmic", "Solar", "Galactic", "Orbital" };
         string[] names = { "Wanderer", "Collector", "Explorer", "Traveler", "Merchant", "Seeker", "Drifter", "Hunter" };
         string[] suffixes = { "VII", "Prime", "Alpha", "Beta", "Omega", "One", "Zero", "X" };
-        
+
         string baseName = $"{prefixes[UnityEngine.Random.Range(0, prefixes.Length)]} {names[UnityEngine.Random.Range(0, names.Length)]}";
-        
+
         // Add suffix for higher rarities
         if ((int)rarity >= (int)ShipRarity.Rare)
         {
             baseName += $" {suffixes[UnityEngine.Random.Range(0, suffixes.Length)]}";
         }
-        
+
         return baseName;
     }
-    
+
     /// <summary>
     /// Calculate ship level based on rarity and current location
     /// </summary>
     private int CalculateShipLevel(ShipRarity rarity)
     {
         int baseLevel = 1;
-        
+
         // Add level based on rarity
         switch (rarity)
         {
@@ -388,12 +388,12 @@ public class ShipScanner : MonoBehaviour
             case ShipRarity.Legendary: baseLevel = UnityEngine.Random.Range(14, 20); break;
             case ShipRarity.Anomaly: baseLevel = UnityEngine.Random.Range(18, 25); break;
         }
-        
+
         // Could add location-based level modifiers here later
-        
+
         return baseLevel;
     }
-    
+
     /// <summary>
     /// Generate ship type based on rarity
     /// </summary>
@@ -401,7 +401,7 @@ public class ShipScanner : MonoBehaviour
     {
         string[] commonTypes = { "Scavenger Vessel", "Trading Pod", "Exploration Craft", "Mining Ship" };
         string[] rareTypes = { "Battle Cruiser", "Research Vessel", "Dimensional Carrier", "War Frigate", "Command Ship" };
-        
+
         if ((int)rarity <= (int)ShipRarity.SlightlyRare)
         {
             return commonTypes[UnityEngine.Random.Range(0, commonTypes.Length)];
@@ -411,7 +411,7 @@ public class ShipScanner : MonoBehaviour
             return rareTypes[UnityEngine.Random.Range(0, rareTypes.Length)];
         }
     }
-    
+
     /// <summary>
     /// Calculate ship stats based on rarity
     /// </summary>
@@ -419,10 +419,10 @@ public class ShipScanner : MonoBehaviour
     {
         float rarityMultiplier = (int)rarity / 6f; // 0 to 1 based on rarity
         float randomVariation = UnityEngine.Random.Range(0.8f, 1.2f);
-        
+
         return Mathf.Lerp(baseStat, maxStat, rarityMultiplier) * randomVariation;
     }
-    
+
     /// <summary>
     /// Calculate trade value based on rarity
     /// </summary>
@@ -432,7 +432,7 @@ public class ShipScanner : MonoBehaviour
         int rarityMultiplier = (int)rarity + 1;
         return baseValue * rarityMultiplier * UnityEngine.Random.Range(1, 3);
     }
-    
+
     /// <summary>
     /// Generate available trade items
     /// </summary>
@@ -441,20 +441,20 @@ public class ShipScanner : MonoBehaviour
         // Placeholder for now - will expand with actual ship part system
         string[] basicItems = { "Basic Hull Plating", "Standard Engine Parts", "Navigation Components" };
         string[] advancedItems = { "Advanced Alloys", "Quantum Processors", "Exotic Matter Cores", "Reality Stabilizers" };
-        
+
         if ((int)rarity <= (int)ShipRarity.SlightlyRare)
         {
             return new string[] { basicItems[UnityEngine.Random.Range(0, basicItems.Length)] };
         }
         else
         {
-            return new string[] { 
+            return new string[] {
                 basicItems[UnityEngine.Random.Range(0, basicItems.Length)],
                 advancedItems[UnityEngine.Random.Range(0, advancedItems.Length)]
             };
         }
     }
-    
+
     /// <summary>
     /// Update location difficulty modifier
     /// </summary>
@@ -472,7 +472,7 @@ public class ShipScanner : MonoBehaviour
             locationDifficultyModifier = 1f;
         }
     }
-    
+
     /// <summary>
     /// Consume scanner energy
     /// </summary>
@@ -481,7 +481,7 @@ public class ShipScanner : MonoBehaviour
         currentScannerEnergy = Mathf.Max(0, currentScannerEnergy - amount);
         OnEnergyChanged?.Invoke(currentScannerEnergy);
     }
-    
+
     /// <summary>
     /// Regenerate energy over time
     /// </summary>
@@ -494,11 +494,11 @@ public class ShipScanner : MonoBehaviour
                 currentScannerEnergy = Mathf.Min(maxScannerEnergy, currentScannerEnergy + energyRegenRate * Time.deltaTime);
                 OnEnergyChanged?.Invoke(currentScannerEnergy);
             }
-            
+
             yield return null; // Wait one frame
         }
     }
-    
+
     /// <summary>
     /// Remove current discovered ship (called after interaction)
     /// </summary>
@@ -508,7 +508,7 @@ public class ShipScanner : MonoBehaviour
         OnShipInteracted?.Invoke();
         Debug.Log("Current ship cleared - ready for new scan");
     }
-    
+
     /// <summary>
     /// Get scan cost for UI display
     /// </summary>
@@ -516,7 +516,7 @@ public class ShipScanner : MonoBehaviour
     {
         return isCommonScan ? commonScanCost : rareScanCost;
     }
-    
+
     /// <summary>
     /// Get success rate for UI display
     /// </summary>
@@ -524,7 +524,7 @@ public class ShipScanner : MonoBehaviour
     {
         return CalculateSuccessRate(isCommonScan);
     }
-    
+
     /// <summary>
     /// IMPROVED: Enhanced debugging with more detailed statistics
     /// </summary>
@@ -532,14 +532,14 @@ public class ShipScanner : MonoBehaviour
     public void ShowDatabaseStats()
     {
         Debug.Log("=== SCANNER DATABASE STATISTICS ===");
-        
+
         var stats = ScannerShipDatabase.GetDatabaseStatistics();
         Debug.Log($"Total Ships Available: {stats["TotalShips"]}");
         Debug.Log($"Unique Locations: {stats["UniqueLocations"]}");
-        
+
         string currentLocation = GetCurrentLocationName();
         Debug.Log($"Current Location: {currentLocation}");
-        
+
         // Show rarity breakdown
         if (stats["RarityBreakdown"] is Dictionary<ShipRarity, int> rarityBreakdown)
         {
@@ -550,7 +550,7 @@ public class ShipScanner : MonoBehaviour
                     Debug.Log($"  {kvp.Key}: {kvp.Value} ships");
             }
         }
-        
+
         // Show location distribution  
         if (stats["LocationDistribution"] is Dictionary<string, int> locationDist)
         {
@@ -560,14 +560,14 @@ public class ShipScanner : MonoBehaviour
                 Debug.Log($"  {kvp.Key}: {kvp.Value} ships");
             }
         }
-        
+
         // Show level and trade ranges
         if (stats.ContainsKey("MinLevel"))
         {
             Debug.Log($"Level Range: {stats["MinLevel"]} - {stats["MaxLevel"]}");
             Debug.Log($"Average Trade Value: {stats["AvgTradeValue"]:F1}");
         }
-        
+
         // Test actual ship generation for current location
         Debug.Log("=== SHIP AVAILABILITY TEST ===");
         foreach (ShipRarity rarity in System.Enum.GetValues(typeof(ShipRarity)))
@@ -583,7 +583,7 @@ public class ShipScanner : MonoBehaviour
             }
         }
     }
-    
+
     /// <summary>
     /// NEW: Validate scanner system health
     /// </summary>
@@ -591,16 +591,16 @@ public class ShipScanner : MonoBehaviour
     public void ValidateScannerSystem()
     {
         Debug.Log("=== SCANNER SYSTEM VALIDATION ===");
-        
+
         List<string> issues = new List<string>();
         List<string> warnings = new List<string>();
-        
+
         // Check database initialization
         if (ScannerShipDatabase.GetTotalShipCountStatic() == 0)
         {
             issues.Add("No ships in database");
         }
-        
+
         // Check energy settings
         if (maxScannerEnergy <= 0)
             issues.Add("Max energy must be positive");
@@ -612,13 +612,13 @@ public class ShipScanner : MonoBehaviour
             warnings.Add("Common scan cost is very high compared to max energy");
         if (rareScanCost >= maxScannerEnergy)
             warnings.Add("Rare scan cost is very high compared to max energy");
-        
+
         // Check success rates
         if (baseCommonSuccessRate <= 0 || baseCommonSuccessRate > 1)
             issues.Add("Common success rate must be between 0 and 1");
         if (baseRareSuccessRate <= 0 || baseRareSuccessRate > 1)
             issues.Add("Rare success rate must be between 0 and 1");
-        
+
         // Check scanner compartment integration
         if (ShipManager.Instance != null)
         {
@@ -633,13 +633,13 @@ public class ShipScanner : MonoBehaviour
         {
             warnings.Add("ShipManager instance not found");
         }
-        
+
         // Check location manager integration
         if (LocationManager.Instance == null)
         {
             warnings.Add("LocationManager instance not found");
         }
-        
+
         // Output results
         if (issues.Count == 0 && warnings.Count == 0)
         {
@@ -655,7 +655,7 @@ public class ShipScanner : MonoBehaviour
                     Debug.LogError($"  - {issue}");
                 }
             }
-            
+
             if (warnings.Count > 0)
             {
                 Debug.LogWarning($"⚠️ Found {warnings.Count} warnings:");
