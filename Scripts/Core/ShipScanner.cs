@@ -1,9 +1,11 @@
 using UnityEngine;
 using System;
 using System.Collections;
+using System.Collections.Generic;
 
 /// <summary>
 /// Manages the ship scanning system with energy management and discovery mechanics
+/// Updated to use static ScannerShipDatabase methods
 /// </summary>
 public class ShipScanner : MonoBehaviour
 {
@@ -68,6 +70,9 @@ public class ShipScanner : MonoBehaviour
         // Initialize energy to full
         currentScannerEnergy = maxScannerEnergy;
         OnEnergyChanged?.Invoke(currentScannerEnergy);
+        
+        // Ensure the static database is initialized
+        ScannerShipDatabase.InitializeStaticDatabase();
     }
     
     private void Update()
@@ -198,63 +203,109 @@ public class ShipScanner : MonoBehaviour
     }
     
     /// <summary>
-    /// Generate a discovered ship based on scan type using the Scanner Ship Database
+    /// IMPROVED: Enhanced ship generation with better fallback handling
     /// </summary>
     private DiscoveredShip GenerateDiscoveredShip(bool isCommonScan)
     {
-        ShipRarity rarity;
+        ShipRarity rarity = DetermineShipRarity(isCommonScan);
+        string currentLocation = GetCurrentLocationName();
         
+        // Try multiple approaches to find a suitable ship
+        ScannerShipModel shipModel = null;
+        
+        // Approach 1: Try exact location match
+        shipModel = ScannerShipDatabase.GetRandomShipByRarityAndLocationStatic(rarity, currentLocation);
+        
+        // Approach 2: Try with "All Locations" if no location-specific ship found
+        if (shipModel == null)
+        {
+            shipModel = ScannerShipDatabase.GetRandomShipByRarityAndLocationStatic(rarity, "All Locations");
+        }
+        
+        // Approach 3: Try any ship of this rarity regardless of location
+        if (shipModel == null)
+        {
+            shipModel = ScannerShipDatabase.GetRandomShipByRarityStatic(rarity);
+        }
+        
+        // Approach 4: Try a different rarity in the same category (common/rare)
+        if (shipModel == null)
+        {
+            Debug.LogWarning($"ShipScanner: No {rarity} ships found, trying fallback rarities");
+            
+            if (isCommonScan)
+            {
+                // Try other common rarities
+                ShipRarity[] commonRarities = { ShipRarity.Common, ShipRarity.VeryCommon, ShipRarity.SlightlyRare };
+                foreach (var fallbackRarity in commonRarities)
+                {
+                    if (fallbackRarity != rarity)
+                    {
+                        shipModel = ScannerShipDatabase.GetRandomShipByRarityStatic(fallbackRarity);
+                        if (shipModel != null)
+                        {
+                            Debug.Log($"ShipScanner: Using fallback rarity {fallbackRarity} instead of {rarity}");
+                            rarity = fallbackRarity; // Update rarity for the discovered ship
+                            break;
+                        }
+                    }
+                }
+            }
+            else
+            {
+                // Try other rare rarities
+                ShipRarity[] rareRarities = { ShipRarity.Rare, ShipRarity.Epic, ShipRarity.Legendary, ShipRarity.Anomaly };
+                foreach (var fallbackRarity in rareRarities)
+                {
+                    if (fallbackRarity != rarity)
+                    {
+                        shipModel = ScannerShipDatabase.GetRandomShipByRarityStatic(fallbackRarity);
+                        if (shipModel != null)
+                        {
+                            Debug.Log($"ShipScanner: Using fallback rarity {fallbackRarity} instead of {rarity}");
+                            rarity = fallbackRarity;
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+        
+        // Final approach: Generate procedurally if all else fails
+        if (shipModel != null)
+        {
+            Debug.Log($"ShipScanner: Using scanner ship model '{shipModel.shipName}' from database");
+            return shipModel.CreateDiscoveredShip();
+        }
+        else
+        {
+            Debug.LogWarning($"ShipScanner: No suitable ships found in database, generating procedural ship");
+            return GenerateFallbackShip(rarity);
+        }
+    }
+    
+    /// <summary>
+    /// IMPROVED: Cleaner rarity determination
+    /// </summary>
+    private ShipRarity DetermineShipRarity(bool isCommonScan)
+    {
         if (isCommonScan)
         {
             // Common category rarities
             float roll = UnityEngine.Random.value;
-            if (roll <= 0.70f)
-                rarity = ShipRarity.VeryCommon;
-            else if (roll <= 0.90f)
-                rarity = ShipRarity.Common;
-            else
-                rarity = ShipRarity.SlightlyRare;
+            if (roll <= 0.70f) return ShipRarity.VeryCommon;
+            if (roll <= 0.90f) return ShipRarity.Common;
+            return ShipRarity.SlightlyRare;
         }
         else
         {
             // Rare category rarities
             float roll = UnityEngine.Random.value;
-            if (roll <= 0.60f)
-                rarity = ShipRarity.Rare;
-            else if (roll <= 0.90f)
-                rarity = ShipRarity.Epic;
-            else if (roll <= 0.99f)
-                rarity = ShipRarity.Legendary;
-            else
-                rarity = ShipRarity.Anomaly;
+            if (roll <= 0.60f) return ShipRarity.Rare;
+            if (roll <= 0.90f) return ShipRarity.Epic;
+            if (roll <= 0.99f) return ShipRarity.Legendary;
+            return ShipRarity.Anomaly;
         }
-        
-        // Get current location for location-based ship filtering
-        string currentLocation = GetCurrentLocationName();
-        
-        // Try to get a ship from the Scanner Ship Database
-        ScannerShipModel shipModel = null;
-        if (ScannerShipDatabase.Instance != null)
-        {
-            shipModel = ScannerShipDatabase.Instance.GetRandomShipByRarityAndLocation(rarity, currentLocation);
-            
-            if (shipModel != null)
-            {
-                Debug.Log($"ShipScanner: Using scanner ship model '{shipModel.shipName}' from database");
-                return shipModel.CreateDiscoveredShip();
-            }
-            else
-            {
-                Debug.LogWarning($"ShipScanner: No ship model found for rarity {rarity} in location {currentLocation}");
-            }
-        }
-        else
-        {
-            Debug.LogWarning("ShipScanner: ScannerShipDatabase not found, using fallback generation");
-        }
-        
-        // Fallback to procedural generation if database is unavailable
-        return GenerateFallbackShip(rarity);
     }
     
     /// <summary>
@@ -271,7 +322,7 @@ public class ShipScanner : MonoBehaviour
     }
     
     /// <summary>
-    /// Fallback ship generation when database is unavailable
+    /// Fallback ship generation when database has no suitable ships
     /// </summary>
     private DiscoveredShip GenerateFallbackShip(ShipRarity rarity)
     {
@@ -295,6 +346,7 @@ public class ShipScanner : MonoBehaviour
             AvailableTradeItems = GenerateTradeItems(rarity)
         };
         
+        ship.CurrentHealth = ship.Health;
         return ship;
     }
     
@@ -471,5 +523,147 @@ public class ShipScanner : MonoBehaviour
     public float GetSuccessRate(bool isCommonScan)
     {
         return CalculateSuccessRate(isCommonScan);
+    }
+    
+    /// <summary>
+    /// IMPROVED: Enhanced debugging with more detailed statistics
+    /// </summary>
+    [ContextMenu("Show Scanner Database Stats")]
+    public void ShowDatabaseStats()
+    {
+        Debug.Log("=== SCANNER DATABASE STATISTICS ===");
+        
+        var stats = ScannerShipDatabase.GetDatabaseStatistics();
+        Debug.Log($"Total Ships Available: {stats["TotalShips"]}");
+        Debug.Log($"Unique Locations: {stats["UniqueLocations"]}");
+        
+        string currentLocation = GetCurrentLocationName();
+        Debug.Log($"Current Location: {currentLocation}");
+        
+        // Show rarity breakdown
+        if (stats["RarityBreakdown"] is Dictionary<ShipRarity, int> rarityBreakdown)
+        {
+            Debug.Log("=== RARITY BREAKDOWN ===");
+            foreach (var kvp in rarityBreakdown)
+            {
+                if (kvp.Value > 0)
+                    Debug.Log($"  {kvp.Key}: {kvp.Value} ships");
+            }
+        }
+        
+        // Show location distribution  
+        if (stats["LocationDistribution"] is Dictionary<string, int> locationDist)
+        {
+            Debug.Log("=== LOCATION DISTRIBUTION ===");
+            foreach (var kvp in locationDist)
+            {
+                Debug.Log($"  {kvp.Key}: {kvp.Value} ships");
+            }
+        }
+        
+        // Show level and trade ranges
+        if (stats.ContainsKey("MinLevel"))
+        {
+            Debug.Log($"Level Range: {stats["MinLevel"]} - {stats["MaxLevel"]}");
+            Debug.Log($"Average Trade Value: {stats["AvgTradeValue"]:F1}");
+        }
+        
+        // Test actual ship generation for current location
+        Debug.Log("=== SHIP AVAILABILITY TEST ===");
+        foreach (ShipRarity rarity in System.Enum.GetValues(typeof(ShipRarity)))
+        {
+            var ship = ScannerShipDatabase.GetRandomShipByRarityAndLocationStatic(rarity, currentLocation);
+            if (ship != null)
+            {
+                Debug.Log($"  {rarity}: {ship.shipName} (Level {ship.minLevel}-{ship.maxLevel}, Trade {ship.minTradeValue}-{ship.maxTradeValue})");
+            }
+            else
+            {
+                Debug.Log($"  {rarity}: No ships available");
+            }
+        }
+    }
+    
+    /// <summary>
+    /// NEW: Validate scanner system health
+    /// </summary>
+    [ContextMenu("Validate Scanner System")]
+    public void ValidateScannerSystem()
+    {
+        Debug.Log("=== SCANNER SYSTEM VALIDATION ===");
+        
+        List<string> issues = new List<string>();
+        List<string> warnings = new List<string>();
+        
+        // Check database initialization
+        if (ScannerShipDatabase.GetTotalShipCountStatic() == 0)
+        {
+            issues.Add("No ships in database");
+        }
+        
+        // Check energy settings
+        if (maxScannerEnergy <= 0)
+            issues.Add("Max energy must be positive");
+        if (energyRegenRate <= 0)
+            issues.Add("Energy regen rate must be positive");
+        if (commonScanCost <= 0 || rareScanCost <= 0)
+            issues.Add("Scan costs must be positive");
+        if (commonScanCost >= maxScannerEnergy)
+            warnings.Add("Common scan cost is very high compared to max energy");
+        if (rareScanCost >= maxScannerEnergy)
+            warnings.Add("Rare scan cost is very high compared to max energy");
+        
+        // Check success rates
+        if (baseCommonSuccessRate <= 0 || baseCommonSuccessRate > 1)
+            issues.Add("Common success rate must be between 0 and 1");
+        if (baseRareSuccessRate <= 0 || baseRareSuccessRate > 1)
+            issues.Add("Rare success rate must be between 0 and 1");
+        
+        // Check scanner compartment integration
+        if (ShipManager.Instance != null)
+        {
+            var scannerCompartment = ShipManager.Instance.GetAllCompartments()
+                .Find(c => c.Type == CompartmentType.Scanner);
+            if (scannerCompartment == null)
+            {
+                warnings.Add("No Scanner compartment found in Ship Manager");
+            }
+        }
+        else
+        {
+            warnings.Add("ShipManager instance not found");
+        }
+        
+        // Check location manager integration
+        if (LocationManager.Instance == null)
+        {
+            warnings.Add("LocationManager instance not found");
+        }
+        
+        // Output results
+        if (issues.Count == 0 && warnings.Count == 0)
+        {
+            Debug.Log("✅ Scanner system validation passed - no issues found!");
+        }
+        else
+        {
+            if (issues.Count > 0)
+            {
+                Debug.LogError($"❌ Found {issues.Count} critical issues:");
+                foreach (var issue in issues)
+                {
+                    Debug.LogError($"  - {issue}");
+                }
+            }
+            
+            if (warnings.Count > 0)
+            {
+                Debug.LogWarning($"⚠️ Found {warnings.Count} warnings:");
+                foreach (var warning in warnings)
+                {
+                    Debug.LogWarning($"  - {warning}");
+                }
+            }
+        }
     }
 }
