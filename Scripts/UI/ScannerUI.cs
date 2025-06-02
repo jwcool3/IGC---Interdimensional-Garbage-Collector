@@ -30,8 +30,8 @@ public class ScannerUI : MonoBehaviour
     [SerializeField] private GameObject resultPanel;
     [SerializeField] private TextMeshProUGUI resultText;
     [SerializeField] private Button viewContactsButton;
-    [SerializeField] private Button quickFightButton;
-    [SerializeField] private Button detailedFightButton;
+    [SerializeField] private Button fightButton;          // Immediate combat (green)
+    [SerializeField] private Button analyzeButton;        // Combat preview first (blue)
     
     [Header("Ship Image Display")]
     [SerializeField] private Image discoveredShipImage;
@@ -82,14 +82,14 @@ public class ScannerUI : MonoBehaviour
         if (viewContactsButton != null)
             viewContactsButton.onClick.AddListener(OnViewContactsClicked);
             
-        if (quickFightButton != null)
-            quickFightButton.onClick.AddListener(OnQuickFightClicked);
+        if (fightButton != null)
+            fightButton.onClick.AddListener(OnFightButtonClicked);
             
-        if (detailedFightButton != null)
-            detailedFightButton.onClick.AddListener(OnDetailedFightClicked);
+        if (analyzeButton != null)
+            analyzeButton.onClick.AddListener(OnAnalyzeButtonClicked);
             
         if (previewCombatButton != null)
-            previewCombatButton.onClick.AddListener(OnPreviewCombatClicked);
+            previewCombatButton.onClick.AddListener(OnAnalyzeButtonClicked); // Same as analyze
     }
     
     private void SetupCombatPreview()
@@ -171,42 +171,68 @@ public class ScannerUI : MonoBehaviour
     /// </summary>
     private void UpdateActionButtons(DiscoveredShip ship)
     {
-        if (ship == null) return;
-        
-        // Quick fight button - for immediate combat
-        if (quickFightButton != null)
+        if (ship == null)
         {
-            bool canQuickFight = ship.CanFight;
-            quickFightButton.interactable = canQuickFight;
-            quickFightButton.gameObject.SetActive(canQuickFight);
+            HideActionButtons();
+            return;
+        }
+        
+        bool canFight = ship.CanFight;
+        
+        // Fight button - immediate combat
+        if (fightButton != null)
+        {
+            fightButton.interactable = canFight;
+            fightButton.gameObject.SetActive(true);
             
-            var buttonText = quickFightButton.GetComponentInChildren<TextMeshProUGUI>();
-            if (buttonText != null)
+            var fightText = fightButton.GetComponentInChildren<TextMeshProUGUI>();
+            if (fightText != null)
             {
-                buttonText.text = ship.HasFought ? "FOUGHT" : "QUICK FIGHT";
+                if (ship.IsDestroyed)
+                    fightText.text = "DESTROYED";
+                else if (ship.HasFought)
+                    fightText.text = "FOUGHT";
+                else
+                    fightText.text = "FIGHT";
+            }
+            
+            // Color coding for difficulty
+            var fightImage = fightButton.GetComponent<Image>();
+            if (fightImage != null && canFight)
+            {
+                float winChance = CalculateQuickWinChance(ship);
+                if (winChance >= 0.7f)
+                    fightImage.color = Color.green;      // Easy fight
+                else if (winChance >= 0.4f)
+                    fightImage.color = Color.yellow;     // Moderate fight
+                else
+                    fightImage.color = Color.red;        // Hard fight
             }
         }
         
-        // Detailed fight button - shows combat preview
-        if (detailedFightButton != null)
+        // Analyze button - combat preview first
+        if (analyzeButton != null)
         {
-            bool canDetailedFight = ship.CanFight;
-            detailedFightButton.interactable = canDetailedFight;
-            detailedFightButton.gameObject.SetActive(canDetailedFight);
+            analyzeButton.interactable = canFight;
+            analyzeButton.gameObject.SetActive(true);
             
-            var buttonText = detailedFightButton.GetComponentInChildren<TextMeshProUGUI>();
-            if (buttonText != null)
+            var analyzeText = analyzeButton.GetComponentInChildren<TextMeshProUGUI>();
+            if (analyzeText != null)
             {
-                buttonText.text = "COMBAT PREVIEW";
+                if (ship.IsDestroyed)
+                    analyzeText.text = "DESTROYED";
+                else if (ship.HasFought)
+                    analyzeText.text = "FOUGHT";
+                else
+                    analyzeText.text = "ANALYZE";
             }
-        }
-        
-        // Preview combat button (alternative to detailed fight)
-        if (previewCombatButton != null)
-        {
-            bool canPreview = ship.CanFight;
-            previewCombatButton.interactable = canPreview;
-            previewCombatButton.gameObject.SetActive(canPreview);
+            
+            // Keep analyze button blue
+            var analyzeImage = analyzeButton.GetComponent<Image>();
+            if (analyzeImage != null && canFight)
+            {
+                analyzeImage.color = new Color(0.2f, 0.6f, 1f); // Blue
+            }
         }
         
         // View contacts button
@@ -221,17 +247,27 @@ public class ScannerUI : MonoBehaviour
     /// </summary>
     private void HideActionButtons()
     {
-        if (quickFightButton != null)
-            quickFightButton.gameObject.SetActive(false);
+        if (fightButton != null)
+            fightButton.gameObject.SetActive(false);
             
-        if (detailedFightButton != null)
-            detailedFightButton.gameObject.SetActive(false);
-            
-        if (previewCombatButton != null)
-            previewCombatButton.gameObject.SetActive(false);
+        if (analyzeButton != null)
+            analyzeButton.gameObject.SetActive(false);
             
         if (viewContactsButton != null)
             viewContactsButton.gameObject.SetActive(false);
+    }
+    
+    /// <summary>
+    /// Quick win chance calculation for button coloring
+    /// </summary>
+    private float CalculateQuickWinChance(DiscoveredShip ship)
+    {
+        if (CombatManager.Instance == null) return 0.5f;
+        
+        float playerPower = CombatManager.Instance.attackPower + CombatManager.Instance.defense + (CombatManager.Instance.currentHP * 0.1f);
+        float enemyPower = ship.AttackPower + ship.Defense + (ship.CurrentHealth * 0.1f);
+        
+        return playerPower / (playerPower + enemyPower);
     }
     
     /// <summary>
@@ -303,13 +339,13 @@ public class ScannerUI : MonoBehaviour
     // ===== BUTTON EVENT HANDLERS =====
     
     /// <summary>
-    /// Handle quick fight button - immediate combat without preview
+    /// Handle fight button - immediate combat without preview
     /// </summary>
-    private void OnQuickFightClicked()
+    private void OnFightButtonClicked()
     {
         if (ShipScanner.Instance?.CurrentShip == null)
         {
-            Debug.LogWarning("ScannerUI: No ship available for quick fight!");
+            Debug.LogWarning("ScannerUI: No ship available for fight!");
             return;
         }
         
@@ -320,18 +356,18 @@ public class ScannerUI : MonoBehaviour
             return;
         }
         
-        Debug.Log($"ScannerUI: Quick fighting {ship.ShipName}");
+        Debug.Log($"ScannerUI: Immediate fight with {ship.ShipName}");
         StartCombatWithShip(ship);
     }
     
     /// <summary>
-    /// Handle detailed fight button - shows combat preview first
+    /// Handle analyze button - shows combat preview first
     /// </summary>
-    private void OnDetailedFightClicked()
+    private void OnAnalyzeButtonClicked()
     {
         if (ShipScanner.Instance?.CurrentShip == null)
         {
-            Debug.LogWarning("ScannerUI: No ship available for detailed fight!");
+            Debug.LogWarning("ScannerUI: No ship available for analysis!");
             return;
         }
         
@@ -342,7 +378,7 @@ public class ScannerUI : MonoBehaviour
             return;
         }
         
-        Debug.Log($"ScannerUI: Showing combat preview for {ship.ShipName}");
+        Debug.Log($"ScannerUI: Analyzing combat with {ship.ShipName}");
         
         if (combatPreview != null)
         {
@@ -351,17 +387,9 @@ public class ScannerUI : MonoBehaviour
         else
         {
             Debug.LogError("ScannerUI: Combat preview component not found!");
-            // Fallback to quick fight
+            // Fallback to immediate fight
             StartCombatWithShip(ship);
         }
-    }
-    
-    /// <summary>
-    /// Handle preview combat button click
-    /// </summary>
-    private void OnPreviewCombatClicked()
-    {
-        OnDetailedFightClicked(); // Same functionality as detailed fight
     }
     
     /// <summary>

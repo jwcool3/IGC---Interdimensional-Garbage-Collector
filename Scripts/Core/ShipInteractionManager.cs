@@ -3,6 +3,7 @@ using System.Collections.Generic;
 
 /// <summary>
 /// Manages interactions with discovered ships (fighting and trading)
+/// Updated to integrate with CombatUI for discovered ship image display
 /// </summary>
 public class ShipInteractionManager : MonoBehaviour
 {
@@ -62,6 +63,17 @@ public class ShipInteractionManager : MonoBehaviour
         
         // Set up single ship combat mode
         SetupSingleShipCombat(enemyShip);
+        
+        // IMPORTANT: Tell CombatUI about the discovered ship so it can use the correct image
+        if (CombatUI.Instance != null)
+        {
+            CombatUI.Instance.SetCurrentDiscoveredShip(ship);
+            Debug.Log($"ShipInteractionManager: Notified CombatUI about discovered ship {ship.ShipName}");
+        }
+        else
+        {
+            Debug.LogWarning("ShipInteractionManager: CombatUI instance not found!");
+        }
         
         // Switch to combat tab
         if (autoSwitchToCombatTab)
@@ -361,6 +373,13 @@ public class ShipInteractionManager : MonoBehaviour
             ShipScanner.Instance.ClearCurrentShip();
         }
         
+        // Clear the discovered ship reference from CombatUI
+        if (CombatUI.Instance != null)
+        {
+            CombatUI.Instance.ClearCurrentDiscoveredShip();
+            Debug.Log("ShipInteractionManager: Cleared discovered ship from CombatUI after victory");
+        }
+        
         // End single ship combat mode
         CombatManager.Instance.EndSingleShipCombat();
         
@@ -388,6 +407,13 @@ public class ShipInteractionManager : MonoBehaviour
         
         // Ship remains available for future interactions (if it had trade options)
         // The player can try again later or choose to trade instead
+        
+        // Clear the discovered ship reference from CombatUI
+        if (CombatUI.Instance != null)
+        {
+            CombatUI.Instance.ClearCurrentDiscoveredShip();
+            Debug.Log("ShipInteractionManager: Cleared discovered ship from CombatUI after defeat");
+        }
         
         // End single ship combat mode
         CombatManager.Instance.EndSingleShipCombat();
