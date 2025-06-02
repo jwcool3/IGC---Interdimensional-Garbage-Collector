@@ -111,6 +111,13 @@ public class ScannerShipDatabase : MonoBehaviour
     /// </summary>
     private void AddDefaultScannerShips()
     {
+        // COMMENTED OUT - Now using JSON imports instead of hardcoded ships
+        // Default ships are now loaded from StreamingAssets/ScannerShips/ folder
+        
+        Debug.Log("ScannerShipDatabase: Skipping default ships - using JSON imports only");
+        
+        /* ORIGINAL DEFAULT SHIPS - NOW IN JSON FILES
+        
         // Very Common Ships (Common Scans)
         scannerShips.Add(CreateScannerShip("Rust Bucket", ShipRarity.VeryCommon, "Scavenger Pod", 
             "A cobbled-together vessel held together by hope and duct tape.", 
@@ -192,6 +199,7 @@ public class ScannerShipDatabase : MonoBehaviour
             "A ship that exists in multiple timelines simultaneously.",
             new string[] { "Temporal Anomalies", "Time Distortions", "Paradox Zones" },
             80, 200, new string[] { "Temporal Tech", "Chronodyne Crystals", "Paradox Engines", "Future Knowledge" }));
+        */
     }
     
     /// <summary>
