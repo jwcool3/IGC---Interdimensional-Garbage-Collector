@@ -4,7 +4,7 @@ using TMPro;
 using System.Collections;
 
 /// <summary>
-/// UI Controller for the Scanner tab
+/// Enhanced Scanner UI with combat preview integration
 /// </summary>
 public class ScannerUI : MonoBehaviour
 {
@@ -30,7 +30,18 @@ public class ScannerUI : MonoBehaviour
     [SerializeField] private GameObject resultPanel;
     [SerializeField] private TextMeshProUGUI resultText;
     [SerializeField] private Button viewContactsButton;
-    [SerializeField] private Button fightNowButton;
+    [SerializeField] private Button quickFightButton;
+    [SerializeField] private Button detailedFightButton;
+    
+    [Header("Ship Image Display")]
+    [SerializeField] private Image discoveredShipImage;
+    [SerializeField] private GameObject shipImageContainer;
+    [SerializeField] private TextMeshProUGUI shipImageLabel;
+    [SerializeField] private Image rarityBorder;
+    
+    [Header("Combat Integration")]
+    [SerializeField] private CombatPreviewUI combatPreview;
+    [SerializeField] private Button previewCombatButton;
     
     [Header("Scanner Info")]
     [SerializeField] private TextMeshProUGUI scannerLevelText;
@@ -41,30 +52,61 @@ public class ScannerUI : MonoBehaviour
     [SerializeField] private GameObject successEffect;
     [SerializeField] private GameObject failureEffect;
     
+    [Header("Fallback Ship Images")]
+    [SerializeField] private Sprite defaultShipIcon;
+    [SerializeField] private Sprite[] rarityBasedIcons = new Sprite[7];
+    
     private Coroutine scanProgressCoroutine;
     
     private void Start()
     {
         Debug.Log("ScannerUI: Starting initialization");
         
-        // Set up button listeners
+        SetupButtonListeners();
+        SubscribeToScannerEvents();
+        SetupCombatPreview();
+        UpdateAllDisplays();
+        HideUIElements();
+        
+        Debug.Log("ScannerUI: Initialization complete");
+    }
+    
+    private void SetupButtonListeners()
+    {
         if (commonScanButton != null)
             commonScanButton.onClick.AddListener(OnCommonScanClicked);
-        else
-            Debug.LogError("ScannerUI: Common scan button not assigned!");
             
         if (rareScanButton != null)
             rareScanButton.onClick.AddListener(OnRareScanClicked);
-        else
-            Debug.LogError("ScannerUI: Rare scan button not assigned!");
             
         if (viewContactsButton != null)
             viewContactsButton.onClick.AddListener(OnViewContactsClicked);
             
-        if (fightNowButton != null)
-            fightNowButton.onClick.AddListener(OnFightNowClicked);
-        
-        // Subscribe to scanner events
+        if (quickFightButton != null)
+            quickFightButton.onClick.AddListener(OnQuickFightClicked);
+            
+        if (detailedFightButton != null)
+            detailedFightButton.onClick.AddListener(OnDetailedFightClicked);
+            
+        if (previewCombatButton != null)
+            previewCombatButton.onClick.AddListener(OnPreviewCombatClicked);
+    }
+    
+    private void SetupCombatPreview()
+    {
+        if (combatPreview != null)
+        {
+            combatPreview.OnCombatConfirmed += OnCombatConfirmed;
+            combatPreview.OnCombatCancelled += OnCombatCancelled;
+        }
+        else
+        {
+            Debug.LogWarning("ScannerUI: Combat preview component not assigned!");
+        }
+    }
+    
+    private void SubscribeToScannerEvents()
+    {
         if (ShipScanner.Instance != null)
         {
             ShipScanner.Instance.OnEnergyChanged += UpdateEnergyDisplay;
@@ -80,36 +122,18 @@ public class ScannerUI : MonoBehaviour
         {
             Debug.LogError("ScannerUI: ShipScanner instance not found!");
         }
-        
-        // Initialize displays
-        UpdateAllDisplays();
-        
-        // Hide scanning indicator initially
+    }
+    
+    private void HideUIElements()
+    {
         if (scanningIndicator != null)
             scanningIndicator.SetActive(false);
             
         if (resultPanel != null)
             resultPanel.SetActive(false);
-    }
-    
-    private void OnDestroy()
-    {
-        // Unsubscribe from events
-        if (ShipScanner.Instance != null)
-        {
-            ShipScanner.Instance.OnEnergyChanged -= UpdateEnergyDisplay;
-            ShipScanner.Instance.OnScanStarted -= OnScanStarted;
-            ShipScanner.Instance.OnScanCompleted -= OnScanCompleted;
-            ShipScanner.Instance.OnShipDiscovered -= OnShipDiscovered;
-            ShipScanner.Instance.OnScanFailed -= OnScanFailed;
-            ShipScanner.Instance.OnShipInteracted -= OnShipInteracted;
-        }
-        
-        // Clean up coroutines
-        if (scanProgressCoroutine != null)
-        {
-            StopCoroutine(scanProgressCoroutine);
-        }
+            
+        if (shipImageContainer != null)
+            shipImageContainer.SetActive(false);
     }
     
     /// <summary>
@@ -122,6 +146,551 @@ public class ScannerUI : MonoBehaviour
         UpdateButtonStates();
         UpdateScanCosts();
         UpdateSuccessRates();
+        UpdateShipDisplay();
+    }
+    
+    /// <summary>
+    /// Update ship display and action buttons
+    /// </summary>
+    private void UpdateShipDisplay()
+    {
+        if (ShipScanner.Instance?.HasDiscoveredShip == true)
+        {
+            ShowShipImage(ShipScanner.Instance.CurrentShip);
+            UpdateActionButtons(ShipScanner.Instance.CurrentShip);
+        }
+        else
+        {
+            HideShipImage();
+            HideActionButtons();
+        }
+    }
+    
+    /// <summary>
+    /// Update action buttons based on ship status
+    /// </summary>
+    private void UpdateActionButtons(DiscoveredShip ship)
+    {
+        if (ship == null) return;
+        
+        // Quick fight button - for immediate combat
+        if (quickFightButton != null)
+        {
+            bool canQuickFight = ship.CanFight;
+            quickFightButton.interactable = canQuickFight;
+            quickFightButton.gameObject.SetActive(canQuickFight);
+            
+            var buttonText = quickFightButton.GetComponentInChildren<TextMeshProUGUI>();
+            if (buttonText != null)
+            {
+                buttonText.text = ship.HasFought ? "FOUGHT" : "QUICK FIGHT";
+            }
+        }
+        
+        // Detailed fight button - shows combat preview
+        if (detailedFightButton != null)
+        {
+            bool canDetailedFight = ship.CanFight;
+            detailedFightButton.interactable = canDetailedFight;
+            detailedFightButton.gameObject.SetActive(canDetailedFight);
+            
+            var buttonText = detailedFightButton.GetComponentInChildren<TextMeshProUGUI>();
+            if (buttonText != null)
+            {
+                buttonText.text = "COMBAT PREVIEW";
+            }
+        }
+        
+        // Preview combat button (alternative to detailed fight)
+        if (previewCombatButton != null)
+        {
+            bool canPreview = ship.CanFight;
+            previewCombatButton.interactable = canPreview;
+            previewCombatButton.gameObject.SetActive(canPreview);
+        }
+        
+        // View contacts button
+        if (viewContactsButton != null)
+        {
+            viewContactsButton.gameObject.SetActive(true);
+        }
+    }
+    
+    /// <summary>
+    /// Hide action buttons when no ship
+    /// </summary>
+    private void HideActionButtons()
+    {
+        if (quickFightButton != null)
+            quickFightButton.gameObject.SetActive(false);
+            
+        if (detailedFightButton != null)
+            detailedFightButton.gameObject.SetActive(false);
+            
+        if (previewCombatButton != null)
+            previewCombatButton.gameObject.SetActive(false);
+            
+        if (viewContactsButton != null)
+            viewContactsButton.gameObject.SetActive(false);
+    }
+    
+    /// <summary>
+    /// Show the discovered ship's image and info
+    /// </summary>
+    private void ShowShipImage(DiscoveredShip ship)
+    {
+        if (ship == null) 
+        {
+            Debug.LogWarning("ScannerUI: Attempted to show ship image with null ship");
+            return;
+        }
+        
+        Debug.Log($"ScannerUI: Showing ship image for {ship.ShipName}");
+        
+        // Show the ship image container
+        if (shipImageContainer != null)
+            shipImageContainer.SetActive(true);
+        
+        // Update ship image
+        if (discoveredShipImage != null)
+        {
+            Sprite shipSprite = GetShipSprite(ship);
+            
+            if (shipSprite != null)
+            {
+                discoveredShipImage.sprite = shipSprite;
+                discoveredShipImage.color = Color.white;
+                discoveredShipImage.enabled = true;
+            }
+            else
+            {
+                discoveredShipImage.sprite = GetFallbackSprite(ship.Rarity);
+                discoveredShipImage.color = ship.GetRarityColor();
+                discoveredShipImage.enabled = true;
+            }
+        }
+        
+        // Update ship image label
+        if (shipImageLabel != null)
+        {
+            shipImageLabel.text = $"{ship.ShipName}\n{ship.GetRarityDisplayText()}\nLevel {ship.Level}";
+            shipImageLabel.color = ship.GetRarityColor();
+        }
+        
+        // Update rarity border
+        if (rarityBorder != null)
+        {
+            rarityBorder.color = ship.GetRarityColor();
+            rarityBorder.enabled = true;
+        }
+    }
+    
+    /// <summary>
+    /// Hide the ship image display
+    /// </summary>
+    private void HideShipImage()
+    {
+        if (shipImageContainer != null)
+            shipImageContainer.SetActive(false);
+        
+        if (discoveredShipImage != null)
+            discoveredShipImage.enabled = false;
+        
+        if (rarityBorder != null)
+            rarityBorder.enabled = false;
+    }
+    
+    // ===== BUTTON EVENT HANDLERS =====
+    
+    /// <summary>
+    /// Handle quick fight button - immediate combat without preview
+    /// </summary>
+    private void OnQuickFightClicked()
+    {
+        if (ShipScanner.Instance?.CurrentShip == null)
+        {
+            Debug.LogWarning("ScannerUI: No ship available for quick fight!");
+            return;
+        }
+        
+        var ship = ShipScanner.Instance.CurrentShip;
+        if (!ship.CanFight)
+        {
+            ShowScanStatus("Cannot fight this ship", Color.red);
+            return;
+        }
+        
+        Debug.Log($"ScannerUI: Quick fighting {ship.ShipName}");
+        StartCombatWithShip(ship);
+    }
+    
+    /// <summary>
+    /// Handle detailed fight button - shows combat preview first
+    /// </summary>
+    private void OnDetailedFightClicked()
+    {
+        if (ShipScanner.Instance?.CurrentShip == null)
+        {
+            Debug.LogWarning("ScannerUI: No ship available for detailed fight!");
+            return;
+        }
+        
+        var ship = ShipScanner.Instance.CurrentShip;
+        if (!ship.CanFight)
+        {
+            ShowScanStatus("Cannot fight this ship", Color.red);
+            return;
+        }
+        
+        Debug.Log($"ScannerUI: Showing combat preview for {ship.ShipName}");
+        
+        if (combatPreview != null)
+        {
+            combatPreview.ShowCombatPreview(ship);
+        }
+        else
+        {
+            Debug.LogError("ScannerUI: Combat preview component not found!");
+            // Fallback to quick fight
+            StartCombatWithShip(ship);
+        }
+    }
+    
+    /// <summary>
+    /// Handle preview combat button click
+    /// </summary>
+    private void OnPreviewCombatClicked()
+    {
+        OnDetailedFightClicked(); // Same functionality as detailed fight
+    }
+    
+    /// <summary>
+    /// Handle combat confirmation from preview
+    /// </summary>
+    private void OnCombatConfirmed(DiscoveredShip ship)
+    {
+        Debug.Log($"ScannerUI: Combat confirmed for {ship.ShipName}");
+        StartCombatWithShip(ship);
+    }
+    
+    /// <summary>
+    /// Handle combat cancellation from preview
+    /// </summary>
+    private void OnCombatCancelled()
+    {
+        Debug.Log("ScannerUI: Combat cancelled by user");
+        ShowScanStatus("Combat cancelled", Color.yellow);
+    }
+    
+    /// <summary>
+    /// Actually start combat with the ship
+    /// </summary>
+    private void StartCombatWithShip(DiscoveredShip ship)
+    {
+        if (ShipInteractionManager.Instance != null)
+        {
+            bool success = ShipInteractionManager.Instance.StartCombatWithShip(ship);
+            if (success)
+            {
+                ShowScanStatus("Entering combat...", Color.red);
+                Debug.Log($"ScannerUI: Combat started with {ship.ShipName}");
+                
+                // Switch to combat tab after a brief delay
+                StartCoroutine(SwitchToCombatTabDelayed(1f));
+            }
+            else
+            {
+                ShowScanStatus("Failed to start combat", Color.red);
+                Debug.LogWarning("ScannerUI: Failed to start combat");
+            }
+        }
+        else
+        {
+            ShowScanStatus("Combat system unavailable", Color.red);
+            Debug.LogError("ScannerUI: ShipInteractionManager not found!");
+        }
+    }
+    
+    /// <summary>
+    /// Switch to combat tab after a delay
+    /// </summary>
+    private IEnumerator SwitchToCombatTabDelayed(float delay)
+    {
+        yield return new WaitForSeconds(delay);
+        
+        TabSystem tabSystem = FindObjectOfType<TabSystem>();
+        if (tabSystem != null)
+        {
+            tabSystem.ShowCombatTab();
+            Debug.Log("ScannerUI: Switched to combat tab");
+        }
+        else
+        {
+            Debug.LogWarning("ScannerUI: TabSystem not found for tab switching");
+        }
+    }
+    
+    /// <summary>
+    /// Handle common scan button click
+    /// </summary>
+    private void OnCommonScanClicked()
+    {
+        Debug.Log("ScannerUI: Common scan button clicked");
+        
+        if (ShipScanner.Instance != null)
+        {
+            bool success = ShipScanner.Instance.TryScanForCommonShip();
+            if (!success)
+            {
+                ShowScanStatus("Cannot start scan", Color.red);
+            }
+        }
+    }
+    
+    /// <summary>
+    /// Handle rare scan button click
+    /// </summary>
+    private void OnRareScanClicked()
+    {
+        Debug.Log("ScannerUI: Rare scan button clicked");
+        
+        if (ShipScanner.Instance != null)
+        {
+            bool success = ShipScanner.Instance.TryScanForRareShip();
+            if (!success)
+            {
+                ShowScanStatus("Cannot start scan", Color.red);
+            }
+        }
+    }
+    
+    /// <summary>
+    /// Handle view contacts button click
+    /// </summary>
+    private void OnViewContactsClicked()
+    {
+        Debug.Log("ScannerUI: View contacts clicked - switching to contacts tab");
+        
+        TabSystem tabSystem = FindObjectOfType<TabSystem>();
+        if (tabSystem != null)
+        {
+            tabSystem.ShowContactsTab();
+        }
+        else
+        {
+            ShowScanStatus("Contacts tab unavailable", Color.yellow);
+        }
+    }
+    
+    // ===== SCANNER EVENT HANDLERS =====
+    
+    /// <summary>
+    /// Handle scan started event
+    /// </summary>
+    private void OnScanStarted()
+    {
+        Debug.Log("ScannerUI: Scan started");
+        
+        // Hide ship image and action buttons during scan
+        HideShipImage();
+        HideActionButtons();
+        
+        // Show scanning indicator
+        if (scanningIndicator != null)
+            scanningIndicator.SetActive(true);
+            
+        // Start progress bar animation
+        if (scanProgressSlider != null)
+        {
+            scanProgressCoroutine = StartCoroutine(AnimateScanProgress());
+        }
+        
+        // Show scanning effect
+        if (scanningEffect != null)
+            scanningEffect.SetActive(true);
+        
+        // Update status
+        ShowScanStatus("Scanning for ships...", Color.cyan);
+        
+        // Update button states
+        UpdateButtonStates();
+    }
+    
+    /// <summary>
+    /// Handle scan completed event
+    /// </summary>
+    private void OnScanCompleted()
+    {
+        Debug.Log("ScannerUI: Scan completed");
+        
+        // Hide scanning indicator
+        if (scanningIndicator != null)
+            scanningIndicator.SetActive(false);
+            
+        // Hide scanning effect
+        if (scanningEffect != null)
+            scanningEffect.SetActive(false);
+        
+        // Stop progress animation
+        if (scanProgressCoroutine != null)
+        {
+            StopCoroutine(scanProgressCoroutine);
+            scanProgressCoroutine = null;
+        }
+        
+        // Reset progress bar
+        if (scanProgressSlider != null)
+            scanProgressSlider.value = 0;
+        
+        // Update displays
+        UpdateAllDisplays();
+    }
+    
+    /// <summary>
+    /// Handle ship discovered event
+    /// </summary>
+    private void OnShipDiscovered(DiscoveredShip ship)
+    {
+        Debug.Log($"ScannerUI: Ship discovered - {ship.ShipName}");
+        
+        // Show success effect
+        if (successEffect != null)
+        {
+            successEffect.SetActive(true);
+            StartCoroutine(HideEffectAfterDelay(successEffect, 2f));
+        }
+        
+        // Show ship image and action buttons
+        ShowShipImage(ship);
+        UpdateActionButtons(ship);
+        
+        // Show result panel
+        ShowDiscoveryResult(ship, true);
+        
+        // Update button states
+        UpdateButtonStates();
+    }
+    
+    /// <summary>
+    /// Handle scan failed event
+    /// </summary>
+    private void OnScanFailed()
+    {
+        Debug.Log("ScannerUI: Scan failed");
+        
+        // Show failure effect
+        if (failureEffect != null)
+        {
+            failureEffect.SetActive(true);
+            StartCoroutine(HideEffectAfterDelay(failureEffect, 2f));
+        }
+        
+        // Show failure result
+        ShowDiscoveryResult(null, false);
+        
+        // Update button states
+        UpdateButtonStates();
+    }
+    
+    /// <summary>
+    /// Handle ship interacted event
+    /// </summary>
+    private void OnShipInteracted()
+    {
+        Debug.Log("ScannerUI: Ship interaction completed");
+        
+        // Hide result panel and ship image
+        if (resultPanel != null)
+            resultPanel.SetActive(false);
+            
+        HideShipImage();
+        HideActionButtons();
+        
+        // Update button states
+        UpdateButtonStates();
+        
+        // Show ready status
+        ShowScanStatus("Ready to scan", Color.green);
+    }
+    
+    // ===== HELPER METHODS =====
+    
+    /// <summary>
+    /// Get the appropriate sprite for a discovered ship
+    /// </summary>
+    private Sprite GetShipSprite(DiscoveredShip ship)
+    {
+        // Priority 1: Ship has its own icon assigned
+        if (ship.ShipIcon != null)
+            return ship.ShipIcon;
+        
+        // Priority 2: Try to get icon from EnemyIconManager
+        if (EnemyIconManager.Instance != null)
+        {
+            EnemyType enemyType = ConvertRarityToEnemyType(ship.Rarity);
+            Sprite typeIcon = EnemyIconManager.Instance.GetTypeIcon(enemyType);
+            if (typeIcon != null)
+                return typeIcon;
+            
+            if (!string.IsNullOrEmpty(ship.ShipType))
+            {
+                Sprite modelIcon = EnemyIconManager.Instance.GetIconForShipModel(ship.ShipType);
+                if (modelIcon != null)
+                    return modelIcon;
+            }
+        }
+        
+        // Priority 3: Try to load from Resources
+        if (!string.IsNullOrEmpty(ship.ShipName))
+        {
+            string cleanName = ship.ShipName.Replace(" ", "");
+            Sprite resourceIcon = Resources.Load<Sprite>($"ShipIcons/{cleanName}");
+            if (resourceIcon != null)
+                return resourceIcon;
+        }
+        
+        // Priority 4: Use rarity-based fallback
+        return GetFallbackSprite(ship.Rarity);
+    }
+    
+    /// <summary>
+    /// Get fallback sprite based on rarity
+    /// </summary>
+    private Sprite GetFallbackSprite(ShipRarity rarity)
+    {
+        int rarityIndex = (int)rarity;
+        
+        if (rarityBasedIcons != null && rarityIndex < rarityBasedIcons.Length && rarityBasedIcons[rarityIndex] != null)
+            return rarityBasedIcons[rarityIndex];
+        
+        return defaultShipIcon;
+    }
+    
+    /// <summary>
+    /// Convert ship rarity to enemy type for icon lookup
+    /// </summary>
+    private EnemyType ConvertRarityToEnemyType(ShipRarity rarity)
+    {
+        switch (rarity)
+        {
+            case ShipRarity.VeryCommon:
+            case ShipRarity.Common:
+                return EnemyType.Scavenger;
+                
+            case ShipRarity.SlightlyRare:
+            case ShipRarity.Rare:
+                return EnemyType.Rival;
+                
+            case ShipRarity.Epic:
+            case ShipRarity.Legendary:
+                return EnemyType.Boss;
+                
+            case ShipRarity.Anomaly:
+                return EnemyType.Anomaly;
+                
+            default:
+                return EnemyType.Scavenger;
+        }
     }
     
     /// <summary>
@@ -131,24 +700,17 @@ public class ScannerUI : MonoBehaviour
     {
         if (ShipScanner.Instance == null) return;
         
-        // Update slider
         if (energySlider != null)
         {
             energySlider.maxValue = ShipScanner.Instance.MaxEnergy;
             energySlider.value = currentEnergy;
         }
         
-        // Update text
         if (energyText != null)
-        {
             energyText.text = $"Energy: {currentEnergy:F0}/{ShipScanner.Instance.MaxEnergy:F0}";
-        }
         
-        // Update regen rate text
         if (energyRegenText != null)
-        {
             energyRegenText.text = "Regenerating...";
-        }
     }
     
     /// <summary>
@@ -156,7 +718,6 @@ public class ScannerUI : MonoBehaviour
     /// </summary>
     private void UpdateScannerInfo()
     {
-        // Update scanner level display
         if (scannerLevelText != null)
         {
             int scannerLevel = 1;
@@ -165,14 +726,11 @@ public class ScannerUI : MonoBehaviour
                 var scannerCompartment = ShipManager.Instance.GetAllCompartments()
                     .Find(c => c.Type == CompartmentType.Scanner);
                 if (scannerCompartment != null)
-                {
                     scannerLevel = scannerCompartment.CurrentLevel;
-                }
             }
             scannerLevelText.text = $"Scanner Level: {scannerLevel}";
         }
         
-        // Update location bonus
         if (locationBonusText != null)
         {
             string locationName = "Unknown";
@@ -205,12 +763,9 @@ public class ScannerUI : MonoBehaviour
             bool canCommonScan = ShipScanner.Instance.CanScan(true);
             commonScanButton.interactable = canCommonScan && !isScanning && !hasShip;
             
-            // Update button color
             Image buttonImage = commonScanButton.GetComponent<Image>();
             if (buttonImage != null)
-            {
                 buttonImage.color = canCommonScan && !hasShip ? Color.green : Color.gray;
-            }
         }
         
         // Rare scan button
@@ -219,27 +774,9 @@ public class ScannerUI : MonoBehaviour
             bool canRareScan = ShipScanner.Instance.CanScan(false);
             rareScanButton.interactable = canRareScan && !isScanning && !hasShip;
             
-            // Update button color
             Image buttonImage = rareScanButton.GetComponent<Image>();
             if (buttonImage != null)
-            {
                 buttonImage.color = canRareScan && !hasShip ? Color.blue : Color.gray;
-            }
-        }
-        
-        // View contacts button
-        if (viewContactsButton != null)
-        {
-            viewContactsButton.interactable = hasShip;
-            viewContactsButton.gameObject.SetActive(hasShip);
-        }
-        
-        // Fight now button
-        if (fightNowButton != null)
-        {
-            bool canFight = hasShip && ShipScanner.Instance.CurrentShip.CanFight;
-            fightNowButton.interactable = canFight;
-            fightNowButton.gameObject.SetActive(hasShip);
         }
     }
     
@@ -281,228 +818,6 @@ public class ScannerUI : MonoBehaviour
             float rate = ShipScanner.Instance.GetSuccessRate(false);
             rareSuccessRateText.text = $"Success: {rate:P0}";
         }
-    }
-    
-    /// <summary>
-    /// Handle common scan button click
-    /// </summary>
-    private void OnCommonScanClicked()
-    {
-        Debug.Log("ScannerUI: Common scan button clicked");
-        
-        if (ShipScanner.Instance != null)
-        {
-            bool success = ShipScanner.Instance.TryScanForCommonShip();
-            if (!success)
-            {
-                Debug.Log("ScannerUI: Common scan failed to start");
-                ShowScanStatus("Cannot start scan", Color.red);
-            }
-        }
-    }
-    
-    /// <summary>
-    /// Handle rare scan button click
-    /// </summary>
-    private void OnRareScanClicked()
-    {
-        Debug.Log("ScannerUI: Rare scan button clicked");
-        
-        if (ShipScanner.Instance != null)
-        {
-            bool success = ShipScanner.Instance.TryScanForRareShip();
-            if (!success)
-            {
-                Debug.Log("ScannerUI: Rare scan failed to start");
-                ShowScanStatus("Cannot start scan", Color.red);
-            }
-        }
-    }
-    
-    /// <summary>
-    /// Handle view contacts button click
-    /// </summary>
-    private void OnViewContactsClicked()
-    {
-        Debug.Log("ScannerUI: View contacts clicked - switching to contacts tab");
-        
-        // Switch to contacts tab
-        TabSystem tabSystem = FindObjectOfType<TabSystem>();
-        if (tabSystem != null)
-        {
-            tabSystem.ShowContactsTab();
-        }
-        else
-        {
-            ShowScanStatus("Contacts tab coming soon!", Color.yellow);
-        }
-    }
-    
-    /// <summary>
-    /// Handle fight now button click
-    /// </summary>
-    private void OnFightNowClicked()
-    {
-        if (ShipScanner.Instance?.CurrentShip == null)
-        {
-            Debug.LogWarning("ScannerUI: No ship to fight!");
-            return;
-        }
-        
-        var ship = ShipScanner.Instance.CurrentShip;
-        if (!ship.CanFight)
-        {
-            Debug.LogWarning("ScannerUI: Cannot fight this ship!");
-            ShowScanStatus("Cannot fight this ship", Color.red);
-            return;
-        }
-        
-        Debug.Log($"ScannerUI: Fighting {ship.ShipName} directly from scanner");
-        
-        // Use ShipInteractionManager to start combat
-        if (ShipInteractionManager.Instance != null)
-        {
-            bool success = ShipInteractionManager.Instance.StartCombatWithShip(ship);
-            if (success)
-            {
-                Debug.Log("ScannerUI: Combat started successfully from scanner");
-                ShowScanStatus("Entering combat...", Color.red);
-            }
-            else
-            {
-                Debug.LogWarning("ScannerUI: Failed to start combat from scanner");
-                ShowScanStatus("Failed to start combat", Color.red);
-            }
-        }
-        else
-        {
-            Debug.LogError("ScannerUI: ShipInteractionManager not found!");
-            ShowScanStatus("Combat system unavailable", Color.red);
-        }
-    }
-    
-    /// <summary>
-    /// Handle scan started event
-    /// </summary>
-    private void OnScanStarted()
-    {
-        Debug.Log("ScannerUI: Scan started");
-        
-        // Show scanning indicator
-        if (scanningIndicator != null)
-            scanningIndicator.SetActive(true);
-            
-        // Start progress bar animation
-        if (scanProgressSlider != null)
-        {
-            scanProgressCoroutine = StartCoroutine(AnimateScanProgress());
-        }
-        
-        // Show scanning effect
-        if (scanningEffect != null)
-        {
-            scanningEffect.SetActive(true);
-        }
-        
-        // Update status
-        ShowScanStatus("Scanning for ships...", Color.cyan);
-        
-        // Update button states
-        UpdateButtonStates();
-    }
-    
-    /// <summary>
-    /// Handle scan completed event
-    /// </summary>
-    private void OnScanCompleted()
-    {
-        Debug.Log("ScannerUI: Scan completed");
-        
-        // Hide scanning indicator
-        if (scanningIndicator != null)
-            scanningIndicator.SetActive(false);
-            
-        // Hide scanning effect
-        if (scanningEffect != null)
-        {
-            scanningEffect.SetActive(false);
-        }
-        
-        // Stop progress animation
-        if (scanProgressCoroutine != null)
-        {
-            StopCoroutine(scanProgressCoroutine);
-            scanProgressCoroutine = null;
-        }
-        
-        // Reset progress bar
-        if (scanProgressSlider != null)
-        {
-            scanProgressSlider.value = 0;
-        }
-        
-        // Update displays
-        UpdateAllDisplays();
-    }
-    
-    /// <summary>
-    /// Handle ship discovered event
-    /// </summary>
-    private void OnShipDiscovered(DiscoveredShip ship)
-    {
-        Debug.Log($"ScannerUI: Ship discovered - {ship.ShipName}");
-        
-        // Show success effect
-        if (successEffect != null)
-        {
-            successEffect.SetActive(true);
-            StartCoroutine(HideEffectAfterDelay(successEffect, 2f));
-        }
-        
-        // Show result panel
-        ShowDiscoveryResult(ship, true);
-        
-        // Update button states
-        UpdateButtonStates();
-    }
-    
-    /// <summary>
-    /// Handle scan failed event
-    /// </summary>
-    private void OnScanFailed()
-    {
-        Debug.Log("ScannerUI: Scan failed");
-        
-        // Show failure effect
-        if (failureEffect != null)
-        {
-            failureEffect.SetActive(true);
-            StartCoroutine(HideEffectAfterDelay(failureEffect, 2f));
-        }
-        
-        // Show failure result
-        ShowDiscoveryResult(null, false);
-        
-        // Update button states
-        UpdateButtonStates();
-    }
-    
-    /// <summary>
-    /// Handle ship interacted event
-    /// </summary>
-    private void OnShipInteracted()
-    {
-        Debug.Log("ScannerUI: Ship interaction completed");
-        
-        // Hide result panel
-        if (resultPanel != null)
-            resultPanel.SetActive(false);
-            
-        // Update button states
-        UpdateButtonStates();
-        
-        // Show ready status
-        ShowScanStatus("Ready to scan", Color.green);
     }
     
     /// <summary>
@@ -560,7 +875,7 @@ public class ScannerUI : MonoBehaviour
     {
         if (scanProgressSlider == null) yield break;
         
-        float duration = 3f; // Should match scan duration
+        float duration = 3f;
         float elapsed = 0f;
         
         while (elapsed < duration)
@@ -600,5 +915,74 @@ public class ScannerUI : MonoBehaviour
     public void RefreshDisplay()
     {
         UpdateAllDisplays();
+    }
+    
+    /// <summary>
+    /// Debug method to test ship image display
+    /// </summary>
+    [ContextMenu("Test Ship Image Display")]
+    public void TestShipImageDisplay()
+    {
+        Debug.Log("=== TESTING SHIP IMAGE DISPLAY ===");
+        
+        Debug.Log($"Ship Image Container: {(shipImageContainer != null ? "✅ Assigned" : "❌ NULL")}");
+        Debug.Log($"Discovered Ship Image: {(discoveredShipImage != null ? "✅ Assigned" : "❌ NULL")}");
+        Debug.Log($"Ship Image Label: {(shipImageLabel != null ? "✅ Assigned" : "❌ NULL")}");
+        Debug.Log($"Rarity Border: {(rarityBorder != null ? "✅ Assigned" : "❌ NULL")}");
+        Debug.Log($"Combat Preview: {(combatPreview != null ? "✅ Assigned" : "❌ NULL")}");
+        
+        if (ShipScanner.Instance?.HasDiscoveredShip == true)
+        {
+            var ship = ShipScanner.Instance.CurrentShip;
+            Debug.Log($"Current ship: {ship.ShipName} ({ship.Rarity})");
+            ShowShipImage(ship);
+            UpdateActionButtons(ship);
+        }
+        else
+        {
+            Debug.Log("No ship currently discovered. Creating test ship...");
+            
+            var testShip = new DiscoveredShip
+            {
+                ShipName = "Test Ship",
+                ShipType = "Test Vessel", 
+                Rarity = ShipRarity.Rare,
+                Level = 5,
+                AttackPower = 25,
+                Defense = 15,
+                Health = 100,
+                CurrentHealth = 100
+            };
+            
+            ShowShipImage(testShip);
+            UpdateActionButtons(testShip);
+        }
+    }
+    
+    private void OnDestroy()
+    {
+        // Unsubscribe from events
+        if (ShipScanner.Instance != null)
+        {
+            ShipScanner.Instance.OnEnergyChanged -= UpdateEnergyDisplay;
+            ShipScanner.Instance.OnScanStarted -= OnScanStarted;
+            ShipScanner.Instance.OnScanCompleted -= OnScanCompleted;
+            ShipScanner.Instance.OnShipDiscovered -= OnShipDiscovered;
+            ShipScanner.Instance.OnScanFailed -= OnScanFailed;
+            ShipScanner.Instance.OnShipInteracted -= OnShipInteracted;
+        }
+        
+        // Unsubscribe from combat preview
+        if (combatPreview != null)
+        {
+            combatPreview.OnCombatConfirmed -= OnCombatConfirmed;
+            combatPreview.OnCombatCancelled -= OnCombatCancelled;
+        }
+        
+        // Clean up coroutines
+        if (scanProgressCoroutine != null)
+        {
+            StopCoroutine(scanProgressCoroutine);
+        }
     }
 }

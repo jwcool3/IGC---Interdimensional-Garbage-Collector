@@ -4,7 +4,7 @@ using TMPro;
 using System.Collections.Generic;
 
 /// <summary>
-/// UI Controller for the Contacts tab - manages discovered ships
+/// Enhanced UI Controller for the Contacts tab with combat preview integration
 /// </summary>
 public class ContactsUI : MonoBehaviour
 {
@@ -25,15 +25,26 @@ public class ContactsUI : MonoBehaviour
     [SerializeField] private TextMeshProUGUI healthText;
     [SerializeField] private TextMeshProUGUI attackText;
     [SerializeField] private TextMeshProUGUI defenseText;
+    [SerializeField] private Image shipDetailImage;
     
     [Header("Action Buttons")]
-    [SerializeField] private Button fightButton;
+    [SerializeField] private Button quickFightButton;
+    [SerializeField] private Button previewCombatButton;
     [SerializeField] private Button tradeButton;
     [SerializeField] private Button dismissButton;
+    
+    [Header("Combat Integration")]
+    [SerializeField] private CombatPreviewUI combatPreview;
     
     [Header("Trade Info")]
     [SerializeField] private TextMeshProUGUI tradeValueText;
     [SerializeField] private TextMeshProUGUI tradeItemsText;
+    [SerializeField] private GameObject tradeInfoPanel;
+    
+    [Header("Combat Info")]
+    [SerializeField] private GameObject combatInfoPanel;
+    [SerializeField] private TextMeshProUGUI combatStatusText;
+    [SerializeField] private TextMeshProUGUI lastCombatResultText;
     
     [Header("No Contacts Message")]
     [SerializeField] private GameObject noContactsMessage;
@@ -48,23 +59,20 @@ public class ContactsUI : MonoBehaviour
     {
         Debug.Log("ContactsUI: Starting initialization");
         
-        // Set up button listeners
         SetupButtons();
-        
-        // Subscribe to scanner events
+        SetupCombatPreview();
         SubscribeToEvents();
-        
-        // Initialize display
         RefreshContactsList();
         
         // Initially hide details panel
         if (contactDetailsPanel != null)
             contactDetailsPanel.SetActive(false);
+            
+        Debug.Log("ContactsUI: Initialization complete");
     }
     
     private void OnDestroy()
     {
-        // Unsubscribe from events
         UnsubscribeFromEvents();
     }
     
@@ -73,10 +81,15 @@ public class ContactsUI : MonoBehaviour
     /// </summary>
     private void SetupButtons()
     {
-        if (fightButton != null)
-            fightButton.onClick.AddListener(OnFightButtonClicked);
+        if (quickFightButton != null)
+            quickFightButton.onClick.AddListener(OnQuickFightButtonClicked);
         else
-            Debug.LogError("ContactsUI: Fight button not assigned!");
+            Debug.LogError("ContactsUI: Quick fight button not assigned!");
+            
+        if (previewCombatButton != null)
+            previewCombatButton.onClick.AddListener(OnPreviewCombatButtonClicked);
+        else
+            Debug.LogError("ContactsUI: Preview combat button not assigned!");
             
         if (tradeButton != null)
             tradeButton.onClick.AddListener(OnTradeButtonClicked);
@@ -87,6 +100,23 @@ public class ContactsUI : MonoBehaviour
             dismissButton.onClick.AddListener(OnDismissButtonClicked);
         else
             Debug.LogError("ContactsUI: Dismiss button not assigned!");
+    }
+    
+    /// <summary>
+    /// Set up combat preview integration
+    /// </summary>
+    private void SetupCombatPreview()
+    {
+        if (combatPreview != null)
+        {
+            combatPreview.OnCombatConfirmed += OnCombatConfirmed;
+            combatPreview.OnCombatCancelled += OnCombatCancelled;
+            Debug.Log("ContactsUI: Combat preview configured");
+        }
+        else
+        {
+            Debug.LogWarning("ContactsUI: Combat preview component not assigned!");
+        }
     }
     
     /// <summary>
@@ -116,6 +146,12 @@ public class ContactsUI : MonoBehaviour
             ShipScanner.Instance.OnShipDiscovered -= OnShipDiscovered;
             ShipScanner.Instance.OnShipInteracted -= OnShipInteracted;
         }
+        
+        if (combatPreview != null)
+        {
+            combatPreview.OnCombatConfirmed -= OnCombatConfirmed;
+            combatPreview.OnCombatCancelled -= OnCombatCancelled;
+        }
     }
     
     /// <summary>
@@ -125,7 +161,6 @@ public class ContactsUI : MonoBehaviour
     {
         Debug.Log($"ContactsUI: New ship discovered - {ship.ShipName}");
         
-        // Add to our list if not already there
         if (!discoveredShips.Contains(ship))
         {
             discoveredShips.Add(ship);
@@ -139,8 +174,6 @@ public class ContactsUI : MonoBehaviour
     private void OnShipInteracted()
     {
         Debug.Log("ContactsUI: Ship interaction completed");
-        
-        // Refresh the display to update ship status
         RefreshContactsList();
         RefreshDetailsPanel();
     }
@@ -152,13 +185,9 @@ public class ContactsUI : MonoBehaviour
     {
         Debug.Log($"ContactsUI: Refreshing contacts list with {discoveredShips.Count} ships");
         
-        // Clear existing items
         ClearContactItems();
-        
-        // Update header
         UpdateHeader();
         
-        // Check if we have any contacts
         if (discoveredShips.Count == 0)
         {
             ShowNoContactsMessage();
@@ -244,16 +273,13 @@ public class ContactsUI : MonoBehaviour
             return;
         }
         
-        // Instantiate the prefab
         GameObject contactItem = Instantiate(contactItemPrefab, contactsListContent);
         contactItemObjects.Add(contactItem);
         
-        // Get the ContactItemUI component (we'll create this script next)
         ContactItemUI itemUI = contactItem.GetComponent<ContactItemUI>();
         if (itemUI == null)
             itemUI = contactItem.AddComponent<ContactItemUI>();
             
-        // Initialize the contact item
         itemUI.Initialize(ship, this);
         
         Debug.Log($"ContactsUI: Created contact item for {ship.ShipName}");
@@ -299,6 +325,20 @@ public class ContactsUI : MonoBehaviour
             rarityText.color = selectedShip.GetRarityColor();
         }
         
+        // Update ship image
+        if (shipDetailImage != null)
+        {
+            if (selectedShip.ShipIcon != null)
+            {
+                shipDetailImage.sprite = selectedShip.ShipIcon;
+                shipDetailImage.color = Color.white;
+            }
+            else
+            {
+                shipDetailImage.color = selectedShip.GetRarityColor();
+            }
+        }
+        
         // Update stats
         if (healthText != null)
             healthText.text = $"Health: {selectedShip.CurrentHealth:F0}/{selectedShip.Health:F0}";
@@ -310,14 +350,73 @@ public class ContactsUI : MonoBehaviour
             defenseText.text = $"Defense: {selectedShip.Defense:F0}";
         
         // Update trade info
+        UpdateTradeInfo();
+        
+        // Update combat info
+        UpdateCombatInfo();
+        
+        // Update button states
+        UpdateActionButtons();
+    }
+    
+    /// <summary>
+    /// Update trade information display
+    /// </summary>
+    private void UpdateTradeInfo()
+    {
+        if (tradeInfoPanel != null)
+        {
+            bool canTrade = selectedShip.CanTrade;
+            tradeInfoPanel.SetActive(canTrade || selectedShip.HasTraded);
+        }
+        
         if (tradeValueText != null)
             tradeValueText.text = $"Wants: {selectedShip.TradeValue} waste items";
             
         if (tradeItemsText != null)
             tradeItemsText.text = $"Offers: {selectedShip.GetTradeItemsText()}";
+    }
+    
+    /// <summary>
+    /// Update combat information display
+    /// </summary>
+    private void UpdateCombatInfo()
+    {
+        if (combatInfoPanel != null)
+        {
+            bool showCombatInfo = selectedShip.HasFought || selectedShip.IsDestroyed;
+            combatInfoPanel.SetActive(showCombatInfo);
+        }
         
-        // Update button states
-        UpdateActionButtons();
+        if (combatStatusText != null)
+        {
+            if (selectedShip.IsDestroyed)
+                combatStatusText.text = "Status: DESTROYED";
+            else if (selectedShip.HasFought)
+                combatStatusText.text = "Status: FOUGHT";
+            else if (selectedShip.CanFight)
+                combatStatusText.text = "Status: READY FOR COMBAT";
+            else
+                combatStatusText.text = "Status: NON-HOSTILE";
+        }
+        
+        if (lastCombatResultText != null)
+        {
+            if (selectedShip.IsDestroyed)
+            {
+                lastCombatResultText.text = "Result: Victory";
+                lastCombatResultText.color = Color.green;
+            }
+            else if (selectedShip.HasFought)
+            {
+                lastCombatResultText.text = "Result: Defeated";
+                lastCombatResultText.color = Color.red;
+            }
+            else
+            {
+                lastCombatResultText.text = "";
+            }
+        }
     }
     
     /// <summary>
@@ -327,21 +426,39 @@ public class ContactsUI : MonoBehaviour
     {
         if (selectedShip == null) return;
         
-        // Fight button
-        if (fightButton != null)
+        // Quick fight button
+        if (quickFightButton != null)
         {
-            bool canFight = selectedShip.CanFight;
-            fightButton.interactable = canFight;
+            bool canQuickFight = selectedShip.CanFight;
+            quickFightButton.interactable = canQuickFight;
             
-            TextMeshProUGUI fightText = fightButton.GetComponentInChildren<TextMeshProUGUI>();
-            if (fightText != null)
+            TextMeshProUGUI quickFightText = quickFightButton.GetComponentInChildren<TextMeshProUGUI>();
+            if (quickFightText != null)
             {
                 if (selectedShip.IsDestroyed)
-                    fightText.text = "DESTROYED";
+                    quickFightText.text = "DESTROYED";
                 else if (selectedShip.HasFought)
-                    fightText.text = "FOUGHT";
+                    quickFightText.text = "FOUGHT";
                 else
-                    fightText.text = "FIGHT";
+                    quickFightText.text = "QUICK FIGHT";
+            }
+        }
+        
+        // Preview combat button
+        if (previewCombatButton != null)
+        {
+            bool canPreviewFight = selectedShip.CanFight;
+            previewCombatButton.interactable = canPreviewFight;
+            
+            TextMeshProUGUI previewText = previewCombatButton.GetComponentInChildren<TextMeshProUGUI>();
+            if (previewText != null)
+            {
+                if (selectedShip.IsDestroyed)
+                    previewText.text = "DESTROYED";
+                else if (selectedShip.HasFought)
+                    previewText.text = "FOUGHT";
+                else
+                    previewText.text = "COMBAT PREVIEW";
             }
         }
         
@@ -370,37 +487,45 @@ public class ContactsUI : MonoBehaviour
         }
     }
     
+    // ===== BUTTON EVENT HANDLERS =====
+    
     /// <summary>
-    /// Handle fight button click
+    /// Handle quick fight button click - immediate combat
     /// </summary>
-    private void OnFightButtonClicked()
+    private void OnQuickFightButtonClicked()
     {
         if (selectedShip == null || !selectedShip.CanFight)
         {
-            Debug.LogWarning("ContactsUI: Cannot fight selected ship");
+            Debug.LogWarning("ContactsUI: Cannot quick fight selected ship");
             return;
         }
         
-        Debug.Log($"ContactsUI: Fighting {selectedShip.ShipName}");
-        
-        // Use ShipInteractionManager to start combat
-        if (ShipInteractionManager.Instance != null)
+        Debug.Log($"ContactsUI: Quick fighting {selectedShip.ShipName}");
+        StartCombatWithShip(selectedShip);
+    }
+    
+    /// <summary>
+    /// Handle preview combat button click - show combat preview
+    /// </summary>
+    private void OnPreviewCombatButtonClicked()
+    {
+        if (selectedShip == null || !selectedShip.CanFight)
         {
-            bool success = ShipInteractionManager.Instance.StartCombatWithShip(selectedShip);
-            if (success)
-            {
-                Debug.Log("ContactsUI: Combat started successfully");
-                // Optionally switch to combat tab
-                // FindObjectOfType<TabSystem>()?.ShowCombatTab();
-            }
-            else
-            {
-                Debug.LogWarning("ContactsUI: Failed to start combat");
-            }
+            Debug.LogWarning("ContactsUI: Cannot preview combat with selected ship");
+            return;
+        }
+        
+        Debug.Log($"ContactsUI: Showing combat preview for {selectedShip.ShipName}");
+        
+        if (combatPreview != null)
+        {
+            combatPreview.ShowCombatPreview(selectedShip);
         }
         else
         {
-            Debug.LogError("ContactsUI: ShipInteractionManager not found!");
+            Debug.LogError("ContactsUI: Combat preview component not found!");
+            // Fallback to quick fight
+            StartCombatWithShip(selectedShip);
         }
     }
     
@@ -417,21 +542,22 @@ public class ContactsUI : MonoBehaviour
         
         Debug.Log($"ContactsUI: Trading with {selectedShip.ShipName}");
         
-        // Use ShipInteractionManager to perform trade
         if (ShipInteractionManager.Instance != null)
         {
             bool success = ShipInteractionManager.Instance.TryTradeWithShip(selectedShip);
             if (success)
             {
                 Debug.Log("ContactsUI: Trade completed successfully");
-                RefreshDetailsPanel(); // Update display after trade
+                RefreshDetailsPanel();
             }
             else
             {
                 Debug.LogWarning("ContactsUI: Trade failed - insufficient waste items");
-                // Show trade requirements
                 string tradeInfo = ShipInteractionManager.Instance.GetTradeInfoText(selectedShip);
                 Debug.Log($"Trade Info: {tradeInfo}");
+                
+                // Show trade requirements in UI
+                ShowTradeFailureMessage();
             }
         }
         else
@@ -467,6 +593,142 @@ public class ContactsUI : MonoBehaviour
             contactDetailsPanel.SetActive(false);
     }
     
+    // ===== COMBAT INTEGRATION =====
+    
+    /// <summary>
+    /// Handle combat confirmation from preview
+    /// </summary>
+    private void OnCombatConfirmed(DiscoveredShip ship)
+    {
+        Debug.Log($"ContactsUI: Combat confirmed for {ship.ShipName}");
+        StartCombatWithShip(ship);
+    }
+    
+    /// <summary>
+    /// Handle combat cancellation from preview
+    /// </summary>
+    private void OnCombatCancelled()
+    {
+        Debug.Log("ContactsUI: Combat cancelled by user");
+        // No additional action needed - user remains in contacts tab
+    }
+    
+    /// <summary>
+    /// Actually start combat with the ship
+    /// </summary>
+    private void StartCombatWithShip(DiscoveredShip ship)
+    {
+        if (ShipInteractionManager.Instance != null)
+        {
+            bool success = ShipInteractionManager.Instance.StartCombatWithShip(ship);
+            if (success)
+            {
+                Debug.Log($"ContactsUI: Combat started with {ship.ShipName}");
+                
+                // Switch to combat tab after a brief delay
+                StartCoroutine(SwitchToCombatTabDelayed(1f));
+            }
+            else
+            {
+                Debug.LogWarning("ContactsUI: Failed to start combat");
+                ShowCombatFailureMessage();
+            }
+        }
+        else
+        {
+            Debug.LogError("ContactsUI: ShipInteractionManager not found!");
+            ShowCombatFailureMessage();
+        }
+    }
+    
+    /// <summary>
+    /// Switch to combat tab after a delay
+    /// </summary>
+    private System.Collections.IEnumerator SwitchToCombatTabDelayed(float delay)
+    {
+        yield return new WaitForSeconds(delay);
+        
+        TabSystem tabSystem = FindObjectOfType<TabSystem>();
+        if (tabSystem != null)
+        {
+            tabSystem.ShowCombatTab();
+            Debug.Log("ContactsUI: Switched to combat tab");
+        }
+        else
+        {
+            Debug.LogWarning("ContactsUI: TabSystem not found for tab switching");
+        }
+    }
+    
+    // ===== UI FEEDBACK METHODS =====
+    
+    /// <summary>
+    /// Show trade failure message
+    /// </summary>
+    private void ShowTradeFailureMessage()
+    {
+        // You can implement a popup or status message here
+        Debug.Log("Trade failed: Not enough waste items!");
+        
+        // Example: Update trade info to show requirements
+        if (tradeValueText != null)
+        {
+            int availableWaste = WasteInventoryManager.Instance?.GetInventoryCount() ?? 0;
+            tradeValueText.text = $"Wants: {selectedShip.TradeValue} waste items\nYou have: {availableWaste}";
+            tradeValueText.color = Color.red;
+            
+            // Reset color after delay
+            StartCoroutine(ResetTradeTextColor(3f));
+        }
+    }
+    
+    /// <summary>
+    /// Show combat failure message
+    /// </summary>
+    private void ShowCombatFailureMessage()
+    {
+        Debug.Log("Combat failed to start!");
+        
+        if (combatStatusText != null)
+        {
+            combatStatusText.text = "Status: COMBAT UNAVAILABLE";
+            combatStatusText.color = Color.red;
+            
+            // Reset after delay
+            StartCoroutine(ResetCombatStatusText(3f));
+        }
+    }
+    
+    /// <summary>
+    /// Reset trade text color after delay
+    /// </summary>
+    private System.Collections.IEnumerator ResetTradeTextColor(float delay)
+    {
+        yield return new WaitForSeconds(delay);
+        
+        if (tradeValueText != null)
+        {
+            tradeValueText.color = Color.white;
+            UpdateTradeInfo(); // Refresh with normal text
+        }
+    }
+    
+    /// <summary>
+    /// Reset combat status text after delay
+    /// </summary>
+    private System.Collections.IEnumerator ResetCombatStatusText(float delay)
+    {
+        yield return new WaitForSeconds(delay);
+        
+        if (combatStatusText != null)
+        {
+            combatStatusText.color = Color.white;
+            UpdateCombatInfo(); // Refresh with normal text
+        }
+    }
+    
+    // ===== PUBLIC METHODS =====
+    
     /// <summary>
     /// Public method to add a ship (for testing or external use)
     /// </summary>
@@ -485,5 +747,116 @@ public class ContactsUI : MonoBehaviour
     public List<DiscoveredShip> GetDiscoveredShips()
     {
         return new List<DiscoveredShip>(discoveredShips);
+    }
+    
+    /// <summary>
+    /// Public method to refresh the UI (called from external systems)
+    /// </summary>
+    public void RefreshUI()
+    {
+        RefreshContactsList();
+        RefreshDetailsPanel();
+    }
+    
+    /// <summary>
+    /// Get currently selected ship
+    /// </summary>
+    public DiscoveredShip GetSelectedShip()
+    {
+        return selectedShip;
+    }
+    
+    /// <summary>
+    /// Force select a specific ship (useful for external navigation)
+    /// </summary>
+    public void ForceSelectShip(DiscoveredShip ship)
+    {
+        if (ship != null && discoveredShips.Contains(ship))
+        {
+            SelectShip(ship);
+            
+            // Update selection visuals for all contact items
+            UpdateContactItemSelection();
+        }
+    }
+    
+    /// <summary>
+    /// Update selection visuals across all contact items
+    /// </summary>
+    private void UpdateContactItemSelection()
+    {
+        ContactItemUI[] allContactItems = FindObjectsOfType<ContactItemUI>();
+        
+        foreach (var item in allContactItems)
+        {
+            if (item.GetAssignedShip() == selectedShip)
+                item.SetSelected(true);
+            else
+                item.SetSelected(false);
+        }
+    }
+    
+    /// <summary>
+    /// Debug method to test combat preview
+    /// </summary>
+    [ContextMenu("Test Combat Preview")]
+    public void TestCombatPreview()
+    {
+        Debug.Log("=== TESTING COMBAT PREVIEW ===");
+        
+        if (combatPreview != null)
+        {
+            Debug.Log("✅ Combat preview component found");
+            
+            if (selectedShip != null)
+            {
+                Debug.Log($"Testing with selected ship: {selectedShip.ShipName}");
+                combatPreview.ShowCombatPreview(selectedShip);
+            }
+            else
+            {
+                Debug.Log("No ship selected. Creating test ship...");
+                
+                var testShip = new DiscoveredShip
+                {
+                    ShipName = "Test Combat Ship",
+                    ShipType = "Test Vessel",
+                    Rarity = ShipRarity.Rare,
+                    Level = 8,
+                    AttackPower = 30,
+                    Defense = 20,
+                    Health = 120,
+                    CurrentHealth = 120
+                };
+                
+                combatPreview.ShowCombatPreview(testShip);
+            }
+        }
+        else
+        {
+            Debug.LogError("❌ Combat preview component not assigned!");
+        }
+    }
+    
+    /// <summary>
+    /// Debug method to show system status
+    /// </summary>
+    [ContextMenu("Debug Contacts System")]
+    public void DebugContactsSystem()
+    {
+        Debug.Log("=== CONTACTS SYSTEM DEBUG ===");
+        
+        Debug.Log($"Discovered Ships: {discoveredShips.Count}");
+        Debug.Log($"Selected Ship: {(selectedShip != null ? selectedShip.ShipName : "None")}");
+        Debug.Log($"Contact Items: {contactItemObjects.Count}");
+        Debug.Log($"Combat Preview: {(combatPreview != null ? "✅ Assigned" : "❌ NULL")}");
+        Debug.Log($"Ship Scanner: {(ShipScanner.Instance != null ? "✅ Found" : "❌ NULL")}");
+        Debug.Log($"Interaction Manager: {(ShipInteractionManager.Instance != null ? "✅ Found" : "❌ NULL")}");
+        
+        // Show ship details
+        foreach (var ship in discoveredShips)
+        {
+            Debug.Log($"Ship: {ship.ShipName} - Fought: {ship.HasFought}, Traded: {ship.HasTraded}, Destroyed: {ship.IsDestroyed}");
+        }
     }
 }
