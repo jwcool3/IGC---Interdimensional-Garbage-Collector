@@ -111,9 +111,9 @@ public class LocationSelectionManager : MonoBehaviour
             if (isLocked && unlockRequirementsText != null)
             {
                 unlockRequirementsText.text = $"Requirements to unlock:\n" +
-                                             $"• Collect {location.requiredWasteCollected} waste items\n" +
+                                             $"* Collect {location.requiredWasteCollected} waste items\n" +
                                              (location.prerequisiteLocation != null ?
-                                              $"• First visit {location.prerequisiteLocation.displayName}\n" : "");
+                                              $"* First visit {location.prerequisiteLocation.displayName}\n" : "");
             }
         }
 

@@ -358,7 +358,7 @@ public class CombatUI : MonoBehaviour
         {
             if (CombatManager.Instance.isSingleShipMode)
             {
-                zoneNameText.text = $"⚔️ {zone.zoneName}";
+                zoneNameText.text = $"[COMBAT] {zone.zoneName}";
                 zoneNameText.color = Color.yellow; // Highlight single ship encounters
             }
             else
