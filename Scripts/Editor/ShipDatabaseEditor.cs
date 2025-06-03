@@ -1,4 +1,4 @@
-#if UNITY_EDITOR
+﻿#if UNITY_EDITOR
 using UnityEngine;
 using UnityEditor;
 using System.Collections.Generic;
@@ -218,27 +218,27 @@ public class ShipDatabaseEditor : EditorWindow
     private void AddManualShipModel(Sprite sprite, EnemyType type, int sector)
     {
         serializedObject.Update();
-        
+
         // Add a new element to the array
         shipModelsProperty.arraySize++;
-        
+
         // Get the new element
         SerializedProperty newShip = shipModelsProperty.GetArrayElementAtIndex(shipModelsProperty.arraySize - 1);
-        
+
         // Clean the sprite name
-        string cleanName = (targetDatabase != null) 
-            ? targetDatabase.CleanSpriteName(sprite.name) 
+        string cleanName = (targetDatabase != null)
+            ? targetDatabase.CleanSpriteName(sprite.name)
             : sprite.name.EndsWith("_0") ? sprite.name.Substring(0, sprite.name.Length - 2) : sprite.name;
-        
+
         // Set properties
         newShip.FindPropertyRelative("modelName").stringValue = cleanName;
         newShip.FindPropertyRelative("shipType").enumValueIndex = (int)type;
         newShip.FindPropertyRelative("minSectorLevel").intValue = sector;
         newShip.FindPropertyRelative("shipIcon").objectReferenceValue = sprite;
         newShip.FindPropertyRelative("description").stringValue = "";
-        
+
         serializedObject.ApplyModifiedProperties();
-        
+
         Debug.Log($"Manually added ship model: {cleanName}");
     }
 
@@ -384,7 +384,7 @@ public class ShipDatabaseEditor : EditorWindow
         // Check if path exists by looking for ANY assets
         var allAssets = Resources.LoadAll(path);
         bool pathExists = allAssets != null && allAssets.Length > 0;
-        
+
         // Specifically look for sprites
         Sprite[] sprites = Resources.LoadAll<Sprite>(path);
 
@@ -407,7 +407,7 @@ public class ShipDatabaseEditor : EditorWindow
         else
         {
             Debug.Log($"❌ No sprites found in Resources/{path}");
-            
+
             // Check if the directory exists but has other assets
             if (pathExists)
             {
@@ -420,7 +420,7 @@ public class ShipDatabaseEditor : EditorWindow
             else
             {
                 Debug.Log($"  Directory does not exist or is empty");
-                
+
                 // Check parent directory
                 string parentPath = path.Substring(0, path.LastIndexOf('/'));
                 if (!string.IsNullOrEmpty(parentPath))
