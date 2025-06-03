@@ -8,6 +8,7 @@ using System;
 /// <summary>
 /// Manages the conversion of waste items to resources
 /// Handles processing queues, facility management, and yield calculations
+/// Updated to use UpdatedWasteItem and enhanced resource system
 /// </summary>
 public class ResourceProcessingManager : MonoBehaviour
 {
@@ -24,6 +25,10 @@ public class ResourceProcessingManager : MonoBehaviour
     [SerializeField] private float facilityEfficiency = 1f;
     [SerializeField] private List<ProcessingFacility> availableFacilities = new List<ProcessingFacility>();
     
+    [Header("Recipe Processing")]
+    [SerializeField] private List<ProcessingRecipeData> availableRecipes = new List<ProcessingRecipeData>();
+    [SerializeField] private bool enableRecipeProcessing = true;
+    
     [Header("Processing Queue")]
     [SerializeField] private List<ProcessingJob> activeJobs = new List<ProcessingJob>();
     [SerializeField] private Queue<ProcessingRequest> pendingRequests = new Queue<ProcessingRequest>();
@@ -32,7 +37,6 @@ public class ResourceProcessingManager : MonoBehaviour
     private NewResourceManager resourceManager;
     private ResourceConfigManager configManager;
     private WasteInventoryManager wasteInventory;
-    private ResourceYieldCalculator yieldCalculator;
     
     // Processing monitoring
     private Coroutine processingCoroutine;
@@ -46,6 +50,7 @@ public class ResourceProcessingManager : MonoBehaviour
     public event Action<ProcessingJob, string> OnProcessingFailed;
     public event Action<int> OnQueueChanged;
     public event Action<float> OnEfficiencyChanged;
+    public event Action<ProcessingRecipeData, Dictionary<ResourceType, int>> OnRecipeProcessed;
     
     private void Awake()
     {
@@ -71,12 +76,10 @@ public class ResourceProcessingManager : MonoBehaviour
         resourceManager = NewResourceManager.Instance;
         configManager = ResourceConfigManager.Instance;
         wasteInventory = WasteInventoryManager.Instance;
-        yieldCalculator = FindObjectOfType<ResourceYieldCalculator>();
         
-        if (yieldCalculator == null)
+        if (resourceManager == null)
         {
-            var calculatorGO = new GameObject("ResourceYieldCalculator");
-            yieldCalculator = calculatorGO.AddComponent<ResourceYieldCalculator>();
+            Debug.LogError("NewResourceManager.Instance is null! ResourceProcessingManager requires it.");
         }
     }
     
@@ -87,6 +90,9 @@ public class ResourceProcessingManager : MonoBehaviour
         {
             CreateDefaultFacilities();
         }
+        
+        // Load available recipes from ResourceConfigManager
+        LoadAvailableRecipes();
         
         // Start processing coroutine
         if (autoProcessWaste)
@@ -105,7 +111,9 @@ public class ResourceProcessingManager : MonoBehaviour
             level = 1,
             efficiency = 1f,
             maxConcurrentJobs = 2,
-            supportedWasteTypes = new List<WasteType> { WasteType.Plastic, WasteType.Metal, WasteType.Organic }
+            supportedWasteTypes = new List<WasteType> { WasteType.Plastic, WasteType.Metals, WasteType.Organic },
+            energyConsumption = 1f,
+            isOperational = true
         };
         availableFacilities.Add(basicFacility);
         
@@ -117,9 +125,50 @@ public class ResourceProcessingManager : MonoBehaviour
             level = 2,
             efficiency = 1.2f,
             maxConcurrentJobs = 1,
-            supportedWasteTypes = new List<WasteType> { WasteType.Electronic, WasteType.Toxic }
+            supportedWasteTypes = new List<WasteType> { WasteType.Electronics, WasteType.Chemical, WasteType.Toxic },
+            energyConsumption = 2f,
+            isOperational = true
         };
         availableFacilities.Add(advancedFacility);
+        
+        // Specialized facilities
+        var fuelSynthesizer = new ProcessingFacility
+        {
+            facilityName = "Fuel Synthesizer",
+            facilityType = ProcessingType.Synthesis,
+            level = 2,
+            efficiency = 1.1f,
+            maxConcurrentJobs = 1,
+            supportedWasteTypes = new List<WasteType> { WasteType.Organic, WasteType.Chemical },
+            energyConsumption = 1.5f,
+            isOperational = true,
+            specialization = "Fuel Production"
+        };
+        availableFacilities.Add(fuelSynthesizer);
+        
+        var metalFabricator = new ProcessingFacility
+        {
+            facilityName = "Metal Fabricator",
+            facilityType = ProcessingType.Fabrication,
+            level = 3,
+            efficiency = 1.3f,
+            maxConcurrentJobs = 1,
+            supportedWasteTypes = new List<WasteType> { WasteType.Metals, WasteType.Electronics },
+            energyConsumption = 2.5f,
+            isOperational = true,
+            specialization = "Metal Processing"
+        };
+        availableFacilities.Add(metalFabricator);
+    }
+    
+    private void LoadAvailableRecipes()
+    {
+        if (configManager != null)
+        {
+            // Load recipes from ResourceConfigManager
+            // This would be implemented when ResourceConfigManager has recipe loading
+            Debug.Log("Loading processing recipes from ResourceConfigManager");
+        }
     }
     
     /// <summary>
@@ -148,13 +197,13 @@ public class ResourceProcessingManager : MonoBehaviour
     }
     
     /// <summary>
-    /// Process a specific waste item
+    /// Process a specific waste item using direct breakdown
     /// </summary>
-    /// <param name="wasteItem">Waste item to process</param>
+    /// <param name="wasteItem">UpdatedWasteItem to process</param>
     /// <param name="quantity">Quantity to process</param>
     /// <param name="processingType">Type of processing to apply</param>
     /// <returns>True if processing was queued successfully</returns>
-    public bool ProcessWasteItem(WasteItem wasteItem, int quantity = 1, ProcessingType processingType = ProcessingType.Recycling)
+    public bool ProcessWasteItem(UpdatedWasteItem wasteItem, int quantity = 1, ProcessingType processingType = ProcessingType.Recycling)
     {
         if (wasteItem == null || quantity <= 0)
         {
@@ -171,7 +220,8 @@ public class ResourceProcessingManager : MonoBehaviour
                 wasteItem = wasteItem,
                 quantity = quantity,
                 processingType = processingType,
-                requestTime = Time.time
+                requestTime = Time.time,
+                isRecipeProcessing = false
             };
             
             pendingRequests.Enqueue(request);
@@ -183,12 +233,55 @@ public class ResourceProcessingManager : MonoBehaviour
     }
     
     /// <summary>
+    /// Process using a specific recipe
+    /// </summary>
+    /// <param name="recipe">Recipe to use for processing</param>
+    /// <param name="facilityName">Specific facility to use (optional)</param>
+    /// <returns>True if processing was queued successfully</returns>
+    public bool ProcessRecipe(ProcessingRecipeData recipe, string facilityName = null)
+    {
+        if (recipe == null || !recipe.CanUse() || !recipe.CanAfford())
+        {
+            Debug.LogWarning("Cannot process recipe: not available or insufficient resources");
+            return false;
+        }
+        
+        // Find suitable facility
+        var facility = FindSuitableFacilityForRecipe(recipe, facilityName);
+        if (facility == null)
+        {
+            Debug.LogWarning($"No suitable facility found for recipe: {recipe.recipeName}");
+            return false;
+        }
+        
+        // Check if facility has capacity
+        if (GetFacilityActiveJobs(facility) >= facility.maxConcurrentJobs)
+        {
+            // Queue the recipe request
+            var request = new ProcessingRequest
+            {
+                recipe = recipe,
+                processingType = ProcessingType.Recipe,
+                requestTime = Time.time,
+                isRecipeProcessing = true,
+                preferredFacility = facilityName
+            };
+            
+            pendingRequests.Enqueue(request);
+            OnQueueChanged?.Invoke(pendingRequests.Count);
+            return true;
+        }
+        
+        return StartRecipeProcessingJob(recipe, facility);
+    }
+    
+    /// <summary>
     /// Process multiple waste items
     /// </summary>
-    /// <param name="wasteItems">List of waste items to process</param>
+    /// <param name="wasteItems">List of UpdatedWasteItems to process</param>
     /// <param name="processingType">Type of processing to apply</param>
     /// <returns>Number of items successfully queued</returns>
-    public int ProcessWasteItems(List<WasteItem> wasteItems, ProcessingType processingType = ProcessingType.Recycling)
+    public int ProcessWasteItems(List<UpdatedWasteItem> wasteItems, ProcessingType processingType = ProcessingType.Recycling)
     {
         int successCount = 0;
         
@@ -210,70 +303,147 @@ public class ResourceProcessingManager : MonoBehaviour
     /// <returns>Number of items queued for processing</returns>
     public int ProcessAllWaste(ProcessingType processingType = ProcessingType.Recycling)
     {
-        if (wasteInventory == null)
-            return 0;
+        if (wasteInventory == null) return 0;
         
-        var allWaste = wasteInventory.GetAllWaste();
+        var allWaste = wasteInventory.GetAllSlots().Select(slot => slot.wasteItem).ToList();
         return ProcessWasteItems(allWaste, processingType);
     }
     
-    private bool StartProcessingJob(WasteItem wasteItem, int quantity, ProcessingType processingType)
+    private bool StartProcessingJob(UpdatedWasteItem wasteItem, int quantity, ProcessingType processingType)
     {
         // Find suitable facility
         var facility = FindSuitableFacility(wasteItem, processingType);
         if (facility == null)
         {
-            Debug.LogWarning($"No suitable facility found for processing {wasteItem.Name}");
+            Debug.LogWarning($"No suitable facility found for {wasteItem.Name}");
             return false;
         }
         
-        // Calculate processing time and yield
-        float processingTime = CalculateProcessingTime(wasteItem, quantity, facility);
-        var expectedYield = yieldCalculator.CalculateFinalYield(wasteItem, quantity, facility.efficiency);
+        // Calculate expected yield using ResourceYieldCalculator
+        var expectedYield = ResourceYieldCalculator.CalculateYield(wasteItem, facility.efficiency);
         
         // Create processing job
         var job = new ProcessingJob
         {
-            jobId = System.Guid.NewGuid().ToString(),
+            jobId = System.Guid.NewGuid().ToString("N")[..8],
             wasteItem = wasteItem,
             quantity = quantity,
             processingType = processingType,
             facility = facility,
             startTime = Time.time,
-            processingDuration = processingTime,
+            processingDuration = CalculateProcessingTime(wasteItem, quantity, facility),
+            status = ProcessingStatus.InProgress,
             expectedYield = expectedYield,
-            status = ProcessingStatus.InProgress
+            isRecipeProcessing = false
         };
         
+        job.completionTime = job.startTime + job.processingDuration;
+        
+        // Add to active jobs
         activeJobs.Add(job);
+        
+        // Trigger events
         OnProcessingStarted?.Invoke(job);
         
-        Debug.Log($"Started processing {quantity}x {wasteItem.Name} (Expected completion: {processingTime:F1}s)");
+        Debug.Log($"Started processing {quantity}x {wasteItem.Name} in {facility.facilityName}");
         return true;
     }
     
-    private ProcessingFacility FindSuitableFacility(WasteItem wasteItem, ProcessingType processingType)
+    private bool StartRecipeProcessingJob(ProcessingRecipeData recipe, ProcessingFacility facility)
+    {
+        // Consume input resources
+        if (!resourceManager.SpendResources(recipe.inputResources))
+        {
+            Debug.LogWarning($"Failed to consume resources for recipe: {recipe.recipeName}");
+            return false;
+        }
+        
+        // Create processing job for recipe
+        var job = new ProcessingJob
+        {
+            jobId = System.Guid.NewGuid().ToString("N")[..8],
+            recipe = recipe,
+            processingType = ProcessingType.Recipe,
+            facility = facility,
+            startTime = Time.time,
+            processingDuration = recipe.processingTime / facility.efficiency,
+            status = ProcessingStatus.InProgress,
+            isRecipeProcessing = true
+        };
+        
+        job.completionTime = job.startTime + job.processingDuration;
+        
+        // Calculate expected yield from recipe
+        var expectedYield = new Dictionary<ResourceType, int>();
+        foreach (var output in recipe.outputResources)
+        {
+            expectedYield[output.type] = Mathf.RoundToInt(output.amount * facility.efficiency);
+        }
+        job.expectedYield = expectedYield;
+        
+        // Add to active jobs
+        activeJobs.Add(job);
+        
+        // Trigger events
+        OnProcessingStarted?.Invoke(job);
+        
+        Debug.Log($"Started recipe processing: {recipe.recipeName} in {facility.facilityName}");
+        return true;
+    }
+    
+    private ProcessingFacility FindSuitableFacility(UpdatedWasteItem wasteItem, ProcessingType processingType)
     {
         return availableFacilities
-            .Where(f => f.facilityType == processingType || f.facilityType == ProcessingType.Universal)
-            .Where(f => f.supportedWasteTypes.Contains(wasteItem.WasteType) || f.supportedWasteTypes.Contains(WasteType.Universal))
-            .Where(f => GetFacilityActiveJobs(f) < f.maxConcurrentJobs)
+            .Where(f => f.isOperational && 
+                       f.facilityType == processingType &&
+                       f.supportedWasteTypes.Contains(wasteItem.Type) &&
+                       GetFacilityActiveJobs(f) < f.maxConcurrentJobs)
             .OrderByDescending(f => f.efficiency)
             .FirstOrDefault();
     }
     
-    private int GetFacilityActiveJobs(ProcessingFacility facility)
+    private ProcessingFacility FindSuitableFacilityForRecipe(ProcessingRecipeData recipe, string preferredFacilityName = null)
     {
-        return activeJobs.Count(j => j.facility == facility && j.status == ProcessingStatus.InProgress);
+        var suitableFacilities = availableFacilities
+            .Where(f => f.isOperational &&
+                       f.level >= recipe.minimumFacilityLevel &&
+                       (string.IsNullOrEmpty(recipe.requiredFacility) || f.facilityName.Contains(recipe.requiredFacility)) &&
+                       GetFacilityActiveJobs(f) < f.maxConcurrentJobs);
+        
+        if (!string.IsNullOrEmpty(preferredFacilityName))
+        {
+            var preferred = suitableFacilities.FirstOrDefault(f => f.facilityName == preferredFacilityName);
+            if (preferred != null) return preferred;
+        }
+        
+        return suitableFacilities.OrderByDescending(f => f.efficiency).FirstOrDefault();
     }
     
-    private float CalculateProcessingTime(WasteItem wasteItem, int quantity, ProcessingFacility facility)
+    private int GetFacilityActiveJobs(ProcessingFacility facility)
+    {
+        return activeJobs.Count(job => job.facility == facility && job.status == ProcessingStatus.InProgress);
+    }
+    
+    private float CalculateProcessingTime(UpdatedWasteItem wasteItem, int quantity, ProcessingFacility facility)
     {
         float baseTime = wasteItem.ProcessingTime * quantity;
         float facilityModifier = 1f / facility.efficiency;
-        float speedModifier = 1f / baseProcessingSpeed;
+        float complexityModifier = GetComplexityModifier(wasteItem);
         
-        return baseTime * facilityModifier * speedModifier;
+        return baseTime * facilityModifier * complexityModifier * baseProcessingSpeed;
+    }
+    
+    private float GetComplexityModifier(UpdatedWasteItem wasteItem)
+    {
+        // More complex items take longer to process
+        float modifier = 1f;
+        
+        if (wasteItem.ContaminationLevel > 0.5f) modifier += 0.3f;
+        if (wasteItem.Rarity == WasteRarity.Rare) modifier += 0.2f;
+        if (wasteItem.Rarity == WasteRarity.Epic) modifier += 0.4f;
+        if (wasteItem.Rarity == WasteRarity.Legendary) modifier += 0.6f;
+        
+        return modifier;
     }
     
     private IEnumerator ProcessingLoop()
@@ -282,13 +452,8 @@ public class ResourceProcessingManager : MonoBehaviour
         {
             yield return new WaitForSeconds(processingCheckInterval);
             
-            // Process pending requests if slots are available
             ProcessPendingRequests();
-            
-            // Check for completed jobs
             CheckCompletedJobs();
-            
-            // Update facility efficiency
             UpdateFacilityEfficiency();
         }
     }
@@ -298,16 +463,44 @@ public class ResourceProcessingManager : MonoBehaviour
         while (pendingRequests.Count > 0 && GetAvailableProcessingSlots() > 0)
         {
             var request = pendingRequests.Dequeue();
-            StartProcessingJob(request.wasteItem, request.quantity, request.processingType);
-            OnQueueChanged?.Invoke(pendingRequests.Count);
+            
+            if (request.isRecipeProcessing)
+            {
+                if (request.recipe != null && request.recipe.CanAfford())
+                {
+                    var facility = FindSuitableFacilityForRecipe(request.recipe, request.preferredFacility);
+                    if (facility != null)
+                    {
+                        StartRecipeProcessingJob(request.recipe, facility);
+                    }
+                    else
+                    {
+                        // Re-queue if no facility available
+                        pendingRequests.Enqueue(request);
+                        break;
+                    }
+                }
+            }
+            else
+            {
+                if (request.wasteItem != null)
+                {
+                    if (!StartProcessingJob(request.wasteItem, request.quantity, request.processingType))
+                    {
+                        // Re-queue if processing failed
+                        pendingRequests.Enqueue(request);
+                        break;
+                    }
+                }
+            }
         }
+        
+        OnQueueChanged?.Invoke(pendingRequests.Count);
     }
     
     private void CheckCompletedJobs()
     {
-        var completedJobs = activeJobs.Where(j => 
-            j.status == ProcessingStatus.InProgress && 
-            Time.time >= j.startTime + j.processingDuration).ToList();
+        var completedJobs = activeJobs.Where(job => Time.time >= job.completionTime).ToList();
         
         foreach (var job in completedJobs)
         {
@@ -317,77 +510,131 @@ public class ResourceProcessingManager : MonoBehaviour
     
     private void CompleteProcessingJob(ProcessingJob job)
     {
+        activeJobs.Remove(job);
+        job.status = ProcessingStatus.Completed;
+        
         try
         {
-            // Calculate actual yield (may vary from expected)
-            var actualYield = yieldCalculator.CalculateFinalYield(
-                job.wasteItem, 
-                job.quantity, 
-                job.facility.efficiency,
-                UnityEngine.Random.Range(0.9f, 1.1f) // Small random variation
-            );
+            Dictionary<ResourceType, int> actualYield;
+            
+            if (job.isRecipeProcessing)
+            {
+                // Recipe processing
+                actualYield = ProcessRecipeYield(job);
+                OnRecipeProcessed?.Invoke(job.recipe, actualYield);
+            }
+            else
+            {
+                // Direct waste processing
+                actualYield = ProcessWasteYield(job);
+            }
+            
+            job.actualYield = actualYield;
             
             // Add resources to inventory
             foreach (var resource in actualYield)
             {
                 resourceManager.AddResource(resource.Key, resource.Value);
-                
-                // Track statistics
-                if (!totalResourcesGenerated.ContainsKey(resource.Key))
-                    totalResourcesGenerated[resource.Key] = 0;
-                totalResourcesGenerated[resource.Key] += resource.Value;
-            }
-            
-            // Remove waste from inventory
-            if (wasteInventory != null)
-            {
-                wasteInventory.RemoveWaste(job.wasteItem.Id, job.quantity);
             }
             
             // Update statistics
             totalItemsProcessed += job.quantity;
             totalProcessingTime += job.processingDuration;
             
-            // Update job status
-            job.status = ProcessingStatus.Completed;
-            job.actualYield = actualYield;
-            job.completionTime = Time.time;
+            foreach (var resource in actualYield)
+            {
+                if (totalResourcesGenerated.ContainsKey(resource.Key))
+                {
+                    totalResourcesGenerated[resource.Key] += resource.Value;
+                }
+                else
+                {
+                    totalResourcesGenerated[resource.Key] = resource.Value;
+                }
+            }
             
+            // Trigger completion event
             OnProcessingCompleted?.Invoke(job, actualYield);
             
-            Debug.Log($"Completed processing {job.quantity}x {job.wasteItem.Name}. " +
-                     $"Yield: {string.Join(", ", actualYield.Select(kv => $"{kv.Value} {kv.Key}"))}");
+            Debug.Log($"Completed processing job {job.jobId}: {GetYieldSummary(actualYield)}");
         }
         catch (Exception ex)
         {
             job.status = ProcessingStatus.Failed;
             job.errorMessage = ex.Message;
             OnProcessingFailed?.Invoke(job, ex.Message);
-            Debug.LogError($"Processing job failed: {ex.Message}");
+            Debug.LogError($"Processing job {job.jobId} failed: {ex.Message}");
         }
-        finally
+    }
+    
+    private Dictionary<ResourceType, int> ProcessWasteYield(ProcessingJob job)
+    {
+        // Use ResourceYieldCalculator for final yield calculation
+        return ResourceYieldCalculator.CalculateYield(
+            job.wasteItem, 
+            job.facility.efficiency,
+            1f, // location multiplier (could be enhanced later)
+            0f  // player skill bonus (could be enhanced later)
+        );
+    }
+    
+    private Dictionary<ResourceType, int> ProcessRecipeYield(ProcessingJob job)
+    {
+        var yield = new Dictionary<ResourceType, int>();
+        
+        // Base outputs
+        foreach (var output in job.recipe.outputResources)
         {
-            activeJobs.Remove(job);
+            int amount = Mathf.RoundToInt(output.amount * job.facility.efficiency);
+            yield[output.type] = amount;
         }
+        
+        // Bonus outputs (chance-based)
+        if (job.recipe.bonusOutputs != null)
+        {
+            foreach (var bonus in job.recipe.bonusOutputs)
+            {
+                if (UnityEngine.Random.value <= bonus.chance)
+                {
+                    int amount = Mathf.RoundToInt(bonus.amount * job.facility.efficiency);
+                    if (yield.ContainsKey(bonus.type))
+                    {
+                        yield[bonus.type] += amount;
+                    }
+                    else
+                    {
+                        yield[bonus.type] = amount;
+                    }
+                }
+            }
+        }
+        
+        return yield;
+    }
+    
+    private string GetYieldSummary(Dictionary<ResourceType, int> yield)
+    {
+        if (yield == null || yield.Count == 0) return "No resources";
+        
+        return string.Join(", ", yield.Select(kvp => $"{kvp.Value} {kvp.Key}"));
     }
     
     private void UpdateFacilityEfficiency()
     {
-        // Calculate overall facility efficiency based on usage
+        // Update facility efficiency based on usage, maintenance, etc.
         float totalEfficiency = 0f;
-        int activeFacilities = 0;
+        int operationalFacilities = 0;
         
         foreach (var facility in availableFacilities)
         {
-            int activeJobs = GetFacilityActiveJobs(facility);
-            if (activeJobs > 0)
+            if (facility.isOperational)
             {
                 totalEfficiency += facility.efficiency;
-                activeFacilities++;
+                operationalFacilities++;
             }
         }
         
-        float newEfficiency = activeFacilities > 0 ? totalEfficiency / activeFacilities : 1f;
+        float newEfficiency = operationalFacilities > 0 ? totalEfficiency / operationalFacilities : 0f;
         
         if (Mathf.Abs(newEfficiency - facilityEfficiency) > 0.01f)
         {
@@ -396,47 +643,103 @@ public class ResourceProcessingManager : MonoBehaviour
         }
     }
     
-    #region Public API
+    #region Public API Methods
     
     /// <summary>
-    /// Get the number of available processing slots
+    /// Get number of available processing slots
     /// </summary>
-    /// <returns>Number of available slots</returns>
     public int GetAvailableProcessingSlots()
     {
-        return maxProcessingSlots - activeJobs.Count(j => j.status == ProcessingStatus.InProgress);
+        int totalSlots = availableFacilities.Where(f => f.isOperational).Sum(f => f.maxConcurrentJobs);
+        int usedSlots = activeJobs.Count(job => job.status == ProcessingStatus.InProgress);
+        return Mathf.Max(0, totalSlots - usedSlots);
     }
     
     /// <summary>
-    /// Get all active processing jobs
+    /// Get list of active processing jobs
     /// </summary>
-    /// <returns>List of active jobs</returns>
     public List<ProcessingJob> GetActiveJobs()
     {
         return new List<ProcessingJob>(activeJobs);
     }
     
     /// <summary>
-    /// Get the number of pending requests
+    /// Get list of available facilities
     /// </summary>
-    /// <returns>Number of pending requests</returns>
+    public List<ProcessingFacility> GetAvailableFacilities()
+    {
+        return new List<ProcessingFacility>(availableFacilities);
+    }
+    
+    /// <summary>
+    /// Get list of available recipes
+    /// </summary>
+    public List<ProcessingRecipeData> GetAvailableRecipes()
+    {
+        return availableRecipes.Where(r => r.CanUse()).ToList();
+    }
+    
+    /// <summary>
+    /// Get number of pending requests
+    /// </summary>
     public int GetPendingRequestCount()
     {
         return pendingRequests.Count;
     }
     
     /// <summary>
+    /// Add a new processing facility
+    /// </summary>
+    public void AddFacility(ProcessingFacility facility)
+    {
+        if (facility != null && !availableFacilities.Contains(facility))
+        {
+            availableFacilities.Add(facility);
+            Debug.Log($"Added processing facility: {facility.facilityName}");
+        }
+    }
+    
+    /// <summary>
+    /// Remove a processing facility
+    /// </summary>
+    public bool RemoveFacility(ProcessingFacility facility)
+    {
+        if (facility != null && availableFacilities.Contains(facility))
+        {
+            // Cancel any active jobs for this facility
+            var facilityJobs = activeJobs.Where(job => job.facility == facility).ToList();
+            foreach (var job in facilityJobs)
+            {
+                CancelProcessingJob(job.jobId);
+            }
+            
+            availableFacilities.Remove(facility);
+            Debug.Log($"Removed processing facility: {facility.facilityName}");
+            return true;
+        }
+        return false;
+    }
+    
+    /// <summary>
     /// Cancel a specific processing job
     /// </summary>
-    /// <param name="jobId">ID of the job to cancel</param>
-    /// <returns>True if job was cancelled</returns>
     public bool CancelProcessingJob(string jobId)
     {
         var job = activeJobs.FirstOrDefault(j => j.jobId == jobId);
         if (job != null)
         {
-            job.status = ProcessingStatus.Cancelled;
             activeJobs.Remove(job);
+            job.status = ProcessingStatus.Cancelled;
+            
+            // Refund resources if it was a recipe job
+            if (job.isRecipeProcessing && job.recipe != null)
+            {
+                foreach (var input in job.recipe.inputResources)
+                {
+                    resourceManager.AddResource(input.type, input.amount);
+                }
+            }
+            
             Debug.Log($"Cancelled processing job: {jobId}");
             return true;
         }
@@ -444,42 +747,44 @@ public class ResourceProcessingManager : MonoBehaviour
     }
     
     /// <summary>
-    /// Cancel all processing jobs
+    /// Cancel all active processing jobs
     /// </summary>
-    /// <returns>Number of jobs cancelled</returns>
     public int CancelAllJobs()
     {
-        int cancelledCount = activeJobs.Count;
-        activeJobs.Clear();
-        pendingRequests.Clear();
-        OnQueueChanged?.Invoke(0);
-        Debug.Log($"Cancelled {cancelledCount} processing jobs");
+        int cancelledCount = 0;
+        var jobsToCancel = new List<ProcessingJob>(activeJobs);
+        
+        foreach (var job in jobsToCancel)
+        {
+            if (CancelProcessingJob(job.jobId))
+            {
+                cancelledCount++;
+            }
+        }
+        
         return cancelledCount;
     }
     
     /// <summary>
-    /// Upgrade a processing facility
+    /// Upgrade a facility to the next level
     /// </summary>
-    /// <param name="facilityIndex">Index of facility to upgrade</param>
-    /// <returns>True if upgrade was successful</returns>
     public bool UpgradeFacility(int facilityIndex)
     {
-        if (facilityIndex < 0 || facilityIndex >= availableFacilities.Count)
-            return false;
-        
-        var facility = availableFacilities[facilityIndex];
-        facility.level++;
-        facility.efficiency *= 1.1f; // 10% efficiency increase per level
-        facility.maxConcurrentJobs = Mathf.Min(facility.maxConcurrentJobs + 1, 5);
-        
-        Debug.Log($"Upgraded {facility.facilityName} to level {facility.level}");
-        return true;
+        if (facilityIndex >= 0 && facilityIndex < availableFacilities.Count)
+        {
+            var facility = availableFacilities[facilityIndex];
+            facility.level++;
+            facility.efficiency += 0.1f; // 10% efficiency boost per level
+            
+            Debug.Log($"Upgraded {facility.facilityName} to level {facility.level}");
+            return true;
+        }
+        return false;
     }
     
     /// <summary>
     /// Get processing statistics
     /// </summary>
-    /// <returns>Processing statistics</returns>
     public ProcessingStatistics GetStatistics()
     {
         return new ProcessingStatistics
@@ -504,7 +809,8 @@ public class ResourceProcessingManager : MonoBehaviour
 }
 
 /// <summary>
-/// Processing facility definition
+/// Processing facility configuration
+/// Updated to work with UpdatedWasteItem and enhanced features
 /// </summary>
 [System.Serializable]
 public class ProcessingFacility
@@ -517,16 +823,47 @@ public class ProcessingFacility
     public List<WasteType> supportedWasteTypes = new List<WasteType>();
     public float energyConsumption = 1f;
     public bool isOperational = true;
+    public string specialization = ""; // e.g., "Fuel Production", "Metal Processing"
+    
+    /// <summary>
+    /// Check if this facility can process the given waste item
+    /// </summary>
+    public bool CanProcess(UpdatedWasteItem wasteItem)
+    {
+        return isOperational && 
+               (supportedWasteTypes.Count == 0 || supportedWasteTypes.Contains(wasteItem.Type));
+    }
+    
+    /// <summary>
+    /// Check if this facility can handle the given recipe
+    /// </summary>
+    public bool CanProcessRecipe(ProcessingRecipeData recipe)
+    {
+        return isOperational && 
+               level >= recipe.minimumFacilityLevel &&
+               (string.IsNullOrEmpty(recipe.requiredFacility) || facilityName.Contains(recipe.requiredFacility));
+    }
+    
+    /// <summary>
+    /// Get facility status description
+    /// </summary>
+    public string GetStatusDescription()
+    {
+        if (!isOperational) return "Offline";
+        return $"Level {level} - {efficiency:P0} Efficiency";
+    }
 }
 
 /// <summary>
-/// Processing job data
+/// Individual processing job
+/// Updated to use UpdatedWasteItem and support recipe processing
 /// </summary>
 [System.Serializable]
 public class ProcessingJob
 {
     public string jobId;
-    public WasteItem wasteItem;
+    public UpdatedWasteItem wasteItem; // For direct waste processing
+    public ProcessingRecipeData recipe; // For recipe processing
     public int quantity;
     public ProcessingType processingType;
     public ProcessingFacility facility;
@@ -537,22 +874,43 @@ public class ProcessingJob
     public Dictionary<ResourceType, int> expectedYield;
     public Dictionary<ResourceType, int> actualYield;
     public string errorMessage;
+    public bool isRecipeProcessing = false;
     
     public float Progress => status == ProcessingStatus.InProgress ? 
         Mathf.Clamp01((Time.time - startTime) / processingDuration) : 
         (status == ProcessingStatus.Completed ? 1f : 0f);
+    
+    public float RemainingTime => status == ProcessingStatus.InProgress ? 
+        Mathf.Max(0f, completionTime - Time.time) : 0f;
+    
+    public string GetDisplayName()
+    {
+        if (isRecipeProcessing && recipe != null)
+        {
+            return recipe.recipeName;
+        }
+        else if (wasteItem != null)
+        {
+            return $"{quantity}x {wasteItem.Name}";
+        }
+        return "Unknown Job";
+    }
 }
 
 /// <summary>
 /// Processing request for queuing
+/// Updated to support both waste items and recipes
 /// </summary>
 [System.Serializable]
 public class ProcessingRequest
 {
-    public WasteItem wasteItem;
+    public UpdatedWasteItem wasteItem; // For direct waste processing
+    public ProcessingRecipeData recipe; // For recipe processing
     public int quantity;
     public ProcessingType processingType;
     public float requestTime;
+    public bool isRecipeProcessing = false;
+    public string preferredFacility; // Optional preferred facility name
 }
 
 /// <summary>
@@ -568,7 +926,7 @@ public enum ProcessingStatus
 }
 
 /// <summary>
-/// Processing statistics
+/// Processing statistics data
 /// </summary>
 [System.Serializable]
 public class ProcessingStatistics
@@ -584,11 +942,6 @@ public class ProcessingStatistics
     
     public override string ToString()
     {
-        return $"Processing Stats:\n" +
-               $"Items Processed: {totalItemsProcessed}\n" +
-               $"Avg Processing Time: {averageProcessingTime:F1}s\n" +
-               $"Current Efficiency: {currentEfficiency:P1}\n" +
-               $"Active Jobs: {activeJobs}\n" +
-               $"Available Slots: {availableSlots}";
+        return $"Processed: {totalItemsProcessed} items, Efficiency: {currentEfficiency:P0}, Active: {activeJobs}, Pending: {pendingRequests}";
     }
 }
