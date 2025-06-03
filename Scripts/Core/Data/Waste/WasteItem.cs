@@ -14,7 +14,7 @@ public class WasteItem
     public Sprite Icon { get; set; }
 
     // Gameplay properties
-    public float WasteStability { get; set; }
+    public float DimensionalStability { get; set; }
     public float ContaminationLevel { get; set; }
     public float RecyclingValue { get; set; }
     public float RecyclingPotential { get; set; }
@@ -44,7 +44,7 @@ public class WasteItem
     {
         if (!propertiesInitialized)
         {
-            WasteStability = CalculateInitialStability();
+            DimensionalStability = CalculateInitialStability();
             ContaminationLevel = CalculateInitialContamination();
             RecyclingPotential = CalculateRecyclingPotential();
             RecyclingValue = CalculateRecyclingValue();
@@ -142,7 +142,7 @@ public class WasteItem
                DimensionalOrigin == other.DimensionalOrigin &&
                Rarity == other.Rarity &&
                Mathf.Approximately(RecyclingPotential, other.RecyclingPotential) &&
-               Mathf.Approximately(WasteStability, other.WasteStability) &&
+               Mathf.Approximately(DimensionalStability, other.DimensionalStability) &&
                Mathf.Approximately(ContaminationLevel, other.ContaminationLevel);
     }
 

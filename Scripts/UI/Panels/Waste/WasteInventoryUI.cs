@@ -1,10 +1,10 @@
 using UnityEngine;
 using UnityEngine.UI;
-using System.Collections.Generic;
 using TMPro;
+using System.Collections.Generic;
 
 /// <summary>
-/// UI Controller for displaying inventory
+/// UI controller for the waste inventory display
 /// </summary>
 public class WasteInventoryUI : MonoBehaviour
 {
@@ -18,21 +18,23 @@ public class WasteInventoryUI : MonoBehaviour
 
     private void Start()
     {
+        // Get the inventory manager
         inventoryManager = WasteInventoryManager.Instance;
+
         if (inventoryManager != null)
         {
             // Subscribe to inventory events
-            inventoryManager.OnWasteAdded += HandleWasteAdded;
-            inventoryManager.OnWasteRemoved += HandleWasteRemoved;
-            inventoryManager.OnInventoryChanged += RefreshInventoryDisplay;
-            inventoryManager.OnItemQuantityChanged += UpdateItemQuantity;
+            WasteInventoryManager.OnWasteAdded += HandleWasteAdded;
+            WasteInventoryManager.OnWasteRemoved += HandleWasteRemoved;
+            WasteInventoryManager.OnInventoryChanged += RefreshInventoryDisplay;
+            WasteInventoryManager.OnItemQuantityChanged += UpdateItemQuantity;
 
-            // Initial refresh
-            RefreshInventoryDisplay(inventoryManager.GetAllItems());
+            // Initial display refresh
+            RefreshInventoryDisplay();
         }
         else
         {
-            Debug.LogError("WasteInventoryManager not found!");
+            Debug.LogError("WasteInventoryManager.Instance is null!");
         }
     }
 
@@ -41,26 +43,35 @@ public class WasteInventoryUI : MonoBehaviour
         if (inventoryManager != null)
         {
             // Unsubscribe from events
-            inventoryManager.OnWasteAdded -= HandleWasteAdded;
-            inventoryManager.OnWasteRemoved -= HandleWasteRemoved;
-            inventoryManager.OnInventoryChanged -= RefreshInventoryDisplay;
-            inventoryManager.OnItemQuantityChanged -= UpdateItemQuantity;
+            WasteInventoryManager.OnWasteAdded -= HandleWasteAdded;
+            WasteInventoryManager.OnWasteRemoved -= HandleWasteRemoved;
+            WasteInventoryManager.OnInventoryChanged -= RefreshInventoryDisplay;
+            WasteInventoryManager.OnItemQuantityChanged -= UpdateItemQuantity;
         }
     }
 
-    private void HandleWasteAdded(WasteItem item)
+    private void HandleWasteAdded(UpdatedWasteItem item)
     {
         // Optional: Add specific handling for newly added items
         Debug.Log($"New item added to inventory: {item.Name}");
     }
 
-    private void HandleWasteRemoved(WasteItem item)
+    private void HandleWasteRemoved(UpdatedWasteItem item)
     {
         // Optional: Add specific handling for removed items
         Debug.Log($"Item removed from inventory: {item.Name}");
     }
 
-    public void RefreshInventoryDisplay(List<WasteItem> items)
+    public void RefreshInventoryDisplay()
+    {
+        if (inventoryManager == null) return;
+        
+        // Get all waste items from inventory
+        var items = inventoryManager.GetAllWaste();
+        RefreshInventoryDisplay(items);
+    }
+
+    public void RefreshInventoryDisplay(List<UpdatedWasteItem> items)
     {
         // Clear existing displays
         ClearDisplays();
@@ -75,7 +86,7 @@ public class WasteInventoryUI : MonoBehaviour
         UpdateInventoryCount(items.Count);
     }
 
-    private void CreateItemDisplay(WasteItem item)
+    private void CreateItemDisplay(UpdatedWasteItem item)
     {
         if (itemPrefab == null || itemContainer == null)
         {
@@ -108,7 +119,7 @@ public class WasteInventoryUI : MonoBehaviour
         }
     }
 
-    private Sprite LoadIconForItem(WasteItem item)
+    private Sprite LoadIconForItem(UpdatedWasteItem item)
     {
         // If item has a specific icon, use it
         if (item.Icon != null)
@@ -121,23 +132,15 @@ public class WasteInventoryUI : MonoBehaviour
         return icon ?? Resources.Load<Sprite>("WasteIcons/DefaultIcon");
     }
 
-    private void UpdateItemQuantity(WasteItem item)
+    private void UpdateItemQuantity()
     {
-        // Find and update the specific item display
-        foreach (var display in activeItemDisplays)
-        {
-            WasteDisplay itemDisplay = display.GetComponent<WasteDisplay>();
-            if (itemDisplay != null && itemDisplay.currentWaste.Id == item.Id)
-            {
-                itemDisplay.UpdateQuantity(item.Quantity);
-                break;
-            }
-        }
+        // Refresh the entire display when quantity changes
+        RefreshInventoryDisplay();
     }
 
     private void UpdateInventoryCount(int count)
     {
-        if (inventoryCountText != null)
+        if (inventoryCountText != null && inventoryManager != null)
         {
             inventoryCountText.text = $"Items: {count}/{inventoryManager.GetRemainingCapacity()}";
         }

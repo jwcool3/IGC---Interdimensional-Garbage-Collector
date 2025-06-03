@@ -1,12 +1,13 @@
 using UnityEngine;
 using System;
+using System.Collections.Generic;
 
 public class ResourceManager : MonoBehaviour
 {
     // Singleton pattern
     public static ResourceManager Instance { get; private set; }
 
-    // Resource values
+    // Resource values (legacy)
     private float recyclingPoints;
     private float dimensionalPotential;
     private float contamination;
@@ -34,6 +35,10 @@ public class ResourceManager : MonoBehaviour
     public int AlienTech { get; private set; }
     public int CombatData { get; private set; }
 
+    // Bridge to new resource system
+    private NewResourceManager newResourceManager;
+    private bool useNewResourceSystem = false;
+
     private void Awake()
     {
         // Singleton setup
@@ -48,6 +53,97 @@ public class ResourceManager : MonoBehaviour
         }
     }
 
+    private void Start()
+    {
+        // Try to connect to new resource system
+        InitializeNewResourceSystem();
+    }
+
+    private void InitializeNewResourceSystem()
+    {
+        // Check if NewResourceManager exists
+        newResourceManager = NewResourceManager.Instance;
+        
+        if (newResourceManager != null)
+        {
+            useNewResourceSystem = true;
+            
+            // Sync existing values to new system
+            SyncToNewResourceSystem();
+            
+            // Subscribe to new system events
+            newResourceManager.OnResourceChanged += OnNewResourceChanged;
+            
+            Debug.Log("ResourceManager: Connected to new resource system");
+        }
+        else
+        {
+            Debug.Log("ResourceManager: Using legacy resource system");
+        }
+    }
+
+    private void SyncToNewResourceSystem()
+    {
+        if (!useNewResourceSystem) return;
+
+        // Transfer existing resources to new system
+        if (recyclingPoints > 0)
+        {
+            newResourceManager.AddResource(ResourceType.RecyclingPoints, Mathf.FloorToInt(recyclingPoints));
+        }
+        
+        if (dimensionalPotential > 0)
+        {
+            newResourceManager.AddResource(ResourceType.DimensionalPotential, Mathf.FloorToInt(dimensionalPotential));
+        }
+        
+        if (ShipParts > 0)
+        {
+            newResourceManager.AddResource(ResourceType.ShipParts, ShipParts);
+        }
+        
+        if (AlienTech > 0)
+        {
+            newResourceManager.AddResource(ResourceType.AlienTech, AlienTech);
+        }
+        
+        if (CombatData > 0)
+        {
+            newResourceManager.AddResource(ResourceType.CombatData, CombatData);
+        }
+    }
+
+    private void OnNewResourceChanged(ResourceType resourceType, int oldAmount, int newAmount)
+    {
+        // Sync changes from new system back to legacy values
+        switch (resourceType)
+        {
+            case ResourceType.RecyclingPoints:
+                recyclingPoints = newAmount;
+                OnRecyclingPointsChanged?.Invoke(recyclingPoints);
+                break;
+                
+            case ResourceType.DimensionalPotential:
+                dimensionalPotential = newAmount;
+                OnDimensionalPotentialChanged?.Invoke(dimensionalPotential);
+                break;
+                
+            case ResourceType.ShipParts:
+                ShipParts = newAmount;
+                break;
+                
+            case ResourceType.AlienTech:
+                AlienTech = newAmount;
+                break;
+                
+            case ResourceType.CombatData:
+                CombatData = newAmount;
+                break;
+        }
+        
+        OnResourcesChanged?.Invoke();
+    }
+
     // Add recycling points and trigger event
     public void AddRecyclingPoints(float amount)
     {
@@ -57,27 +153,39 @@ public class ResourceManager : MonoBehaviour
             return;
         }
 
-        float previousValue = recyclingPoints;
-        recyclingPoints += amount;
-        Debug.Log($"Adding recycling points: {amount:F1} (Previous: {previousValue:F1}, New: {recyclingPoints:F1})");
+        if (useNewResourceSystem)
+        {
+            newResourceManager.AddResource(ResourceType.RecyclingPoints, Mathf.FloorToInt(amount));
+        }
+        else
+        {
+            float previousValue = recyclingPoints;
+            recyclingPoints += amount;
+            Debug.Log($"Adding recycling points: {amount:F1} (Previous: {previousValue:F1}, New: {recyclingPoints:F1})");
 
-        OnRecyclingPointsChanged?.Invoke(recyclingPoints);
-        OnResourcesChanged?.Invoke();
-
-        Debug.Log("Resource change events fired");
+            OnRecyclingPointsChanged?.Invoke(recyclingPoints);
+            OnResourcesChanged?.Invoke();
+        }
     }
 
     // Spend recycling points if enough are available
     public bool SpendRecyclingPoints(float amount)
     {
-        if (recyclingPoints >= amount)
+        if (useNewResourceSystem)
         {
-            recyclingPoints -= amount;
-            OnRecyclingPointsChanged?.Invoke(recyclingPoints);
-            OnResourcesChanged?.Invoke();
-            return true;
+            return newResourceManager.SpendResource(ResourceType.RecyclingPoints, Mathf.FloorToInt(amount));
         }
-        return false;
+        else
+        {
+            if (recyclingPoints >= amount)
+            {
+                recyclingPoints -= amount;
+                OnRecyclingPointsChanged?.Invoke(recyclingPoints);
+                OnResourcesChanged?.Invoke();
+                return true;
+            }
+            return false;
+        }
     }
 
     // Add dimensional potential and trigger event
@@ -89,27 +197,39 @@ public class ResourceManager : MonoBehaviour
             return;
         }
 
-        float previousValue = dimensionalPotential;
-        dimensionalPotential += amount;
-        Debug.Log($"Adding dimensional potential: {amount:F1} (Previous: {previousValue:F1}, New: {dimensionalPotential:F1})");
+        if (useNewResourceSystem)
+        {
+            newResourceManager.AddResource(ResourceType.DimensionalPotential, Mathf.FloorToInt(amount));
+        }
+        else
+        {
+            float previousValue = dimensionalPotential;
+            dimensionalPotential += amount;
+            Debug.Log($"Adding dimensional potential: {amount:F1} (Previous: {previousValue:F1}, New: {dimensionalPotential:F1})");
 
-        OnDimensionalPotentialChanged?.Invoke(dimensionalPotential);
-        OnResourcesChanged?.Invoke();
-
-        Debug.Log("Resource change events fired");
+            OnDimensionalPotentialChanged?.Invoke(dimensionalPotential);
+            OnResourcesChanged?.Invoke();
+        }
     }
 
     // Spend dimensional potential if enough is available
     public bool SpendDimensionalPotential(float amount)
     {
-        if (dimensionalPotential >= amount)
+        if (useNewResourceSystem)
         {
-            dimensionalPotential -= amount;
-            OnDimensionalPotentialChanged?.Invoke(dimensionalPotential);
-            OnResourcesChanged?.Invoke();
-            return true;
+            return newResourceManager.SpendResource(ResourceType.DimensionalPotential, Mathf.FloorToInt(amount));
         }
-        return false;
+        else
+        {
+            if (dimensionalPotential >= amount)
+            {
+                dimensionalPotential -= amount;
+                OnDimensionalPotentialChanged?.Invoke(dimensionalPotential);
+                OnResourcesChanged?.Invoke();
+                return true;
+            }
+            return false;
+        }
     }
 
     // Increase contamination level
@@ -149,14 +269,28 @@ public class ResourceManager : MonoBehaviour
 
     public void SetRecyclingPoints(float value)
     {
-        recyclingPoints = value;
-        OnRecyclingPointsChanged?.Invoke(recyclingPoints);
+        if (useNewResourceSystem)
+        {
+            newResourceManager.SetResource(ResourceType.RecyclingPoints, Mathf.FloorToInt(value));
+        }
+        else
+        {
+            recyclingPoints = value;
+            OnRecyclingPointsChanged?.Invoke(recyclingPoints);
+        }
     }
 
     public void SetDimensionalPotential(float value)
     {
-        dimensionalPotential = value;
-        OnDimensionalPotentialChanged?.Invoke(dimensionalPotential);
+        if (useNewResourceSystem)
+        {
+            newResourceManager.SetResource(ResourceType.DimensionalPotential, Mathf.FloorToInt(value));
+        }
+        else
+        {
+            dimensionalPotential = value;
+            OnDimensionalPotentialChanged?.Invoke(dimensionalPotential);
+        }
     }
 
     /// <summary>
@@ -198,98 +332,242 @@ public class ResourceManager : MonoBehaviour
         AddRecyclingPoints(finalRecyclingPoints);
         AddDimensionalPotential(finalDimensionalPotential);
 
-        // Add contamination (affected by danger level and reduction modifier)
-        float contaminationAmount = item.ContaminationLevel * 0.1f;
-        if (currentLocation != null)
-        {
-            contaminationAmount += currentLocation.dangerLevel * 0.05f;
-        }
-
         // Apply contamination reduction
-        contaminationAmount *= (1f - contaminationReductionModifier);
-        IncreaseContamination(contaminationAmount);
+        float contaminationIncrease = item.ContaminationLevel * 0.1f;
+        contaminationIncrease *= (1f - contaminationReductionModifier);
+        IncreaseContamination(contaminationIncrease);
 
-        Debug.Log($"Processed {item.Name} for {finalRecyclingPoints:F1} RP (location: {locationMultiplier:F1}x, recycling: {recyclingMultiplier:F1}x)");
+        Debug.Log($"Processed {item.Name}: +{finalRecyclingPoints:F1} RP, +{finalDimensionalPotential:F1} DP, +{contaminationIncrease:F3} contamination");
     }
 
-    /// <summary>
-    /// Add ship parts and notify listeners
-    /// </summary>
+    // Process UpdatedWasteItem (new system integration)
+    public void ProcessWasteItem(UpdatedWasteItem item)
+    {
+        if (item == null) return;
+
+        if (useNewResourceSystem)
+        {
+            // Use the new processing system
+            var processingManager = ResourceProcessingManager.Instance;
+            if (processingManager != null)
+            {
+                processingManager.ProcessWasteItem(item, item.Quantity);
+            }
+        }
+        else
+        {
+            // Convert to legacy processing
+            ProcessLegacyWasteItem(item);
+        }
+    }
+
+    private void ProcessLegacyWasteItem(UpdatedWasteItem item)
+    {
+        // Convert UpdatedWasteItem to legacy processing
+        float baseRecyclingPoints = item.EstimatedValue * recyclingMultiplier;
+        float baseDimensionalPotential = item.EstimatedValue * 0.5f * recyclingMultiplier;
+
+        // Apply quality and condition modifiers
+        float qualityModifier = (float)item.Quality / 4f; // 0.25 to 1.0
+        float conditionModifier = 1f - (item.ContaminationLevel * 0.5f);
+
+        float finalRecyclingPoints = baseRecyclingPoints * qualityModifier * conditionModifier;
+        float finalDimensionalPotential = baseDimensionalPotential * qualityModifier * conditionModifier;
+
+        // Add resources
+        AddRecyclingPoints(finalRecyclingPoints * item.Quantity);
+        AddDimensionalPotential(finalDimensionalPotential * item.Quantity);
+
+        // Apply contamination
+        float contaminationIncrease = item.ContaminationLevel * 0.1f * item.Quantity;
+        contaminationIncrease *= (1f - contaminationReductionModifier);
+        IncreaseContamination(contaminationIncrease);
+
+        Debug.Log($"Processed {item.Name} (x{item.Quantity}): +{finalRecyclingPoints * item.Quantity:F1} RP, +{finalDimensionalPotential * item.Quantity:F1} DP");
+    }
+
     public void AddShipParts(int amount)
     {
-        if (amount <= 0) return;
-
-        ShipParts += amount;
-        Debug.Log($"Added {amount} ship parts. New total: {ShipParts}");
-        OnResourcesChanged?.Invoke();
+        if (useNewResourceSystem)
+        {
+            newResourceManager.AddResource(ResourceType.ShipParts, amount);
+        }
+        else
+        {
+            ShipParts += amount;
+            OnResourcesChanged?.Invoke();
+        }
+        Debug.Log($"Added {amount} Ship Parts. Total: {ShipParts}");
     }
 
-    /// <summary>
-    /// Add alien tech and notify listeners
-    /// </summary>
     public void AddAlienTech(int amount)
     {
-        if (amount <= 0) return;
-
-        AlienTech += amount;
-        Debug.Log($"Added {amount} alien tech. New total: {AlienTech}");
-        OnResourcesChanged?.Invoke();
+        if (useNewResourceSystem)
+        {
+            newResourceManager.AddResource(ResourceType.AlienTech, amount);
+        }
+        else
+        {
+            AlienTech += amount;
+            OnResourcesChanged?.Invoke();
+        }
+        Debug.Log($"Added {amount} Alien Tech. Total: {AlienTech}");
     }
 
-    /// <summary>
-    /// Add combat data and notify listeners
-    /// </summary>
     public void AddCombatData(int amount)
     {
-        if (amount <= 0) return;
-
-        CombatData += amount;
-        Debug.Log($"Added {amount} combat data. New total: {CombatData}");
-        OnResourcesChanged?.Invoke();
+        if (useNewResourceSystem)
+        {
+            newResourceManager.AddResource(ResourceType.CombatData, amount);
+        }
+        else
+        {
+            CombatData += amount;
+            OnResourcesChanged?.Invoke();
+        }
+        Debug.Log($"Added {amount} Combat Data. Total: {CombatData}");
     }
 
-    /// <summary>
-    /// Attempt to spend ship parts
-    /// </summary>
-    /// <returns>True if successful, false if insufficient resources</returns>
     public bool SpendShipParts(int amount)
     {
-        if (amount <= 0) return true;
-        if (ShipParts < amount) return false;
-
-        ShipParts -= amount;
-        Debug.Log($"Spent {amount} ship parts. Remaining: {ShipParts}");
-        OnResourcesChanged?.Invoke();
-        return true;
+        if (useNewResourceSystem)
+        {
+            return newResourceManager.SpendResource(ResourceType.ShipParts, amount);
+        }
+        else
+        {
+            if (ShipParts >= amount)
+            {
+                ShipParts -= amount;
+                OnResourcesChanged?.Invoke();
+                Debug.Log($"Spent {amount} Ship Parts. Remaining: {ShipParts}");
+                return true;
+            }
+            Debug.LogWarning($"Not enough Ship Parts. Required: {amount}, Available: {ShipParts}");
+            return false;
+        }
     }
 
-    /// <summary>
-    /// Attempt to spend alien tech
-    /// </summary>
-    /// <returns>True if successful, false if insufficient resources</returns>
     public bool SpendAlienTech(int amount)
     {
-        if (amount <= 0) return true;
-        if (AlienTech < amount) return false;
-
-        AlienTech -= amount;
-        Debug.Log($"Spent {amount} alien tech. Remaining: {AlienTech}");
-        OnResourcesChanged?.Invoke();
-        return true;
+        if (useNewResourceSystem)
+        {
+            return newResourceManager.SpendResource(ResourceType.AlienTech, amount);
+        }
+        else
+        {
+            if (AlienTech >= amount)
+            {
+                AlienTech -= amount;
+                OnResourcesChanged?.Invoke();
+                Debug.Log($"Spent {amount} Alien Tech. Remaining: {AlienTech}");
+                return true;
+            }
+            Debug.LogWarning($"Not enough Alien Tech. Required: {amount}, Available: {AlienTech}");
+            return false;
+        }
     }
 
-    /// <summary>
-    /// Attempt to spend combat data
-    /// </summary>
-    /// <returns>True if successful, false if insufficient resources</returns>
     public bool SpendCombatData(int amount)
     {
-        if (amount <= 0) return true;
-        if (CombatData < amount) return false;
+        if (useNewResourceSystem)
+        {
+            return newResourceManager.SpendResource(ResourceType.CombatData, amount);
+        }
+        else
+        {
+            if (CombatData >= amount)
+            {
+                CombatData -= amount;
+                OnResourcesChanged?.Invoke();
+                Debug.Log($"Spent {amount} Combat Data. Remaining: {CombatData}");
+                return true;
+            }
+            Debug.LogWarning($"Not enough Combat Data. Required: {amount}, Available: {CombatData}");
+            return false;
+        }
+    }
 
-        CombatData -= amount;
-        Debug.Log($"Spent {amount} combat data. Remaining: {CombatData}");
-        OnResourcesChanged?.Invoke();
-        return true;
+    // New resource system integration methods
+    public bool HasResource(ResourceType resourceType, int amount)
+    {
+        if (useNewResourceSystem)
+        {
+            return newResourceManager.HasResource(resourceType, amount);
+        }
+        else
+        {
+            // Legacy fallback
+            switch (resourceType)
+            {
+                case ResourceType.RecyclingPoints:
+                    return recyclingPoints >= amount;
+                case ResourceType.DimensionalPotential:
+                    return dimensionalPotential >= amount;
+                case ResourceType.ShipParts:
+                    return ShipParts >= amount;
+                case ResourceType.AlienTech:
+                    return AlienTech >= amount;
+                case ResourceType.CombatData:
+                    return CombatData >= amount;
+                default:
+                    return false;
+            }
+        }
+    }
+
+    public int GetResourceAmount(ResourceType resourceType)
+    {
+        if (useNewResourceSystem)
+        {
+            return newResourceManager.GetResourceAmount(resourceType);
+        }
+        else
+        {
+            // Legacy fallback
+            switch (resourceType)
+            {
+                case ResourceType.RecyclingPoints:
+                    return Mathf.FloorToInt(recyclingPoints);
+                case ResourceType.DimensionalPotential:
+                    return Mathf.FloorToInt(dimensionalPotential);
+                case ResourceType.ShipParts:
+                    return ShipParts;
+                case ResourceType.AlienTech:
+                    return AlienTech;
+                case ResourceType.CombatData:
+                    return CombatData;
+                default:
+                    return 0;
+            }
+        }
+    }
+
+    public Dictionary<ResourceType, int> GetAllResources()
+    {
+        if (useNewResourceSystem)
+        {
+            return newResourceManager.GetAllResources();
+        }
+        else
+        {
+            // Legacy fallback
+            return new Dictionary<ResourceType, int>
+            {
+                { ResourceType.RecyclingPoints, Mathf.FloorToInt(recyclingPoints) },
+                { ResourceType.DimensionalPotential, Mathf.FloorToInt(dimensionalPotential) },
+                { ResourceType.ShipParts, ShipParts },
+                { ResourceType.AlienTech, AlienTech },
+                { ResourceType.CombatData, CombatData }
+            };
+        }
+    }
+
+    private void OnDestroy()
+    {
+        if (newResourceManager != null)
+        {
+            newResourceManager.OnResourceChanged -= OnNewResourceChanged;
+        }
     }
 }

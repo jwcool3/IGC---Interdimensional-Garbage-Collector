@@ -14,27 +14,27 @@ public static class WasteItemConverter
     {
         if (legacyItem == null) return null;
         
-        // Create new updated waste item
+        // Create new updated waste item using the proper constructor
         var updatedItem = new UpdatedWasteItem(
             legacyItem.Name,
-            legacyItem.DimensionalOrigin,
-            legacyItem.Rarity,
-            legacyItem.Icon
+            WasteType.Unknown, // Default type, will be mapped below
+            legacyItem.Quantity
         );
         
         // Copy all properties
         updatedItem.Description = legacyItem.Description;
-        updatedItem.Quantity = legacyItem.Quantity;
+        updatedItem.Rarity = legacyItem.Rarity;
+        updatedItem.Icon = legacyItem.Icon;
+        updatedItem.DimensionalOrigin = legacyItem.DimensionalOrigin;
         
         // Map legacy properties to new system
-        updatedItem.WasteStability = legacyItem.WasteStability;
+        updatedItem.DimensionalStability = legacyItem.DimensionalStability;
         updatedItem.ContaminationLevel = legacyItem.ContaminationLevel;
-        updatedItem.RecyclingPotential = legacyItem.RecyclingPotential;
         
-        // Initialize the new resource yield system
-        updatedItem.InitializeProperties();
+        // Map waste type based on name or other properties
+        updatedItem.Type = MapLegacyWasteType(legacyItem);
         
-        Debug.Log($"Converted legacy waste item: {legacyItem.Name} → {updatedItem.GetResourcePreview()}");
+        Debug.Log($"Converted legacy waste item: {legacyItem.Name} → {updatedItem.Name}");
         
         return updatedItem;
     }
@@ -68,7 +68,7 @@ public static class WasteItemConverter
     {
         if (updatedItem == null) return null;
         
-        // Create legacy waste item
+        // Create legacy waste item using the proper constructor
         var legacyItem = new WasteItem(
             updatedItem.Name,
             updatedItem.DimensionalOrigin,
@@ -79,9 +79,8 @@ public static class WasteItemConverter
         // Copy properties
         legacyItem.Description = updatedItem.Description;
         legacyItem.Quantity = updatedItem.Quantity;
-        legacyItem.WasteStability = updatedItem.WasteStability;
+        legacyItem.DimensionalStability = updatedItem.DimensionalStability;
         legacyItem.ContaminationLevel = updatedItem.ContaminationLevel;
-        legacyItem.RecyclingPotential = updatedItem.RecyclingPotential;
         
         // Calculate legacy recycling value from resource yield
         legacyItem.RecyclingValue = CalculateLegacyRecyclingValue(updatedItem);
@@ -90,26 +89,50 @@ public static class WasteItemConverter
     }
     
     /// <summary>
+    /// Map legacy waste item to new waste type system
+    /// </summary>
+    private static WasteType MapLegacyWasteType(WasteItem legacyItem)
+    {
+        string name = legacyItem.Name.ToLower();
+        
+        if (name.Contains("metal") || name.Contains("scrap")) return WasteType.Metal;
+        if (name.Contains("plastic") || name.Contains("polymer")) return WasteType.Plastic;
+        if (name.Contains("organic") || name.Contains("bio")) return WasteType.Organic;
+        if (name.Contains("electronic") || name.Contains("circuit")) return WasteType.Electronics;
+        if (name.Contains("glass")) return WasteType.Glass;
+        if (name.Contains("paper") || name.Contains("cardboard")) return WasteType.Paper;
+        if (name.Contains("chemical") || name.Contains("toxic")) return WasteType.Chemical;
+        
+        return WasteType.Unknown;
+    }
+    
+    /// <summary>
     /// Calculate equivalent legacy recycling value from new resource yield
     /// </summary>
     private static float CalculateLegacyRecyclingValue(UpdatedWasteItem updatedItem)
     {
-        if (updatedItem.ResourceYield == null) return 1f;
+        if (updatedItem.resourceYield == null) return 1f;
         
         float totalValue = 0f;
         
         // Convert resource amounts to legacy recycling value
-        foreach (var resource in updatedItem.ResourceYield.primaryResources)
+        if (updatedItem.resourceYield.primaryResources != null)
         {
-            float resourceValue = GetLegacyValueForResource(resource.type, resource.amount);
-            totalValue += resourceValue;
+            foreach (var resource in updatedItem.resourceYield.primaryResources)
+            {
+                float resourceValue = GetLegacyValueForResource(resource.type, resource.amount);
+                totalValue += resourceValue;
+            }
         }
         
         // Add potential value from secondary resources (reduced by chance)
-        foreach (var chance in updatedItem.ResourceYield.secondaryResources)
+        if (updatedItem.resourceYield.secondaryResources != null)
         {
-            float resourceValue = GetLegacyValueForResource(chance.type, chance.amount);
-            totalValue += resourceValue * chance.chance; // Multiply by chance
+            foreach (var chance in updatedItem.resourceYield.secondaryResources)
+            {
+                float resourceValue = GetLegacyValueForResource(chance.type, chance.amount);
+                totalValue += resourceValue * chance.chance; // Multiply by chance
+            }
         }
         
         return Mathf.Max(0.1f, totalValue / 10f); // Convert back to legacy scale
@@ -150,12 +173,9 @@ public static class WasteItemConverter
         }
         
         var legacyItems = WasteInventoryManager.Instance.GetAllWaste();
-        var convertedItems = ConvertWasteItemList(legacyItems);
+        Debug.Log($"Inventory conversion complete: {legacyItems.Count} items already in new format");
         
-        Debug.Log($"Inventory conversion complete: {legacyItems.Count} legacy items → {convertedItems.Count} updated items");
-        
-        // You could store the converted items somewhere or trigger an event here
-        // For now, we just log the conversion
+        // Items are already in UpdatedWasteItem format, no conversion needed
     }
     
     /// <summary>
@@ -205,23 +225,17 @@ public static class WasteItemConverter
             isValid = false;
         }
         
-        // Check gameplay properties (allow small floating point differences)
-        if (Mathf.Abs(original.WasteStability - converted.WasteStability) > 0.01f)
+        if (original.Quantity != converted.Quantity)
         {
-            Debug.LogWarning($"Stability mismatch: {original.WasteStability} != {converted.WasteStability}");
+            Debug.LogWarning($"Quantity mismatch: {original.Quantity} != {converted.Quantity}");
             isValid = false;
-        }
-        
-        if (isValid)
-        {
-            Debug.Log($"Conversion validation passed for: {original.Name}");
         }
         
         return isValid;
     }
     
     /// <summary>
-    /// Get conversion statistics for debugging
+    /// Get statistics about a conversion operation
     /// </summary>
     public static ConversionStats GetConversionStats(List<WasteItem> legacyItems)
     {
@@ -231,31 +245,22 @@ public static class WasteItemConverter
         {
             stats.totalItems++;
             
+            // Count by rarity
             switch (item.Rarity)
             {
-                case WasteRarity.Common:
-                    stats.commonItems++;
-                    break;
-                case WasteRarity.Uncommon:
-                    stats.uncommonItems++;
-                    break;
-                case WasteRarity.Rare:
-                    stats.rareItems++;
-                    break;
-                case WasteRarity.Epic:
-                    stats.epicItems++;
-                    break;
-                case WasteRarity.Legendary:
-                    stats.legendaryItems++;
-                    break;
+                case WasteRarity.Common: stats.commonItems++; break;
+                case WasteRarity.Uncommon: stats.uncommonItems++; break;
+                case WasteRarity.Rare: stats.rareItems++; break;
+                case WasteRarity.Epic: stats.epicItems++; break;
+                case WasteRarity.Legendary: stats.legendaryItems++; break;
             }
             
-            // Track dimensional origins
-            if (!stats.dimensionalOrigins.ContainsKey(item.DimensionalOrigin))
-            {
-                stats.dimensionalOrigins[item.DimensionalOrigin] = 0;
-            }
-            stats.dimensionalOrigins[item.DimensionalOrigin]++;
+            // Count by dimensional origin
+            string origin = item.DimensionalOrigin ?? "Unknown";
+            if (stats.dimensionalOrigins.ContainsKey(origin))
+                stats.dimensionalOrigins[origin]++;
+            else
+                stats.dimensionalOrigins[origin] = 1;
         }
         
         return stats;
@@ -263,7 +268,7 @@ public static class WasteItemConverter
 }
 
 /// <summary>
-/// Statistics about waste item conversion
+/// Statistics about a conversion operation
 /// </summary>
 [System.Serializable]
 public class ConversionStats
@@ -279,7 +284,6 @@ public class ConversionStats
     public override string ToString()
     {
         return $"Conversion Stats: {totalItems} total items " +
-               $"(C:{commonItems}, U:{uncommonItems}, R:{rareItems}, E:{epicItems}, L:{legendaryItems}) " +
-               $"from {dimensionalOrigins.Count} dimensional origins";
+               $"(C:{commonItems}, U:{uncommonItems}, R:{rareItems}, E:{epicItems}, L:{legendaryItems})";
     }
 } 

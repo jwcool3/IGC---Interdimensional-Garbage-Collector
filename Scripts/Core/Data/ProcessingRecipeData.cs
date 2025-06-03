@@ -83,9 +83,6 @@ public class ProcessingRecipeData : ScriptableObject
             }
         }
         
-        // Check facility level (would need facility manager integration)
-        // For now, assume facility level is met
-        
         return true;
     }
     
@@ -110,9 +107,8 @@ public class ProcessingRecipeData : ScriptableObject
         {
             foreach (var input in inputResources)
             {
-                var config = NewResourceManager.Instance?.GetResourceConfig(input.type);
-                int baseValue = config?.baseValue ?? 1;
-                totalValue += input.amount * baseValue;
+                // Simple base value calculation
+                totalValue += input.amount;
             }
         }
         
@@ -130,9 +126,7 @@ public class ProcessingRecipeData : ScriptableObject
         {
             foreach (var output in outputResources)
             {
-                var config = NewResourceManager.Instance?.GetResourceConfig(output.type);
-                int baseValue = config?.baseValue ?? 1;
-                totalValue += output.amount * baseValue;
+                totalValue += output.amount;
             }
         }
         
@@ -141,9 +135,7 @@ public class ProcessingRecipeData : ScriptableObject
         {
             foreach (var bonus in bonusOutputs)
             {
-                var config = NewResourceManager.Instance?.GetResourceConfig(bonus.type);
-                int baseValue = config?.baseValue ?? 1;
-                totalValue += Mathf.RoundToInt(bonus.amount * baseValue * bonus.chance);
+                totalValue += Mathf.RoundToInt(bonus.amount * bonus.chance);
             }
         }
         
@@ -225,8 +217,6 @@ public class ProcessingRecipeData : ScriptableObject
         Debug.Log($"Recipe locked: {recipeName}");
     }
     
-    #region Validation
-    
     /// <summary>
     /// Validate this recipe for common issues
     /// </summary>
@@ -279,65 +269,20 @@ public class ProcessingRecipeData : ScriptableObject
             }
         }
         
-        // Check for circular dependencies in prerequisites
-        if (HasCircularDependency())
-        {
-            errorMessage = "Recipe has circular dependency in prerequisites";
-            return false;
-        }
-        
         return true;
     }
-    
-    private bool HasCircularDependency()
-    {
-        return HasCircularDependencyRecursive(this, new System.Collections.Generic.HashSet<ProcessingRecipeData>());
-    }
-    
-    private bool HasCircularDependencyRecursive(ProcessingRecipeData recipe, System.Collections.Generic.HashSet<ProcessingRecipeData> visited)
-    {
-        if (visited.Contains(recipe)) return true;
-        
-        visited.Add(recipe);
-        
-        if (recipe.prerequisiteRecipes != null)
-        {
-            foreach (var prereq in recipe.prerequisiteRecipes)
-            {
-                if (prereq != null && HasCircularDependencyRecursive(prereq, visited))
-                {
-                    return true;
-                }
-            }
-        }
-        
-        visited.Remove(recipe);
-        return false;
-    }
-    
-    #endregion
 }
 
 /// <summary>
-/// Categories for organizing recipes
+/// Processing recipe for runtime use
 /// </summary>
-public enum RecipeCategory
+[System.Serializable]
+public class ProcessingRecipe
 {
-    Basic,          // Simple conversions
-    Fuel,           // Fuel production
-    Food,           // Food production
-    Parts,          // Component crafting
-    Advanced,       // Complex multi-resource recipes
-    Experimental    // High-risk, high-reward recipes
+    public string recipeName;
+    public ResourceAmount[] inputs;
+    public ResourceAmount[] outputs;
+    public float processingTime = 1f;
+    public string requiredFacility;
 }
 
-/// <summary>
-/// Difficulty levels for recipes
-/// </summary>
-public enum RecipeDifficulty
-{
-    Easy,           // Always succeeds, low resource cost
-    Medium,         // High success rate, moderate cost
-    Hard,           // Lower success rate, high cost
-    Expert          // Risky but very rewarding
-} 

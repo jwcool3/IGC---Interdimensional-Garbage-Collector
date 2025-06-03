@@ -17,7 +17,7 @@ public class WasteDisplay : MonoBehaviour
     public GameObject quantityBackground;
 
     // Make currentWaste accessible with a public getter
-    public WasteItem currentWaste { get; private set; }
+    public UpdatedWasteItem currentWaste { get; private set; }
 
     private void Awake()
     {
@@ -38,7 +38,7 @@ public class WasteDisplay : MonoBehaviour
         }
     }
 
-    public void Initialize(WasteItem waste)
+    public void Initialize(UpdatedWasteItem waste)
     {
         if (waste == null)
         {
@@ -64,57 +64,82 @@ public class WasteDisplay : MonoBehaviour
         // Set stability text
         if (stabilityText != null)
         {
-            stabilityText.text = $"Stability: {waste.WasteStability:P2}";
+            stabilityText.text = $"Stability: {waste.DimensionalStability:P0}";
+        }
+
+        // Set quantity text
+        if (quantityText != null)
+        {
+            quantityText.text = waste.Quantity > 1 ? $"x{waste.Quantity}" : "";
+            
+            // Show/hide quantity background based on whether we have multiple items
+            if (quantityBackground != null)
+            {
+                quantityBackground.SetActive(waste.Quantity > 1);
+            }
+        }
+
+        // Set background color based on rarity
+        if (backgroundImage != null)
+        {
+            backgroundImage.color = GetColorForRarity(waste.Rarity);
         }
 
         // Set icon if available
-        if (iconImage != null)
+        if (iconImage != null && waste.Icon != null)
         {
-            if (waste.Icon != null)
-            {
-                iconImage.sprite = waste.Icon;
-                iconImage.enabled = true;
-            }
-            else
-            {
-                iconImage.enabled = false;
-            }
+            iconImage.sprite = waste.Icon;
+            iconImage.gameObject.SetActive(true);
         }
-
-        // Set background color based on dimension type
-        if (backgroundImage != null)
+        else if (iconImage != null)
         {
-            Color color = GetColorForDimension(waste.DimensionalOrigin);
-            backgroundImage.color = color;
+            iconImage.gameObject.SetActive(false);
         }
-
-        // Update quantity display
-        UpdateQuantity(waste.Quantity);
     }
 
-    // Add the missing UpdateQuantity method
-    public void UpdateQuantity(int quantity)
+    public void SetIcon(Sprite icon)
     {
+        if (iconImage != null)
+        {
+            iconImage.sprite = icon;
+            iconImage.gameObject.SetActive(icon != null);
+        }
+    }
+
+    public void UpdateQuantity(int newQuantity)
+    {
+        if (currentWaste != null)
+        {
+            currentWaste.SetQuantity(newQuantity);
+        }
+
         if (quantityText != null)
         {
-            // Only show quantity text for stacks > 1
-            if (quantity > 1)
-            {
-                quantityText.text = $"x{quantity}";
-                quantityText.gameObject.SetActive(true);
+            quantityText.text = newQuantity > 1 ? $"x{newQuantity}" : "";
+        }
 
-                // Show background if it exists
-                if (quantityBackground != null)
-                    quantityBackground.SetActive(true);
-            }
-            else
-            {
-                quantityText.gameObject.SetActive(false);
+        if (quantityBackground != null)
+        {
+            quantityBackground.SetActive(newQuantity > 1);
+        }
+    }
 
-                // Hide background if it exists
-                if (quantityBackground != null)
-                    quantityBackground.SetActive(false);
-            }
+    private Color GetColorForRarity(WasteRarity rarity)
+    {
+        switch (rarity)
+        {
+            case WasteRarity.Common:
+                return new Color(0.8f, 0.8f, 0.8f); // Light gray
+            case WasteRarity.Uncommon:
+                return new Color(0.4f, 0.8f, 0.4f); // Green
+            case WasteRarity.Rare:
+                return new Color(0.4f, 0.4f, 0.8f); // Blue
+            case WasteRarity.Epic:
+                return new Color(0.8f, 0.4f, 0.8f); // Purple
+            case WasteRarity.Legendary:
+                return new Color(0.8f, 0.6f, 0.2f); // Orange/Gold
+            default:
+                return Color.white;
         }
     }
 
@@ -172,15 +197,6 @@ public class WasteDisplay : MonoBehaviour
         if (recycleButton != null)
         {
             recycleButton.onClick.RemoveListener(RecycleWaste);
-        }
-    }
-
-    public void SetIcon(Sprite icon)
-    {
-        if (iconImage != null)
-        {
-            iconImage.sprite = icon;
-            iconImage.enabled = icon != null;
         }
     }
 }

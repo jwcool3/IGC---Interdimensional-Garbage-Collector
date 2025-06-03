@@ -914,18 +914,6 @@ public class ProcessingRequest
 }
 
 /// <summary>
-/// Processing status enumeration
-/// </summary>
-public enum ProcessingStatus
-{
-    Queued,
-    InProgress,
-    Completed,
-    Failed,
-    Cancelled
-}
-
-/// <summary>
 /// Processing statistics data
 /// </summary>
 [System.Serializable]

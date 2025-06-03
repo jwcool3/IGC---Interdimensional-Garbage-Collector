@@ -219,7 +219,7 @@ public class WasteGenerator : MonoBehaviour
 
             // Set additional properties
             wasteItem.Description = itemData.description;
-            wasteItem.WasteStability = RandomizeProperty(itemData.baseStability);
+            wasteItem.DimensionalStability = RandomizeProperty(itemData.baseStability);
             wasteItem.ContaminationLevel = RandomizeProperty(itemData.baseContamination);
             wasteItem.RecyclingPotential = RandomizeProperty(itemData.baseRecyclingPotential);
 
@@ -347,7 +347,7 @@ public class WasteGenerator : MonoBehaviour
 
         // Set additional properties
         wasteItem.Description = GenerateDescription(dimensionName, rarity);
-        wasteItem.WasteStability = 0.5f + ((int)rarity * 0.1f) + UnityEngine.Random.Range(-0.1f, 0.1f);
+        wasteItem.DimensionalStability = 0.5f + ((int)rarity * 0.1f) + UnityEngine.Random.Range(-0.1f, 0.1f);
         wasteItem.ContaminationLevel = 0.5f - ((int)rarity * 0.1f) + UnityEngine.Random.Range(-0.1f, 0.1f);
         wasteItem.RecyclingPotential = 0.3f + ((int)rarity * 0.15f) + UnityEngine.Random.Range(-0.1f, 0.1f);
 
@@ -500,7 +500,7 @@ public class WasteGenerator : MonoBehaviour
 
             // Set properties
             wasteItem.Description = itemData.description;
-            wasteItem.WasteStability = RandomizeProperty(itemData.baseStability);
+            wasteItem.DimensionalStability = RandomizeProperty(itemData.baseStability);
             wasteItem.ContaminationLevel = RandomizeProperty(itemData.baseContamination);
             wasteItem.RecyclingPotential = RandomizeProperty(itemData.baseRecyclingPotential);
 

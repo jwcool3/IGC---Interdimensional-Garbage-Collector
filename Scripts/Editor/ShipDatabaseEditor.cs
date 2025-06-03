@@ -30,7 +30,7 @@ public class ShipDatabaseEditor : EditorWindow
     private void FindShipDatabase()
     {
         // Try to find ShipDatabase in scene
-        targetDatabase = GameObject.FindObjectOfType<ShipDatabase>();
+        targetDatabase = FindObjectOfType<ShipDatabase>();
 
         if (targetDatabase != null)
         {

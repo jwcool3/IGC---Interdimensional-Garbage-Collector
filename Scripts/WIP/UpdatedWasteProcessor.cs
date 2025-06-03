@@ -213,8 +213,8 @@ public class UpdatedWasteProcessor : MonoBehaviour
     private void ApplyProcessingEffects(UpdatedWasteItem wasteItem)
     {
         // Reduce item stability after processing
-        float stabilityLoss = stabilityLossMultiplier * (1f - wasteItem.WasteStability);
-        wasteItem.WasteStability = Mathf.Max(0.1f, wasteItem.WasteStability - stabilityLoss);
+        float stabilityLoss = stabilityLossMultiplier * (1f - wasteItem.DimensionalStability);
+        wasteItem.DimensionalStability = Mathf.Max(0.1f, wasteItem.DimensionalStability - stabilityLoss);
         
         // Add contamination to ship/environment if needed
         if (wasteItem.ContaminationLevel > 0.5f)
@@ -326,7 +326,7 @@ public class UpdatedWasteProcessor : MonoBehaviour
         
         // More complex items take longer to process
         float complexityMultiplier = 1f + ((int)wasteItem.Rarity * 0.2f);
-        float stabilityMultiplier = 2f - wasteItem.WasteStability; // Less stable = takes longer
+        float stabilityMultiplier = 2f - wasteItem.DimensionalStability; // Less stable = takes longer
         
         return baseProcessingTime * complexityMultiplier * stabilityMultiplier;
     }

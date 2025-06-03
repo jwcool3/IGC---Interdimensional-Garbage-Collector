@@ -39,6 +39,12 @@ public class ResourceYield
     [Tooltip("Minimum processing time required (in seconds)")]
     public float minimumProcessingTime = 1f;
     
+    // New properties for enhanced functionality
+    [Header("Enhanced Properties")]
+    public ResourceAmount[] primaryResources = new ResourceAmount[0];
+    public ResourceChance[] secondaryResources = new ResourceChance[0];
+    public float contaminationRisk = 0f;
+    
     /// <summary>
     /// Calculate the actual amount that will be yielded based on current conditions
     /// </summary>
@@ -131,7 +137,10 @@ public class ResourceYield
             minimumQuality = minimumQuality,
             qualityBonus = qualityBonus,
             compatibleProcessingTypes = compatibleProcessingTypes,
-            minimumProcessingTime = minimumProcessingTime
+            minimumProcessingTime = minimumProcessingTime,
+            primaryResources = (ResourceAmount[])primaryResources.Clone(),
+            secondaryResources = (ResourceChance[])secondaryResources.Clone(),
+            contaminationRisk = contaminationRisk
         };
     }
     
@@ -184,6 +193,12 @@ public class ResourceAmount
     public ResourceType type;
     public int amount;
     
+    public ResourceAmount()
+    {
+        type = ResourceType.None;
+        amount = 0;
+    }
+    
     public ResourceAmount(ResourceType resourceType, int resourceAmount)
     {
         type = resourceType;
@@ -200,6 +215,13 @@ public class ResourceChance
     public ResourceType type;
     public int amount;
     public float chance; // 0.0 to 1.0
+    
+    public ResourceChance()
+    {
+        type = ResourceType.None;
+        amount = 0;
+        chance = 0f;
+    }
     
     public ResourceChance(ResourceType resourceType, int resourceAmount, float chancePercentage)
     {

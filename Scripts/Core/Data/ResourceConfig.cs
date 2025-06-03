@@ -1,0 +1,211 @@
+using UnityEngine;
+
+/// <summary>
+/// Configuration data for a resource type
+/// Defines display properties, behavior, and metadata for resources
+/// </summary>
+[System.Serializable]
+public class ResourceConfig
+{
+    [Header("Basic Properties")]
+    public ResourceType resourceType = ResourceType.None;
+    public string displayName = "";
+    [TextArea(2, 4)]
+    public string description = "";
+    
+    [Header("Value and Economy")]
+    public int baseValue = 1;
+    public ResourceCategory category = ResourceCategory.Basic;
+    
+    [Header("Stacking and Storage")]
+    public bool isStackable = true;
+    public int maxStackSize = 1000;
+    
+    [Header("Visual Properties")]
+    public Color displayColor = Color.white;
+    public Sprite icon;
+    
+    [Header("Processing Properties")]
+    public bool canBeProcessed = true;
+    public bool isRenewable = false;
+    public float processingDifficulty = 1f;
+    
+    [Header("Special Properties")]
+    public bool isHazardous = false;
+    public bool requiresSpecialStorage = false;
+    public float decayRate = 0f; // Resources per second lost to decay
+    
+    /// <summary>
+    /// Get the effective value of this resource considering quantity
+    /// </summary>
+    /// <param name="quantity">Quantity of the resource</param>
+    /// <returns>Total value</returns>
+    public int GetTotalValue(int quantity)
+    {
+        return baseValue * quantity;
+    }
+    
+    /// <summary>
+    /// Check if this resource can stack with another
+    /// </summary>
+    /// <param name="other">Other resource config</param>
+    /// <returns>True if they can stack</returns>
+    public bool CanStackWith(ResourceConfig other)
+    {
+        if (other == null) return false;
+        return isStackable && other.isStackable && resourceType == other.resourceType;
+    }
+    
+    /// <summary>
+    /// Get the maximum quantity that can be added to a stack
+    /// </summary>
+    /// <param name="currentQuantity">Current stack quantity</param>
+    /// <returns>Maximum additional quantity</returns>
+    public int GetMaxAddableQuantity(int currentQuantity)
+    {
+        if (!isStackable) return currentQuantity >= 1 ? 0 : 1;
+        return Mathf.Max(0, maxStackSize - currentQuantity);
+    }
+    
+    /// <summary>
+    /// Calculate decay amount for a given time period
+    /// </summary>
+    /// <param name="deltaTime">Time period in seconds</param>
+    /// <param name="currentQuantity">Current quantity</param>
+    /// <returns>Amount lost to decay</returns>
+    public int CalculateDecay(float deltaTime, int currentQuantity)
+    {
+        if (decayRate <= 0f || currentQuantity <= 0) return 0;
+        
+        float decayAmount = decayRate * deltaTime;
+        return Mathf.Min(currentQuantity, Mathf.FloorToInt(decayAmount));
+    }
+    
+    /// <summary>
+    /// Get formatted display text for this resource
+    /// </summary>
+    /// <param name="quantity">Quantity to display</param>
+    /// <param name="showValue">Whether to show value information</param>
+    /// <returns>Formatted display string</returns>
+    public string GetDisplayText(int quantity, bool showValue = false)
+    {
+        string text = $"{displayName}";
+        
+        if (quantity > 1 || !isStackable)
+        {
+            text += $" x{quantity}";
+        }
+        
+        if (showValue && baseValue > 0)
+        {
+            text += $" (Value: {GetTotalValue(quantity)})";
+        }
+        
+        return text;
+    }
+    
+    /// <summary>
+    /// Get a detailed description including special properties
+    /// </summary>
+    /// <returns>Detailed description string</returns>
+    public string GetDetailedDescription()
+    {
+        string details = description;
+        
+        if (isHazardous)
+        {
+            details += "\n⚠️ HAZARDOUS MATERIAL";
+        }
+        
+        if (requiresSpecialStorage)
+        {
+            details += "\n🔒 Requires Special Storage";
+        }
+        
+        if (decayRate > 0f)
+        {
+            details += $"\n⏰ Decays at {decayRate}/sec";
+        }
+        
+        if (!isRenewable)
+        {
+            details += "\n♻️ Non-renewable Resource";
+        }
+        
+        return details;
+    }
+    
+    /// <summary>
+    /// Validate this resource configuration
+    /// </summary>
+    /// <param name="errorMessage">Output error message if validation fails</param>
+    /// <returns>True if valid</returns>
+    public bool Validate(out string errorMessage)
+    {
+        errorMessage = "";
+        
+        if (resourceType == ResourceType.None)
+        {
+            errorMessage = "Resource type cannot be None";
+            return false;
+        }
+        
+        if (string.IsNullOrEmpty(displayName))
+        {
+            errorMessage = "Display name cannot be empty";
+            return false;
+        }
+        
+        if (baseValue < 0)
+        {
+            errorMessage = "Base value cannot be negative";
+            return false;
+        }
+        
+        if (isStackable && maxStackSize <= 0)
+        {
+            errorMessage = "Max stack size must be positive for stackable resources";
+            return false;
+        }
+        
+        if (decayRate < 0f)
+        {
+            errorMessage = "Decay rate cannot be negative";
+            return false;
+        }
+        
+        if (processingDifficulty < 0f)
+        {
+            errorMessage = "Processing difficulty cannot be negative";
+            return false;
+        }
+        
+        return true;
+    }
+    
+    /// <summary>
+    /// Create a copy of this resource configuration
+    /// </summary>
+    /// <returns>New ResourceConfig instance with copied values</returns>
+    public ResourceConfig Clone()
+    {
+        return new ResourceConfig
+        {
+            resourceType = this.resourceType,
+            displayName = this.displayName,
+            description = this.description,
+            baseValue = this.baseValue,
+            category = this.category,
+            isStackable = this.isStackable,
+            maxStackSize = this.maxStackSize,
+            displayColor = this.displayColor,
+            icon = this.icon,
+            canBeProcessed = this.canBeProcessed,
+            isRenewable = this.isRenewable,
+            processingDifficulty = this.processingDifficulty,
+            isHazardous = this.isHazardous,
+            requiresSpecialStorage = this.requiresSpecialStorage,
+            decayRate = this.decayRate
+        };
+    }
+} 

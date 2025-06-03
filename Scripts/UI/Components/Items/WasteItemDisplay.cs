@@ -10,12 +10,12 @@ public class WasteItemDisplay : MonoBehaviour
     [SerializeField] private TextMeshProUGUI nameText;
     [SerializeField] private TextMeshProUGUI quantityText;
     [SerializeField] private TextMeshProUGUI rarityText;
-    [SerializeField] private TextMeshProUGUI dimensionText; // Add this line
+    [SerializeField] private TextMeshProUGUI dimensionText;
     [SerializeField] private Image backgroundImage;
 
-    public WasteItem CurrentItem { get; private set; }
+    public UpdatedWasteItem CurrentItem { get; private set; }
 
-    public void Initialize(WasteItem item)
+    public void Initialize(UpdatedWasteItem item)
     {
         CurrentItem = item;
         UpdateDisplay();
@@ -59,16 +59,33 @@ public class WasteItemDisplay : MonoBehaviour
         if (rarityText != null)
             rarityText.text = CurrentItem.Rarity.ToString();
 
-        // Add this block for dimensional origin
+        // Update dimensional origin
         if (dimensionText != null)
             dimensionText.text = CurrentItem.DimensionalOrigin;
 
         // Update background color based on rarity
         if (backgroundImage != null)
         {
-            Color rarityColor = CurrentItem.GetRarityColor();
-            rarityColor.a = 0.3f; // Make it semi-transparent
-            backgroundImage.color = rarityColor;
+            backgroundImage.color = GetRarityColor(CurrentItem.Rarity);
+        }
+    }
+
+    private Color GetRarityColor(WasteRarity rarity)
+    {
+        switch (rarity)
+        {
+            case WasteRarity.Common:
+                return new Color(0.8f, 0.8f, 0.8f, 0.5f); // Light gray
+            case WasteRarity.Uncommon:
+                return new Color(0.4f, 0.8f, 0.4f, 0.5f); // Green
+            case WasteRarity.Rare:
+                return new Color(0.4f, 0.4f, 0.8f, 0.5f); // Blue
+            case WasteRarity.Epic:
+                return new Color(0.8f, 0.4f, 0.8f, 0.5f); // Purple
+            case WasteRarity.Legendary:
+                return new Color(0.8f, 0.6f, 0.2f, 0.5f); // Orange/Gold
+            default:
+                return new Color(1f, 1f, 1f, 0.5f); // White
         }
     }
 }

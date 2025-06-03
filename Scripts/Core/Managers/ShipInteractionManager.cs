@@ -155,14 +155,14 @@ public class ShipInteractionManager : MonoBehaviour
     private bool PerformTrade(DiscoveredShip ship)
     {
         // Remove required waste items from inventory
-        List<WasteItem> allWaste = WasteInventoryManager.Instance.GetAllItems();
+        List<UpdatedWasteItem> allWaste = WasteInventoryManager.Instance.GetAllItems();
         int wasteRemoved = 0;
         int wasteNeeded = ship.TradeValue;
 
         // Remove waste items until we have enough
         for (int i = allWaste.Count - 1; i >= 0 && wasteRemoved < wasteNeeded; i--)
         {
-            WasteItem item = allWaste[i];
+            UpdatedWasteItem item = allWaste[i];
             int itemQuantity = item.Quantity;
             int toRemove = Mathf.Min(itemQuantity, wasteNeeded - wasteRemoved);
 

@@ -179,7 +179,7 @@ public class UIManager : MonoBehaviour
         }
     }
 
-    private void HandleNewWaste(WasteItem waste)
+    private void HandleNewWaste(UpdatedWasteItem waste)
     {
         if (totalWasteText != null)
         {
@@ -187,7 +187,7 @@ public class UIManager : MonoBehaviour
         }
     }
 
-    private void UpdateWasteCollection(List<WasteItem> wasteItems)
+    private void UpdateWasteCollection(List<UpdatedWasteItem> wasteItems)
     {
         // Clear existing displays
         foreach (var display in activeWasteDisplays)

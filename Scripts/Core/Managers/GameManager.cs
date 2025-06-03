@@ -1,21 +1,22 @@
 using UnityEngine;
 using System.Collections.Generic;
 using System;
+using System.Linq;
 
 public class GameManager : MonoBehaviour
 {
     // Singleton pattern
     public static GameManager Instance { get; private set; }
 
-    // Events for game state changes
-    public event Action<WasteItem> OnWasteCollected;
-    public event Action<List<WasteItem>> OnWasteUpdated;
+    // Events for game state changes - Updated to use UpdatedWasteItem
+    public event Action<UpdatedWasteItem> OnWasteCollected;
+    public event Action<List<UpdatedWasteItem>> OnWasteUpdated;
     public event Action<float> OnContaminationLevelChanged;
     public event Action<float> OnWasteDetailLevelChanged;
 
     // Core game systems
     private WasteGenerator wasteGenerator;
-    private List<WasteItem> collectedWaste;
+    private List<UpdatedWasteItem> collectedWaste;
 
     // Game state
     public int TotalWasteCollected
@@ -57,7 +58,7 @@ public class GameManager : MonoBehaviour
         Debug.Log("Initializing GameManager systems");
 
         // Initialize the waste collection list
-        collectedWaste = new List<WasteItem>();
+        collectedWaste = new List<UpdatedWasteItem>();
 
         // Get or add WasteGenerator component
         wasteGenerator = GetComponent<WasteGenerator>();
@@ -132,13 +133,16 @@ public class GameManager : MonoBehaviour
         // Generate starting waste
         try
         {
-            var initialWaste = wasteGenerator.GenerateMultipleWaste(5);
-            Debug.Log($"Generated {initialWaste.Count} initial waste items");
+            var initialWasteItems = wasteGenerator.GenerateMultipleWaste(5);
+            Debug.Log($"Generated {initialWasteItems.Count} initial waste items");
 
-            foreach (var waste in initialWaste)
+            foreach (var wasteItem in initialWasteItems)
             {
+                // Convert WasteItem to UpdatedWasteItem
+                var updatedWaste = UpdatedWasteItem.FromWasteItem(wasteItem);
+                
                 // Add to inventory
-                WasteInventoryManager.Instance.AddWasteItem(waste);
+                WasteInventoryManager.Instance.AddWasteItem(updatedWaste);
             }
 
             // Notify systems about initial waste
@@ -169,13 +173,16 @@ public class GameManager : MonoBehaviour
 
         try
         {
-            var newWaste = wasteGenerator.GenerateWasteItem();
+            var newWasteItem = wasteGenerator.GenerateWasteItem();
 
-            if (newWaste == null)
+            if (newWasteItem == null)
             {
                 Debug.LogError("Generated waste item is null!");
                 return;
             }
+
+            // Convert WasteItem to UpdatedWasteItem
+            var newWaste = UpdatedWasteItem.FromWasteItem(newWasteItem);
 
             // Add to inventory
             WasteInventoryManager.Instance.AddWasteItem(newWaste);
@@ -200,7 +207,7 @@ public class GameManager : MonoBehaviour
     }
 
     // Update facility contamination based on new waste
-    private void UpdateFacilityContamination(WasteItem waste)
+    private void UpdateFacilityContamination(UpdatedWasteItem waste)
     {
         if (waste == null)
         {
@@ -227,31 +234,31 @@ public class GameManager : MonoBehaviour
     }
 
     // Get current waste collection
-    public List<WasteItem> GetCollectedWaste()
+    public List<UpdatedWasteItem> GetCollectedWaste()
     {
         if (WasteInventoryManager.Instance == null)
         {
             Debug.LogWarning("WasteInventoryManager.Instance is null when getting collected waste");
-            return new List<WasteItem>();
+            return new List<UpdatedWasteItem>();
         }
 
         return WasteInventoryManager.Instance.GetAllWaste();
     }
 
     // Get waste by dimension type
-    public List<WasteItem> GetWasteByDimension(string dimensionType)
+    public List<UpdatedWasteItem> GetWasteByDimension(string dimensionType)
     {
         if (WasteInventoryManager.Instance == null)
         {
             Debug.LogWarning("WasteInventoryManager.Instance is null when getting waste by dimension");
-            return new List<WasteItem>();
+            return new List<UpdatedWasteItem>();
         }
 
         return WasteInventoryManager.Instance.GetWasteByDimension(dimensionType);
     }
 
     // Process waste for recycling
-    public float ProcessWaste(WasteItem waste)
+    public float ProcessWaste(UpdatedWasteItem waste)
     {
         if (waste == null)
         {
@@ -267,14 +274,14 @@ public class GameManager : MonoBehaviour
 
         if (WasteInventoryManager.Instance.HasWasteItem(waste))
         {
-            float recyclingPoints = waste.RecyclingValue;
+            float recyclingPoints = waste.TotalValue; // Use TotalValue instead of RecyclingValue
             WasteInventoryManager.Instance.RemoveWasteItem(waste);
 
             // Add recycling points to resource manager
             ResourceManager.Instance.AddRecyclingPoints(recyclingPoints);
 
             // Add dimensional potential based on stability
-            float potentialGain = waste.WasteStability * 10f;
+            float potentialGain = waste.DimensionalStability * 10f;
             ResourceManager.Instance.AddDimensionalPotential(potentialGain);
 
             // Update waste collection

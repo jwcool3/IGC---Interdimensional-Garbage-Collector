@@ -26,7 +26,7 @@ public class ProbeManager : MonoBehaviour
 
     // Events
     public event Action<Probe> OnProbeDispatched;
-    public event Action<WasteItem> OnWasteCollected;
+    public event Action<UpdatedWasteItem> OnWasteCollected;
     public event Action<int> OnProbeCountChanged;
 
     private void Awake()
@@ -267,11 +267,14 @@ public class ProbeManager : MonoBehaviour
                 {
                     waste.RecyclingValue *= multiplier;
 
+                    // Convert to UpdatedWasteItem for the new inventory system
+                    UpdatedWasteItem updatedWaste = UpdatedWasteItem.FromWasteItem(waste);
+
                     // Add to inventory
                     if (WasteInventoryManager.Instance != null)
                     {
-                        WasteInventoryManager.Instance.AddWasteItem(waste);
-                        OnWasteCollected?.Invoke(waste);
+                        WasteInventoryManager.Instance.AddWasteItem(updatedWaste);
+                        OnWasteCollected?.Invoke(updatedWaste);
                         collectedCount++;
                     }
                     else
