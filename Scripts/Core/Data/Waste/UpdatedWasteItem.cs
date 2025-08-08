@@ -113,6 +113,33 @@ public class UpdatedWasteItem
             return basePotential * Quality;
         }
     }
+
+    // Recycling value for legacy compatibility
+    public float RecyclingValue
+    {
+        get
+        {
+            // Convert the EstimatedValue to a recycling value scale
+            return EstimatedValue * 0.1f; // Scale factor for recycling value
+        }
+    }
+    
+    // Rarity color for UI display
+    public Color RarityColor
+    {
+        get
+        {
+            return Rarity switch
+            {
+                WasteRarity.Common => Color.white,
+                WasteRarity.Uncommon => Color.green,
+                WasteRarity.Rare => Color.blue,
+                WasteRarity.Epic => new Color(0.6f, 0f, 1f), // Purple
+                WasteRarity.Legendary => new Color(1f, 0.5f, 0f), // Orange
+                _ => Color.gray
+            };
+        }
+    }
     
     // Backward compatibility property
     public float WasteStability
@@ -143,6 +170,7 @@ public class UpdatedWasteItem
                             {
                                 resourceType = primary.type,
                                 baseAmount = primary.amount,
+                                yieldMultiplier = 1f,
                                 chancePercentage = 100f
                             };
                         }
@@ -160,6 +188,7 @@ public class UpdatedWasteItem
                             {
                                 resourceType = secondary.type,
                                 baseAmount = secondary.amount,
+                                yieldMultiplier = 1f,
                                 chancePercentage = secondary.chance * 100f
                             };
                         }
@@ -227,12 +256,128 @@ public class UpdatedWasteItem
     /// </summary>
     public UpdatedWasteItem()
     {
-        Id = System.Guid.NewGuid().ToString("N")[..8];
-        Name = "Unknown Waste";
-        Type = WasteType.Unknown;
-        Quantity = 1;
-        TimeAdded = GetSafeTime();
-        resourceYield = new ResourceYield();
+        // Default constructor for Unity serialization
+        Initialize();
+    }
+
+    /// <summary>
+    /// Constructor that creates an UpdatedWasteItem from template data and origin
+    /// </summary>
+    /// <param name="data">Template data for the waste item</param>
+    /// <param name="origin">Origin of this specific waste item</param>
+    public UpdatedWasteItem(UpdatedWasteItemData data, WasteOrigin origin)
+    {
+        if (data == null)
+        {
+            Debug.LogError("Cannot create UpdatedWasteItem with null data");
+            Initialize();
+            return;
+        }
+
+        // Copy basic properties from data using the correct property names
+        this.Name = data.ItemName;
+        this.Description = data.Description;
+        this.Icon = data.IconSprite;
+        this.Type = data.WasteType;
+        this.Rarity = data.DefaultRarity;
+        this.DimensionalOrigin = data.DimensionalOrigin;
+        this.DimensionalStability = data.BaseWasteStability;
+        this.ContaminationLevel = data.BaseContaminationLevel;
+        this.Quantity = 1; // Default quantity
+        this.ProcessingTime = data.BaseProcessingTime;
+        this.Weight = data.BaseWeight;
+        this.IsHazardous = data.IsHazardous;
+        this.RequiresSpecialHandling = data.RequiresSpecialHandling;
+        
+        // Apply origin-specific modifications
+        ApplyOriginModifications(origin);
+        
+        // Generate resource yield from data
+        if (data.BaseRawYields != null && data.BaseRawYields.Count > 0)
+        {
+            this.resourceYield = GenerateResourceYieldFromData(data);
+        }
+        
+        Initialize();
+    }
+    
+    private void ApplyOriginModifications(WasteOrigin origin)
+    {
+        // Modify properties based on waste origin
+        switch (origin)
+        {
+            case WasteOrigin.Industrial:
+                ContaminationLevel *= 1.2f; // Industrial waste is more contaminated
+                DimensionalStability *= 0.9f; // Less stable
+                break;
+            case WasteOrigin.Residential:
+                ContaminationLevel *= 0.8f; // Cleaner
+                DimensionalStability *= 1.1f; // More stable
+                break;
+            case WasteOrigin.Commercial:
+                // No significant modifications for commercial
+                break;
+        }
+    }
+    
+    private ResourceYield CloneResourceYield(ResourceYield original)
+    {
+        if (original == null) return null;
+        
+        return new ResourceYield
+        {
+            primaryResources = original.primaryResources?.Clone() as ResourceAmount[],
+            secondaryResources = original.secondaryResources?.Clone() as ResourceChance[],
+            contaminationRisk = original.contaminationRisk
+        };
+    }
+
+    /// <summary>
+    /// Generate ResourceYield from UpdatedWasteItemData
+    /// </summary>
+    private ResourceYield GenerateResourceYieldFromData(UpdatedWasteItemData data)
+    {
+        if (data?.BaseRawYields == null || data.BaseRawYields.Count == 0)
+        {
+            return new ResourceYield();
+        }
+
+        var primaryResources = new List<ResourceAmount>();
+        var secondaryResources = new List<ResourceChance>();
+
+        foreach (var yieldDef in data.BaseRawYields)
+        {
+            // Calculate average amount from min/max range
+            int averageAmount = (yieldDef.minAmount + yieldDef.maxAmount) / 2;
+            
+            var resourceAmount = new ResourceAmount
+            {
+                type = yieldDef.resourceType,
+                amount = averageAmount
+            };
+
+            if (yieldDef.isGuaranteed || yieldDef.baseChance >= 100f)
+            {
+                primaryResources.Add(resourceAmount);
+            }
+            else
+            {
+                var resourceChance = new ResourceChance
+                {
+                    type = yieldDef.resourceType,
+                    amount = averageAmount,
+                    chance = yieldDef.baseChance / 100f // Convert percentage to 0-1 range
+                };
+                secondaryResources.Add(resourceChance);
+            }
+        }
+
+        return new ResourceYield
+        {
+            primaryResources = primaryResources.ToArray(),
+            secondaryResources = secondaryResources.ToArray(),
+            contaminationRisk = data.BaseContaminationLevel
+        };
     }
     
     /// <summary>
@@ -391,7 +536,7 @@ public class UpdatedWasteItem
         switch (Condition)
         {
             case WasteCondition.Pristine: baseAmount = Mathf.RoundToInt(baseAmount * 1.5f); break;
-            case WasteCondition.Good: baseAmount = baseAmount; break;
+            case WasteCondition.Good: break; // No change needed
             case WasteCondition.Damaged: baseAmount = Mathf.RoundToInt(baseAmount * 0.8f); break;
             case WasteCondition.Deteriorated: baseAmount = Mathf.RoundToInt(baseAmount * 0.6f); break;
             case WasteCondition.Corrupted: baseAmount = Mathf.RoundToInt(baseAmount * 0.4f); break;
@@ -575,6 +720,98 @@ public class UpdatedWasteItem
         };
         
         return clone;
+    }
+
+    /// <summary>
+    /// Convert this UpdatedWasteItem back to legacy WasteItem format
+    /// </summary>
+    /// <returns>WasteItem representation of this item</returns>
+    public WasteItem ToWasteItem()
+    {
+        // Create new WasteItem using constructor
+        var wasteItem = new WasteItem(this.Name, this.DimensionalOrigin, this.Rarity, this.Icon);
+        
+        // Copy additional properties
+        wasteItem.Description = this.Description;
+        
+        // Convert dimensional properties to legacy values
+        wasteItem.RecyclingValue = CalculateLegacyRecyclingValue();
+        wasteItem.RecyclingPotential = CalculateLegacyRecyclingPotential();
+        wasteItem.ContaminationLevel = this.ContaminationLevel;
+        wasteItem.DimensionalStability = this.DimensionalStability;
+        
+        // Copy quantity
+        wasteItem.Quantity = this.Quantity;
+        
+        return wasteItem;
+    }
+    
+    private float CalculateLegacyRecyclingValue()
+    {
+        // Calculate a legacy recycling value based on resource yields
+        float totalValue = 0f;
+        
+        if (resourceYield?.primaryResources != null)
+        {
+            foreach (var resource in resourceYield.primaryResources)
+            {
+                totalValue += resource.amount * 0.1f; // Simple conversion factor
+            }
+        }
+        
+        return totalValue;
+    }
+    
+    private float CalculateLegacyRecyclingPotential()
+    {
+        // Calculate legacy recycling potential
+        float potential = DimensionalStability * 10f; // Convert percentage to legacy scale
+        
+        if (resourceYield?.secondaryResources != null)
+        {
+            foreach (var resource in resourceYield.secondaryResources)
+            {
+                potential += resource.amount * resource.chance * 0.05f;
+            }
+        }
+        
+        return potential;
+    }
+
+    /// <summary>
+    /// Initialize default values for the waste item
+    /// </summary>
+    private void Initialize()
+    {
+        if (string.IsNullOrEmpty(Id))
+        {
+            Id = System.Guid.NewGuid().ToString("N")[..8];
+        }
+        
+        if (string.IsNullOrEmpty(Name))
+        {
+            Name = "Unknown Waste";
+        }
+        
+        if (Type == WasteType.None)
+        {
+            Type = WasteType.Unknown;
+        }
+        
+        if (Quantity <= 0)
+        {
+            Quantity = 1;
+        }
+        
+        if (TimeAdded == default)
+        {
+            TimeAdded = GetSafeTime();
+        }
+        
+        if (resourceYield == null)
+        {
+            resourceYield = new ResourceYield();
+        }
     }
     
     /// <summary>

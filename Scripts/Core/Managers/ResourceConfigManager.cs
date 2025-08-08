@@ -164,6 +164,60 @@ public class ResourceConfigManager : MonoBehaviour
     {
         return configLookup.Values.Where(config => config.category == category).ToArray();
     }
+
+    /// <summary>
+    /// Check if a resource configuration exists for the given type
+    /// </summary>
+    /// <param name="resourceType">Resource type to check</param>
+    /// <returns>True if configuration exists</returns>
+    public bool HasResourceConfig(ResourceType resourceType)
+    {
+        return configLookup.ContainsKey(resourceType);
+    }
+
+    /// <summary>
+    /// Get all available processing recipes
+    /// </summary>
+    /// <returns>List of all processing recipes</returns>
+    public List<ProcessingRecipeData> GetAllProcessingRecipes()
+    {
+        return recipeLookup.Values.ToList();
+    }
+
+    /// <summary>
+    /// Get processing recipe by name
+    /// </summary>
+    /// <param name="recipeName">Name of the recipe</param>
+    /// <returns>Processing recipe or null if not found</returns>
+    public ProcessingRecipeData GetProcessingRecipe(string recipeName)
+    {
+        return recipeLookup.TryGetValue(recipeName, out ProcessingRecipeData recipe) ? recipe : null;
+    }
+
+    /// <summary>
+    /// Get available recipes that can be used
+    /// </summary>
+    /// <returns>List of available recipes</returns>
+    public List<ProcessingRecipeData> GetAvailableRecipes()
+    {
+        return new List<ProcessingRecipeData>(availableRecipes);
+    }
+
+    /// <summary>
+    /// Get configuration statistics
+    /// </summary>
+    /// <returns>Configuration stats structure</returns>
+    public ConfigurationStats GetConfigurationStats()
+    {
+        return new ConfigurationStats
+        {
+            isLoaded = configLookup.Count > 0 || recipeLookup.Count > 0,
+            totalResourceConfigs = configLookup.Count,
+            totalRecipes = recipeLookup.Count,
+            availableRecipes = availableRecipes.Count,
+            lastLoadTime = Time.time
+        };
+    }
     
     /// <summary>
     /// Get resource display name
@@ -275,4 +329,17 @@ public class ResourceConfigManager : MonoBehaviour
     }
     
     #endregion
+}
+
+/// <summary>
+/// Configuration statistics structure
+/// </summary>
+[System.Serializable]
+public struct ConfigurationStats
+{
+    public bool isLoaded;
+    public int totalResourceConfigs;
+    public int totalRecipes;
+    public int availableRecipes;
+    public float lastLoadTime;
 }

@@ -69,29 +69,29 @@ public class ResourceDisplayUI : MonoBehaviour
     
     private void SubscribeToEvents()
     {
-        if (NewResourceManager.Instance != null)
+        if (ResourceManager.Instance != null)
         {
-            NewResourceManager.Instance.OnResourceChanged += OnResourceChanged;
-            NewResourceManager.Instance.OnResourceInventoryChanged += RefreshAllDisplays;
+            ResourceManager.Instance.OnResourceChanged += OnResourceChanged;
+            ResourceManager.Instance.OnResourcesUpdated += RefreshAllDisplays;
         }
         else
         {
-            Debug.LogWarning("NewResourceManager.Instance not found! UI will not update automatically.");
+            Debug.LogWarning("ResourceManager.Instance not found! UI will not update automatically.");
         }
     }
     
     private void OnDestroy()
     {
-        if (NewResourceManager.Instance != null)
+        if (ResourceManager.Instance != null)
         {
-            NewResourceManager.Instance.OnResourceChanged -= OnResourceChanged;
-            NewResourceManager.Instance.OnResourceInventoryChanged -= RefreshAllDisplays;
+            ResourceManager.Instance.OnResourceChanged -= OnResourceChanged;
+            ResourceManager.Instance.OnResourcesUpdated -= RefreshAllDisplays;
         }
     }
     
     #region Event Handlers
     
-    private void OnResourceChanged(ResourceType type, int newAmount)
+    private void OnResourceChanged(ResourceType type, int oldAmount, int newAmount)
     {
         UpdateResourceDisplay(type, newAmount);
     }
@@ -131,13 +131,13 @@ public class ResourceDisplayUI : MonoBehaviour
     
     private void RefreshAllDisplays()
     {
-        if (NewResourceManager.Instance == null) return;
+        if (ResourceManager.Instance == null) return;
         
         // Clear existing displays
         ClearAllDisplays();
         
         // Get all non-zero resources
-        var resources = NewResourceManager.Instance.GetAllNonZeroResources();
+        var resources = ResourceManager.Instance.GetAllNonZeroResources();
         
         // Filter resources based on toggles
         var filteredResources = FilterResources(resources);
@@ -188,7 +188,7 @@ public class ResourceDisplayUI : MonoBehaviour
         
         if (display != null)
         {
-            var config = NewResourceManager.Instance.GetResourceConfig(type);
+            var config = ResourceManager.Instance.GetResourceConfig(type);
             display.Initialize(type, amount, config);
             activeDisplays[type] = display;
             
@@ -234,7 +234,7 @@ public class ResourceDisplayUI : MonoBehaviour
     
     private bool ShouldShowResource(ResourceType type)
     {
-        var config = NewResourceManager.Instance?.GetResourceConfig(type);
+        var config = ResourceManager.Instance?.GetResourceConfig(type);
         bool isProcessed = config?.isProcessedResource ?? IsProcessedResource(type);
         
         if (isProcessed && !showProcessedResources) return false;
@@ -274,8 +274,8 @@ public class ResourceDisplayUI : MonoBehaviour
                 
             case 3: // By Value
                 sorted.Sort((a, b) => {
-                    var configA = NewResourceManager.Instance?.GetResourceConfig(a.Key);
-                    var configB = NewResourceManager.Instance?.GetResourceConfig(b.Key);
+                    var configA = ResourceManager.Instance?.GetResourceConfig(a.Key);
+                    var configB = ResourceManager.Instance?.GetResourceConfig(b.Key);
                     int valueA = (configA?.baseValue ?? 1) * a.Value;
                     int valueB = (configB?.baseValue ?? 1) * b.Value;
                     return valueB.CompareTo(valueA);
@@ -395,9 +395,9 @@ public class ResourceItemDisplay : MonoBehaviour
         }
         
         // Update storage info
-        if (NewResourceManager.Instance != null)
+        if (ResourceManager.Instance != null)
         {
-            int storageLimit = NewResourceManager.Instance.GetStorageLimit(currentType);
+            int storageLimit = ResourceManager.Instance.GetStorageLimit(currentType);
             
             if (storageText != null)
             {

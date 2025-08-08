@@ -31,9 +31,9 @@ public class ResourceManagerBridge : MonoBehaviour
     public event Action OnResourcesChanged;
     
     // Combat resources (delegate to new system)
-    public int ShipParts => NewResourceManager.Instance?.GetResourceAmount(ResourceType.Parts) ?? 0;
-    public int AlienTech => NewResourceManager.Instance?.GetResourceAmount(ResourceType.CrystalFragments) ?? 0;
-    public int CombatData => NewResourceManager.Instance?.GetResourceAmount(ResourceType.NeuralResidue) ?? 0;
+    public int ShipParts => ResourceManager.Instance?.GetResourceAmount(ResourceType.ShipParts) ?? 0;
+    public int AlienTech => ResourceManager.Instance?.GetResourceAmount(ResourceType.AlienTech) ?? 0;
+    public int CombatData => ResourceManager.Instance?.GetResourceAmount(ResourceType.CombatData) ?? 0;
     
     private void Awake()
     {
@@ -51,10 +51,10 @@ public class ResourceManagerBridge : MonoBehaviour
     
     private void SubscribeToNewResourceEvents()
     {
-        if (NewResourceManager.Instance != null)
+        if (ResourceManager.Instance != null)
         {
-            NewResourceManager.Instance.OnResourceChanged += OnNewResourceChanged;
-            NewResourceManager.Instance.OnResourceInventoryChanged += OnNewInventoryChanged;
+            ResourceManager.Instance.OnResourceChanged += OnNewResourceChanged;
+            ResourceManager.Instance.OnResourceInventoryChanged += OnNewInventoryChanged;
         }
     }
     
@@ -98,13 +98,13 @@ public class ResourceManagerBridge : MonoBehaviour
     /// </summary>
     public void AddRecyclingPoints(float amount)
     {
-        if (NewResourceManager.Instance == null) return;
+        if (ResourceManager.Instance == null) return;
         
         // Convert RP to plastic resources
         int plasticAmount = Mathf.RoundToInt(amount / rpToPlasticRatio);
         if (plasticAmount > 0)
         {
-            NewResourceManager.Instance.AddResource(ResourceType.Plastic, plasticAmount);
+            ResourceManager.Instance.AddResource(ResourceType.Plastic, plasticAmount);
         }
         
         Debug.Log($"Legacy: Added {amount} RP → {plasticAmount} Plastic");
@@ -115,15 +115,15 @@ public class ResourceManagerBridge : MonoBehaviour
     /// </summary>
     public bool SpendRecyclingPoints(float amount)
     {
-        if (NewResourceManager.Instance == null) return false;
+        if (ResourceManager.Instance == null) return false;
         
         // Calculate how much plastic we need
         int plasticNeeded = Mathf.CeilToInt(amount / rpToPlasticRatio);
         
         // Try to spend plastic first, then other basic resources
-        if (NewResourceManager.Instance.GetResourceAmount(ResourceType.Plastic) >= plasticNeeded)
+        if (ResourceManager.Instance.GetResourceAmount(ResourceType.Plastic) >= plasticNeeded)
         {
-            return NewResourceManager.Instance.SpendResource(ResourceType.Plastic, plasticNeeded);
+            return ResourceManager.Instance.SpendResource(ResourceType.Plastic, plasticNeeded);
         }
         
         // Fallback: spend equivalent value in other resources
@@ -135,13 +135,13 @@ public class ResourceManagerBridge : MonoBehaviour
     /// </summary>
     public void AddDimensionalPotential(float amount)
     {
-        if (NewResourceManager.Instance == null) return;
+        if (ResourceManager.Instance == null) return;
         
         // Convert DP to crystal fragments
         int crystalAmount = Mathf.RoundToInt(amount / dpToCrystalRatio);
         if (crystalAmount > 0)
         {
-            NewResourceManager.Instance.AddResource(ResourceType.CrystalFragments, crystalAmount);
+            ResourceManager.Instance.AddResource(ResourceType.CrystalFragments, crystalAmount);
         }
         
         Debug.Log($"Legacy: Added {amount} DP → {crystalAmount} Crystal Fragments");
@@ -152,12 +152,12 @@ public class ResourceManagerBridge : MonoBehaviour
     /// </summary>
     public bool SpendDimensionalPotential(float amount)
     {
-        if (NewResourceManager.Instance == null) return false;
+        if (ResourceManager.Instance == null) return false;
         
         // Calculate how many crystals we need
         int crystalsNeeded = Mathf.CeilToInt(amount / dpToCrystalRatio);
         
-        return NewResourceManager.Instance.SpendResource(ResourceType.CrystalFragments, crystalsNeeded);
+        return ResourceManager.Instance.SpendResource(ResourceType.CrystalFragments, crystalsNeeded);
     }
     
     /// <summary>
@@ -165,7 +165,7 @@ public class ResourceManagerBridge : MonoBehaviour
     /// </summary>
     public void ProcessWasteItem(WasteItem item)
     {
-        if (item == null || NewResourceManager.Instance == null) return;
+        if (item == null || ResourceManager.Instance == null) return;
         
         // Convert old WasteItem to UpdatedWasteItem
         var updatedItem = WasteItemConverter.ConvertToUpdatedWasteItem(item);
@@ -202,32 +202,32 @@ public class ResourceManagerBridge : MonoBehaviour
     /// </summary>
     public void AddShipParts(int amount)
     {
-        NewResourceManager.Instance?.AddResource(ResourceType.Parts, amount);
+        ResourceManager.Instance?.AddResource(ResourceType.ShipParts, amount);
     }
     
     public void AddAlienTech(int amount)
     {
-        NewResourceManager.Instance?.AddResource(ResourceType.CrystalFragments, amount);
+        ResourceManager.Instance?.AddResource(ResourceType.AlienTech, amount);
     }
     
     public void AddCombatData(int amount)
     {
-        NewResourceManager.Instance?.AddResource(ResourceType.NeuralResidue, amount);
+        ResourceManager.Instance?.AddResource(ResourceType.CombatData, amount);
     }
     
     public bool SpendShipParts(int amount)
     {
-        return NewResourceManager.Instance?.SpendResource(ResourceType.Parts, amount) ?? false;
+        return ResourceManager.Instance?.SpendResource(ResourceType.ShipParts, amount) ?? false;
     }
     
     public bool SpendAlienTech(int amount)
     {
-        return NewResourceManager.Instance?.SpendResource(ResourceType.CrystalFragments, amount) ?? false;
+        return ResourceManager.Instance?.SpendResource(ResourceType.AlienTech, amount) ?? false;
     }
     
     public bool SpendCombatData(int amount)
     {
-        return NewResourceManager.Instance?.SpendResource(ResourceType.NeuralResidue, amount) ?? false;
+        return ResourceManager.Instance?.SpendResource(ResourceType.CombatData, amount) ?? false;
     }
     
     #endregion
@@ -236,25 +236,25 @@ public class ResourceManagerBridge : MonoBehaviour
     
     private float GetLegacyRecyclingPoints()
     {
-        if (NewResourceManager.Instance == null) return 0f;
+        if (ResourceManager.Instance == null) return 0f;
         
         // Convert current resources back to legacy RP for UI compatibility
         float totalRP = 0f;
-        totalRP += NewResourceManager.Instance.GetResourceAmount(ResourceType.Plastic) * plasticToRpRatio;
-        totalRP += NewResourceManager.Instance.GetResourceAmount(ResourceType.MetalScraps) * metalToRpRatio;
-        totalRP += NewResourceManager.Instance.GetResourceAmount(ResourceType.OrganicMatter) * plasticToRpRatio;
+        totalRP += ResourceManager.Instance.GetResourceAmount(ResourceType.Plastic) * plasticToRpRatio;
+        totalRP += ResourceManager.Instance.GetResourceAmount(ResourceType.MetalScraps) * metalToRpRatio;
+        totalRP += ResourceManager.Instance.GetResourceAmount(ResourceType.OrganicMatter) * plasticToRpRatio;
         
         return totalRP;
     }
     
     private float GetLegacyDimensionalPotential()
     {
-        if (NewResourceManager.Instance == null) return 0f;
+        if (ResourceManager.Instance == null) return 0f;
         
         // Convert crystal fragments and neural residue to legacy DP
         float totalDP = 0f;
-        totalDP += NewResourceManager.Instance.GetResourceAmount(ResourceType.CrystalFragments) * crystalToDpRatio;
-        totalDP += NewResourceManager.Instance.GetResourceAmount(ResourceType.NeuralResidue) * crystalToDpRatio;
+        totalDP += ResourceManager.Instance.GetResourceAmount(ResourceType.CrystalFragments) * crystalToDpRatio;
+        totalDP += ResourceManager.Instance.GetResourceAmount(ResourceType.NeuralResidue) * crystalToDpRatio;
         
         return totalDP;
     }
@@ -265,11 +265,11 @@ public class ResourceManagerBridge : MonoBehaviour
         float remainingValue = rpAmount;
         
         // Try metal scraps (worth more RP)
-        int metalAvailable = NewResourceManager.Instance.GetResourceAmount(ResourceType.MetalScraps);
+        int metalAvailable = ResourceManager.Instance.GetResourceAmount(ResourceType.MetalScraps);
         int metalToSpend = Mathf.Min(metalAvailable, Mathf.FloorToInt(remainingValue / metalToRpRatio));
         if (metalToSpend > 0)
         {
-            NewResourceManager.Instance.SpendResource(ResourceType.MetalScraps, metalToSpend);
+            ResourceManager.Instance.SpendResource(ResourceType.MetalScraps, metalToSpend);
             remainingValue -= metalToSpend * metalToRpRatio;
         }
         
@@ -277,10 +277,10 @@ public class ResourceManagerBridge : MonoBehaviour
         if (remainingValue > 0)
         {
             int organicNeeded = Mathf.CeilToInt(remainingValue / plasticToRpRatio);
-            int organicAvailable = NewResourceManager.Instance.GetResourceAmount(ResourceType.OrganicMatter);
+            int organicAvailable = ResourceManager.Instance.GetResourceAmount(ResourceType.OrganicMatter);
             if (organicAvailable >= organicNeeded)
             {
-                NewResourceManager.Instance.SpendResource(ResourceType.OrganicMatter, organicNeeded);
+                ResourceManager.Instance.SpendResource(ResourceType.OrganicMatter, organicNeeded);
                 remainingValue = 0;
             }
         }
@@ -313,11 +313,11 @@ public class ResourceManagerBridge : MonoBehaviour
     {
         // Convert to plastic resources
         int targetPlastic = Mathf.RoundToInt(value / rpToPlasticRatio);
-        int currentPlastic = NewResourceManager.Instance?.GetResourceAmount(ResourceType.Plastic) ?? 0;
+        int currentPlastic = ResourceManager.Instance?.GetResourceAmount(ResourceType.Plastic) ?? 0;
         
         if (targetPlastic > currentPlastic)
         {
-            NewResourceManager.Instance?.AddResource(ResourceType.Plastic, targetPlastic - currentPlastic);
+            ResourceManager.Instance?.AddResource(ResourceType.Plastic, targetPlastic - currentPlastic);
         }
     }
     
@@ -325,11 +325,11 @@ public class ResourceManagerBridge : MonoBehaviour
     {
         // Convert to crystal fragments
         int targetCrystals = Mathf.RoundToInt(value / dpToCrystalRatio);
-        int currentCrystals = NewResourceManager.Instance?.GetResourceAmount(ResourceType.CrystalFragments) ?? 0;
+        int currentCrystals = ResourceManager.Instance?.GetResourceAmount(ResourceType.CrystalFragments) ?? 0;
         
         if (targetCrystals > currentCrystals)
         {
-            NewResourceManager.Instance?.AddResource(ResourceType.CrystalFragments, targetCrystals - currentCrystals);
+            ResourceManager.Instance?.AddResource(ResourceType.CrystalFragments, targetCrystals - currentCrystals);
         }
     }
     

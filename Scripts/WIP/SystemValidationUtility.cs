@@ -48,11 +48,10 @@ public static class SystemValidationUtility
         
         try
         {
-            // Check if new resource manager exists
-            var newManager = NewResourceManager.Instance;
+            var newManager = ResourceManager.Instance;
             if (newManager == null)
             {
-                issues.Add("NewResourceManager instance not found");
+                issues.Add("ResourceManager instance not found");
                 result.status = ValidationStatus.Critical;
                 result.issues = issues;
                 return result;
@@ -505,15 +504,35 @@ public static class SystemValidationUtility
         if (recipe != null)
         {
             // Check if any output of this recipe is used as input in other recipes
-            foreach (var output in recipe.guaranteedOutputs.Concat(recipe.possibleOutputs))
+            // Handle guaranteed outputs (ResourceAmount[])
+            if (recipe.guaranteedOutputs != null)
             {
-                var dependentRecipes = allRecipes.Where(r => 
-                    r.requiredInputs.Any(input => input.resourceType == output.resourceType));
-                
-                foreach (var dependentRecipe in dependentRecipes)
+                foreach (var output in recipe.guaranteedOutputs)
                 {
-                    if (HasCircularDependencyRecursive(dependentRecipe.recipeName, allRecipes, visited, recursionStack))
-                        return true;
+                    var dependentRecipes = allRecipes.Where(r => 
+                        r.requiredInputs.Any(input => input.type == output.type));
+                    
+                    foreach (var dependentRecipe in dependentRecipes)
+                    {
+                        if (HasCircularDependencyRecursive(dependentRecipe.recipeName, allRecipes, visited, recursionStack))
+                            return true;
+                    }
+                }
+            }
+            
+            // Handle possible outputs (ResourceChance[])
+            if (recipe.possibleOutputs != null)
+            {
+                foreach (var output in recipe.possibleOutputs)
+                {
+                    var dependentRecipes = allRecipes.Where(r => 
+                        r.requiredInputs.Any(input => input.type == output.type));
+                    
+                    foreach (var dependentRecipe in dependentRecipes)
+                    {
+                        if (HasCircularDependencyRecursive(dependentRecipe.recipeName, allRecipes, visited, recursionStack))
+                            return true;
+                    }
                 }
             }
         }
@@ -531,14 +550,31 @@ public static class SystemValidationUtility
         {
             if (recipe == null) continue;
             
-            foreach (var output in recipe.guaranteedOutputs.Concat(recipe.possibleOutputs))
+            // Handle guaranteed outputs (ResourceAmount[])
+            if (recipe.guaranteedOutputs != null)
             {
-                producedResources.Add(output.resourceType);
+                foreach (var output in recipe.guaranteedOutputs)
+                {
+                    producedResources.Add(output.type);
+                }
             }
             
-            foreach (var input in recipe.requiredInputs)
+            // Handle possible outputs (ResourceChance[])
+            if (recipe.possibleOutputs != null)
             {
-                consumedResources.Add(input.resourceType);
+                foreach (var output in recipe.possibleOutputs)
+                {
+                    producedResources.Add(output.type);
+                }
+            }
+            
+            // Handle inputs
+            if (recipe.requiredInputs != null)
+            {
+                foreach (var input in recipe.requiredInputs)
+                {
+                    consumedResources.Add(input.type);
+                }
             }
         }
         

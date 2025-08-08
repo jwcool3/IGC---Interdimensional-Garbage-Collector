@@ -49,10 +49,10 @@ public static class ResourceSystemSetup
     
     private static void SetupCoreManagers(GameObject parent)
     {
-        // New Resource Manager
-        GameObject resourceManagerGO = new GameObject("NewResourceManager");
+        // Resource Manager
+        GameObject resourceManagerGO = new GameObject("ResourceManager");
         resourceManagerGO.transform.SetParent(parent.transform);
-        resourceManagerGO.AddComponent<NewResourceManager>();
+        resourceManagerGO.AddComponent<ResourceManager>();
         
         // Resource Config Manager
         GameObject configManagerGO = new GameObject("ResourceConfigManager");
@@ -147,7 +147,7 @@ public static class ResourceSystemSetup
         config.resourceType = type;
         config.displayName = name;
         config.description = description;
-        config.baseValue = GetDefaultBaseValue(type);
+        config.baseValue = Mathf.RoundToInt(GetDefaultBaseValue(type));
         config.rarity = GetDefaultRarity(type);
         config.category = GetDefaultCategory(type);
         config.isStackable = true;
@@ -225,8 +225,10 @@ public static class ResourceSystemSetup
         recipe.description = $"Processes {string.Join(", ", System.Array.ConvertAll(inputs, i => i.type.ToString()))}";
         recipe.processingTime = processingTime;
         recipe.processingType = type;
-        recipe.requiredInputs = new List<ResourceAmount>(inputs);
-        recipe.guaranteedOutputs = new List<ResourceAmount>(outputs);
+        recipe.inputResources = inputs; // Set main input property
+        recipe.outputResources = outputs; // Set main output property
+        recipe.requiredInputs = inputs; // Direct assignment since inputs is already ResourceAmount[]
+        recipe.guaranteedOutputs = outputs; // Direct assignment since outputs is already ResourceAmount[]
         recipe.isEnabled = true;
         recipe.requiredFacilityLevel = 1;
         
@@ -330,9 +332,9 @@ public static class ResourceSystemSetup
         }
         
         // Check for core managers
-        if (NewResourceManager.Instance == null)
+        if (ResourceManager.Instance == null)
         {
-            recommendations.Add("Add NewResourceManager to scene");
+            recommendations.Add("Add ResourceManager to scene");
         }
         
         if (ResourceConfigManager.Instance == null)

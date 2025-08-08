@@ -16,6 +16,7 @@ public class ProcessingRecipeData : ScriptableObject
     
     [Header("Processing Requirements")]
     public string requiredFacility = "Basic Processor";
+    public ProcessingType processingType = ProcessingType.Recycling;
     [Range(0.1f, 60f)]
     public float processingTime = 2f;
     [Range(0f, 1f)]
@@ -23,9 +24,11 @@ public class ProcessingRecipeData : ScriptableObject
     
     [Header("Resource Inputs")]
     public ResourceAmount[] inputResources;
+    public ResourceAmount[] requiredInputs; // Alias for compatibility
     
     [Header("Resource Outputs")]
     public ResourceAmount[] outputResources;
+    public ResourceAmount[] guaranteedOutputs; // Alias for compatibility
     
     [Header("Bonus Outputs (Chance-based)")]
     public ResourceChance[] bonusOutputs;
@@ -34,6 +37,7 @@ public class ProcessingRecipeData : ScriptableObject
     public RecipeCategory category = RecipeCategory.Basic;
     public RecipeDifficulty difficulty = RecipeDifficulty.Easy;
     public bool isUnlocked = true;
+    public bool isEnabled = true; // Whether this recipe is currently enabled
     public bool requiresResearch = false;
     
     [Header("Unlock Requirements")]
@@ -41,6 +45,7 @@ public class ProcessingRecipeData : ScriptableObject
     public ProcessingRecipeData[] prerequisiteRecipes;
     [Tooltip("Minimum facility level required")]
     public int minimumFacilityLevel = 1;
+    public int requiredFacilityLevel = 1; // Alias for compatibility
     
     [Header("Visual Effects")]
     public Color processingEffectColor = Color.white;
@@ -91,9 +96,9 @@ public class ProcessingRecipeData : ScriptableObject
     /// </summary>
     public bool CanAfford()
     {
-        if (NewResourceManager.Instance == null) return false;
+        if (ResourceManager.Instance == null) return false;
         
-        return NewResourceManager.Instance.CanAffordRecipe(inputResources);
+        return ResourceManager.Instance.CanAffordRecipe(inputResources);
     }
     
     /// <summary>
@@ -271,6 +276,44 @@ public class ProcessingRecipeData : ScriptableObject
         
         return true;
     }
+
+    /// <summary>
+    /// Validate this recipe and return a validation result object (for SystemValidationUtility)
+    /// </summary>
+    public RecipeValidationResult ValidateRecipe()
+    {
+        string errorMessage;
+        bool isValid = ValidateRecipe(out errorMessage);
+        
+        return new RecipeValidationResult
+        {
+            isValid = isValid,
+            errorMessage = errorMessage
+        };
+    }
+    
+    /// <summary>
+    /// Validate that all requirements are met to process this recipe
+    /// </summary>
+    public bool IsValid()
+    {
+        return inputResources != null && inputResources.Length > 0 &&
+               outputResources != null && outputResources.Length > 0 &&
+               processingTime > 0f &&
+               !string.IsNullOrEmpty(recipeName);
+    }
+    
+    /// <summary>
+    /// Property getters for compatibility
+    /// </summary>
+    public ResourceAmount[] RequiredInputs => requiredInputs ?? inputResources;
+    public ResourceAmount[] GuaranteedOutputs => guaranteedOutputs ?? outputResources;
+    public int RequiredFacilityLevel => requiredFacilityLevel > 0 ? requiredFacilityLevel : minimumFacilityLevel;
+    
+    /// <summary>
+    /// Alias for bonusOutputs for compatibility with SystemValidationUtility
+    /// </summary>
+    public ResourceChance[] possibleOutputs => bonusOutputs;
 }
 
 /// <summary>
@@ -284,5 +327,15 @@ public class ProcessingRecipe
     public ResourceAmount[] outputs;
     public float processingTime = 1f;
     public string requiredFacility;
+}
+
+/// <summary>
+/// Recipe validation result for SystemValidationUtility
+/// </summary>
+[System.Serializable]
+public class RecipeValidationResult
+{
+    public bool isValid;
+    public string errorMessage;
 }
 

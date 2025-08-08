@@ -153,8 +153,9 @@ public class WasteDisplay : MonoBehaviour
 
         Debug.Log($"Recycling {currentWaste.Name}");
 
-        // Use the processing method
-        ResourceManager.Instance.ProcessWasteItem(currentWaste);
+        // Convert to WasteItem for processing
+        WasteItem wasteItem = currentWaste.ToWasteItem();
+        ResourceManager.Instance.ProcessWasteItem(wasteItem);
 
         // Remove from inventory
         if (WasteInventoryManager.Instance != null)

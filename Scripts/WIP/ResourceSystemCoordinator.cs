@@ -21,7 +21,7 @@ public class ResourceSystemCoordinator : MonoBehaviour
     [SerializeField] private bool isSystemHealthy = false;
     
     // Component references
-    private NewResourceManager newResourceManager;
+    private ResourceManager resourceManager;
     private ResourceManagerBridge bridge;
     private ResourceConfigManager configManager;
     
@@ -86,14 +86,14 @@ public class ResourceSystemCoordinator : MonoBehaviour
     
     private IEnumerator InitializeResourceManager()
     {
-        newResourceManager = NewResourceManager.Instance;
-        if (newResourceManager == null)
+        resourceManager = ResourceManager.Instance;
+        if (resourceManager == null)
         {
-            Debug.LogWarning("NewResourceManager not found in scene");
+            Debug.LogWarning("ResourceManager not found in scene");
         }
         else
         {
-            Debug.Log("Found NewResourceManager instance");
+            Debug.Log("Found ResourceManager instance");
         }
         yield return null;
     }
@@ -157,7 +157,7 @@ public class ResourceSystemCoordinator : MonoBehaviour
         try
         {
             // Check critical components
-            if (newResourceManager == null || configManager == null)
+            if (resourceManager == null || configManager == null)
             {
                 Debug.LogWarning("Critical components missing");
                 return false;
@@ -202,7 +202,7 @@ public class ResourceSystemCoordinator : MonoBehaviour
             status = currentStatus,
             isHealthy = isSystemHealthy,
             initializationProgress = initializationProgress,
-            hasNewResourceManager = newResourceManager != null,
+            hasResourceManager = resourceManager != null,
             hasConfigManager = configManager != null,
             hasBridge = bridge != null
         };
@@ -250,7 +250,7 @@ public class SimpleSystemStatus
     public SystemStatus status;
     public bool isHealthy;
     public float initializationProgress;
-    public bool hasNewResourceManager;
+    public bool hasResourceManager;
     public bool hasConfigManager;
     public bool hasBridge;
     
@@ -259,6 +259,6 @@ public class SimpleSystemStatus
         return $"System Status: {status}\n" +
                $"Healthy: {isHealthy}\n" +
                $"Progress: {initializationProgress:P1}\n" +
-               $"Components: NRM({hasNewResourceManager}) CFG({hasConfigManager}) BRG({hasBridge})";
+               $"Components: RM({hasResourceManager}) CFG({hasConfigManager}) BRG({hasBridge})";
     }
 }

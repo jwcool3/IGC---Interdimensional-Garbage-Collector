@@ -34,7 +34,6 @@ public class WasteResourcePreview : MonoBehaviour
     
     // Component references
     private WasteResourceMapping resourceMapping;
-    private ResourceYieldCalculator yieldCalculator;
     private ResourceConfigManager configManager;
     
     // Current state
@@ -56,8 +55,7 @@ public class WasteResourcePreview : MonoBehaviour
     private void Start()
     {
         // Find required components
-        resourceMapping = FindObjectOfType<WasteResourceMapping>();
-        yieldCalculator = FindObjectOfType<ResourceYieldCalculator>();
+        resourceMapping = FindAnyObjectByType<WasteResourceMapping>();
         configManager = ResourceConfigManager.Instance;
         
         if (efficiencySlider != null)
@@ -186,18 +184,14 @@ public class WasteResourcePreview : MonoBehaviour
         };
         
         // Calculate with current efficiency
-        if (yieldCalculator != null)
-        {
-            var finalYield = yieldCalculator.CalculateFinalYield(
-                currentWasteItem, 
-                currentWasteItem.Quantity, 
-                currentEfficiency
-            );
+        var updatedWasteItem = UpdatedWasteItem.FromWasteItem(currentWasteItem);
+        var finalYield = ResourceYieldCalculator.CalculateYield(
+            updatedWasteItem, 
+            currentEfficiency);
             
-            if (finalYield.ContainsKey(resourceType))
-            {
-                previewData.expectedAmount = finalYield[resourceType];
-            }
+        if (finalYield.ContainsKey(resourceType))
+        {
+            previewData.expectedAmount = finalYield[resourceType];
         }
         else
         {
@@ -402,7 +396,8 @@ public class WasteResourcePreview : MonoBehaviour
             var processingManager = ResourceProcessingManager.Instance;
             if (processingManager != null)
             {
-                processingManager.ProcessWasteItem(currentWasteItem, currentWasteItem.Quantity);
+                var updatedWasteItem = UpdatedWasteItem.FromWasteItem(currentWasteItem);
+                processingManager.ProcessWasteItem(updatedWasteItem, currentWasteItem.Quantity);
             }
         }
     }

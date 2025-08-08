@@ -125,7 +125,9 @@ public enum ProcessingType
     Compaction,
     Recipe,
     Purification,
-    Refinement
+    Refinement,
+    Composting,
+    Neutralization
 }
 
 public enum ContaminationType

@@ -216,6 +216,11 @@ public class ResourceChance
     public int amount;
     public float chance; // 0.0 to 1.0
     
+    /// <summary>
+    /// Alias for type property for compatibility
+    /// </summary>
+    public ResourceType resourceType => type;
+    
     public ResourceChance()
     {
         type = ResourceType.None;

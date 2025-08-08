@@ -138,9 +138,9 @@ public class UpdatedWasteProcessor : MonoBehaviour
     /// </summary>
     private bool ProcessWasteItemInternal(UpdatedWasteItem wasteItem, int quantity)
     {
-        if (NewResourceManager.Instance == null)
+        if (ResourceManager.Instance == null)
         {
-            Debug.LogError("NewResourceManager.Instance is null! Cannot process waste.");
+            Debug.LogError("ResourceManager.Instance is null! Cannot process waste.");
             return false;
         }
         
@@ -149,12 +149,18 @@ public class UpdatedWasteProcessor : MonoBehaviour
         
         // Calculate resource yield for this processing attempt
         ResourceYield yield = CalculateProcessingYield(wasteItem, quantity);
+
+        if (yield == null)
+        {
+            Debug.LogWarning($"Failed to calculate yield for {wasteItem.Name}");
+            return false;
+        }
         
         // Apply processing effects (contamination, stability loss)
         ApplyProcessingEffects(wasteItem);
         
         // Add resources to inventory
-        bool resourcesAdded = NewResourceManager.Instance.AddResourceYield(yield);
+        bool resourcesAdded = ResourceManager.Instance.AddResourceYield(yield);
         
         if (resourcesAdded)
         {
@@ -397,7 +403,7 @@ public class UpdatedWasteProcessor : MonoBehaviour
         legacyYield.contaminationRisk = 0.1f;
         
         // Add to resource manager
-        NewResourceManager.Instance?.AddResourceYield(legacyYield);
+        ResourceManager.Instance?.AddResourceYield(legacyYield);
         
         Debug.Log($"Converted legacy waste: {wasteName} ({recyclingPoints} RP) → {resourceValue} Plastic");
     }

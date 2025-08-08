@@ -164,7 +164,7 @@ public class ProcessingFacilityUI : MonoBehaviour
             
             if (display != null)
             {
-                bool hasEnough = NewResourceManager.Instance?.GetResourceAmount(resource.type) >= resource.amount;
+                bool hasEnough = ResourceManager.Instance?.GetResourceAmount(resource.type) >= resource.amount;
                 display.Initialize(resource, hasEnough, prefix);
             }
             else
@@ -183,7 +183,7 @@ public class ProcessingFacilityUI : MonoBehaviour
     {
         if (processButton == null || selectedRecipe == null) return;
         
-        bool canAfford = NewResourceManager.Instance?.CanAffordRecipe(selectedRecipe.inputs) ?? false;
+        bool canAfford = ResourceManager.Instance?.CanAffordRecipe(selectedRecipe.inputs) ?? false;
         
         processButton.interactable = canAfford && !isProcessing;
         
@@ -228,9 +228,9 @@ public class ProcessingFacilityUI : MonoBehaviour
     {
         if (selectedRecipe == null || isProcessing) return;
         
-        if (NewResourceManager.Instance == null)
+        if (ResourceManager.Instance == null)
         {
-            Debug.LogError("NewResourceManager.Instance is null!");
+            Debug.LogError("ResourceManager.Instance is null!");
             return;
         }
         
@@ -278,7 +278,7 @@ public class ProcessingFacilityUI : MonoBehaviour
         processingTimer = 0f;
         
         // Actually process the resources
-        bool success = NewResourceManager.Instance.ProcessResources(selectedRecipe);
+        bool success = ResourceManager.Instance.SpendResources(selectedRecipe.inputs);
         
         if (processingProgressSlider != null)
         {
@@ -308,17 +308,17 @@ public class ProcessingFacilityUI : MonoBehaviour
     // Subscribe to resource changes to update UI
     private void OnEnable()
     {
-        if (NewResourceManager.Instance != null)
+        if (ResourceManager.Instance != null)
         {
-            NewResourceManager.Instance.OnResourceInventoryChanged += UpdateUI;
+            ResourceManager.Instance.OnResourcesUpdated += UpdateUI;
         }
     }
     
     private void OnDisable()
     {
-        if (NewResourceManager.Instance != null)
+        if (ResourceManager.Instance != null)
         {
-            NewResourceManager.Instance.OnResourceInventoryChanged -= UpdateUI;
+            ResourceManager.Instance.OnResourcesUpdated -= UpdateUI;
         }
     }
     
@@ -413,9 +413,9 @@ public class RecipeUIElement : MonoBehaviour
     
     public void UpdateAffordability()
     {
-        if (Recipe == null || NewResourceManager.Instance == null) return;
+        if (Recipe == null || ResourceManager.Instance == null) return;
         
-        isAffordable = NewResourceManager.Instance.CanAffordRecipe(Recipe.inputs);
+        isAffordable = ResourceManager.Instance.CanAffordRecipe(Recipe.inputs);
         UpdateVisuals();
     }
     
@@ -474,7 +474,7 @@ public class ResourceRequirementDisplay : MonoBehaviour
         // Update icon
         if (resourceIcon != null)
         {
-            var config = NewResourceManager.Instance?.GetResourceConfig(resource.type);
+            var config = ResourceManager.Instance?.GetResourceConfig(resource.type);
             if (config?.icon != null)
             {
                 resourceIcon.sprite = config.icon;
@@ -489,7 +489,7 @@ public class ResourceRequirementDisplay : MonoBehaviour
         // Update name
         if (resourceNameText != null)
         {
-            var config = NewResourceManager.Instance?.GetResourceConfig(resource.type);
+            var config = ResourceManager.Instance?.GetResourceConfig(resource.type);
             string displayName = config?.displayName ?? resource.type.ToString();
             resourceNameText.text = prefix + displayName;
         }
@@ -497,7 +497,7 @@ public class ResourceRequirementDisplay : MonoBehaviour
         // Update amount
         if (amountText != null)
         {
-            int currentAmount = NewResourceManager.Instance?.GetResourceAmount(resource.type) ?? 0;
+            int currentAmount = ResourceManager.Instance?.GetResourceAmount(resource.type) ?? 0;
             amountText.text = $"{currentAmount}/{resource.amount}";
             amountText.color = hasEnough ? sufficientColor : insufficientColor;
         }

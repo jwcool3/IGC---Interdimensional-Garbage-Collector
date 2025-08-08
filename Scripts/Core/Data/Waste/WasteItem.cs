@@ -12,6 +12,11 @@ public class WasteItem
     public string DimensionalOrigin { get; set; }
     public int Quantity { get; set; } = 1;  // Add this property for stacking
     public Sprite Icon { get; set; }
+    
+    // Additional properties for compatibility
+    public WasteType Type { get; set; } = WasteType.Unknown;
+    public WasteOrigin Origin { get; set; } = WasteOrigin.Unknown;
+    public float ProcessingTime { get; set; } = 1f;
 
     // Gameplay properties
     public float DimensionalStability { get; set; }

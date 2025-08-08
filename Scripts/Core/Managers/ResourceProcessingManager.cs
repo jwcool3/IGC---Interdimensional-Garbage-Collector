@@ -34,7 +34,7 @@ public class ResourceProcessingManager : MonoBehaviour
     [SerializeField] private Queue<ProcessingRequest> pendingRequests = new Queue<ProcessingRequest>();
     
     // Component references
-    private NewResourceManager resourceManager;
+    private ResourceManager resourceManager;
     private ResourceConfigManager configManager;
     private WasteInventoryManager wasteInventory;
     
@@ -73,13 +73,13 @@ public class ResourceProcessingManager : MonoBehaviour
     
     private void InitializeComponents()
     {
-        resourceManager = NewResourceManager.Instance;
+        resourceManager = ResourceManager.Instance;
         configManager = ResourceConfigManager.Instance;
         wasteInventory = WasteInventoryManager.Instance;
         
         if (resourceManager == null)
         {
-            Debug.LogError("NewResourceManager.Instance is null! ResourceProcessingManager requires it.");
+            Debug.LogError("ResourceManager.Instance is null! ResourceProcessingManager requires it.");
         }
     }
     

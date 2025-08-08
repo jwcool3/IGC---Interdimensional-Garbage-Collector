@@ -34,6 +34,7 @@ public class ResourceConfig : ScriptableObject
     public float processingDifficulty = 1f;
     public bool requiresSpecialFacility = false;
     public string requiredFacilityType = "";
+    public bool isProcessedResource = false; // Whether this resource is created through processing
     
     [Header("Special Properties")]
     public bool isHazardous = false;
@@ -96,6 +97,38 @@ public class ResourceConfig : ScriptableObject
         
         float decayAmount = decayRate * deltaTime;
         return Mathf.Min(currentQuantity, Mathf.FloorToInt(decayAmount));
+    }
+    
+    /// <summary>
+    /// Calculate the effective value considering various factors
+    /// </summary>
+    /// <param name="quantity">Quantity of the resource</param>
+    /// <returns>Effective value</returns>
+    public float CalculateEffectiveValue(int quantity)
+    {
+        float value = GetTotalValue(quantity);
+        
+        // Apply rarity multiplier
+        float rarityMultiplier = rarity switch
+        {
+            ResourceRarity.Common => 1.0f,
+            ResourceRarity.Uncommon => 1.2f,
+            ResourceRarity.Rare => 1.5f,
+            ResourceRarity.Epic => 2.0f,
+            ResourceRarity.Legendary => 3.0f,
+            _ => 1.0f
+        };
+        
+        return value * rarityMultiplier;
+    }
+    
+    /// <summary>
+    /// Get the display color for this resource
+    /// </summary>
+    /// <returns>Color for UI display</returns>
+    public Color GetDisplayColor()
+    {
+        return displayColor;
     }
     
     /// <summary>
@@ -239,6 +272,7 @@ public class ResourceConfig : ScriptableObject
         clone.processingDifficulty = this.processingDifficulty;
         clone.requiresSpecialFacility = this.requiresSpecialFacility;
         clone.requiredFacilityType = this.requiredFacilityType;
+        clone.isProcessedResource = this.isProcessedResource;
         clone.isHazardous = this.isHazardous;
         clone.requiresSpecialStorage = this.requiresSpecialStorage;
         clone.decayRate = this.decayRate;

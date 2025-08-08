@@ -30,7 +30,7 @@ public class WasteResourceMapping : ScriptableObject
         var yields = new Dictionary<ResourceType, ResourceYield>();
         
         // Get base mappings for waste type
-        var baseMappings = GetMappingsForWasteType(wasteItem.WasteType);
+        var baseMappings = GetMappingsForWasteType(wasteItem.Type);
         
         foreach (var mapping in baseMappings)
         {
