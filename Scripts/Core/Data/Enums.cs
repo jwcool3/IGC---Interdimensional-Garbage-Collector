@@ -368,14 +368,6 @@ public enum ValidationSeverity
     Critical
 }
 
-public enum EventBridgeStatus
-{
-    Disabled,
-    Initializing,
-    Active,
-    Error,
-    Paused
-}
 
 public enum SystemStatus
 {

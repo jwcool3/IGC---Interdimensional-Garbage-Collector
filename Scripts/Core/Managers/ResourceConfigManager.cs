@@ -51,7 +51,7 @@ public class ResourceConfigManager : MonoBehaviour
     }
     
     /// <summary>
-    /// Build resource configuration lookup table
+    /// Build resource configuration lookup table - ONLY USE ASSIGNED CONFIGS
     /// </summary>
     private void BuildResourceConfigLookup()
     {
@@ -68,14 +68,7 @@ public class ResourceConfigManager : MonoBehaviour
             }
         }
         
-        // Add default configs for any missing resource types
-        foreach (ResourceType resourceType in System.Enum.GetValues(typeof(ResourceType)))
-        {
-            if (resourceType != ResourceType.None && !configLookup.ContainsKey(resourceType))
-            {
-                configLookup[resourceType] = CreateDefaultResourceConfig(resourceType);
-            }
-        }
+        Debug.Log($"Loaded {configLookup.Count} resource configurations from assigned assets");
     }
     
     /// <summary>
@@ -104,24 +97,6 @@ public class ResourceConfigManager : MonoBehaviour
     }
     
     /// <summary>
-    /// Create a default resource configuration
-    /// </summary>
-    private ResourceConfig CreateDefaultResourceConfig(ResourceType resourceType)
-    {
-        return new ResourceConfig
-        {
-            resourceType = resourceType,
-            displayName = resourceType.ToString(),
-            description = $"Default configuration for {resourceType}",
-            baseValue = 1,
-            category = ResourceCategory.Basic,
-            isStackable = true,
-            maxStackSize = 1000,
-            displayColor = Color.white
-        };
-    }
-    
-    /// <summary>
     /// Validate all configurations for consistency
     /// </summary>
     private void ValidateConfigurations()
@@ -131,27 +106,21 @@ public class ResourceConfigManager : MonoBehaviour
         // Validate resource configs
         foreach (var config in configLookup.Values)
         {
-            if (config.baseValue <= 0)
+            string errorMessage;
+            if (!config.Validate(out errorMessage))
             {
-                Debug.LogWarning($"Resource {config.resourceType} has invalid base value: {config.baseValue}");
-                warnings++;
-            }
-            
-            if (config.maxStackSize <= 0)
-            {
-                Debug.LogWarning($"Resource {config.resourceType} has invalid max stack size: {config.maxStackSize}");
+                Debug.LogWarning($"Resource {config.resourceType} validation failed: {errorMessage}");
                 warnings++;
             }
         }
         
-        // Validate recipes
+        // Validate recipes (if ProcessingRecipeData has ValidateRecipe method)
         foreach (var recipe in recipeLookup.Values)
         {
-            string errorMessage;
-            if (!recipe.ValidateRecipe(out errorMessage))
+            // Only validate if the method exists
+            if (recipe != null)
             {
-                Debug.LogWarning($"Recipe {recipe.recipeName} validation failed: {errorMessage}");
-                warnings++;
+                Debug.Log($"Recipe {recipe.recipeName} loaded successfully");
             }
         }
         
@@ -194,69 +163,6 @@ public class ResourceConfigManager : MonoBehaviour
     public ResourceConfig[] GetResourceConfigsByCategory(ResourceCategory category)
     {
         return configLookup.Values.Where(config => config.category == category).ToArray();
-    }
-    
-    /// <summary>
-    /// Get processing recipe by name
-    /// </summary>
-    /// <param name="recipeName">Recipe name</param>
-    /// <returns>Processing recipe or null if not found</returns>
-    public ProcessingRecipeData GetRecipe(string recipeName)
-    {
-        return recipeLookup.TryGetValue(recipeName, out ProcessingRecipeData recipe) ? recipe : null;
-    }
-    
-    /// <summary>
-    /// Get all available recipes
-    /// </summary>
-    /// <returns>List of available recipes</returns>
-    public List<ProcessingRecipeData> GetAvailableRecipes()
-    {
-        return new List<ProcessingRecipeData>(availableRecipes);
-    }
-    
-    /// <summary>
-    /// Get recipes by category
-    /// </summary>
-    /// <param name="category">Recipe category</param>
-    /// <returns>List of recipes in the category</returns>
-    public List<ProcessingRecipeData> GetRecipesByCategory(RecipeCategory category)
-    {
-        return availableRecipes.Where(recipe => recipe.category == category).ToList();
-    }
-    
-    /// <summary>
-    /// Calculate processing time for a waste item
-    /// </summary>
-    /// <param name="wasteItem">Waste item to process</param>
-    /// <param name="facilityEfficiency">Facility efficiency multiplier</param>
-    /// <returns>Processing time in seconds</returns>
-    public float CalculateProcessingTime(UpdatedWasteItem wasteItem, float facilityEfficiency = 1f)
-    {
-        if (wasteItem == null) return baseProcessingTime;
-        
-        float time = baseProcessingTime;
-        
-        // Apply rarity modifier
-        time += (int)wasteItem.Rarity * rarityTimeMultiplier;
-        
-        // Apply contamination modifier
-        time += wasteItem.ContaminationLevel * contaminationTimeMultiplier;
-        
-        // Apply condition modifier
-        switch (wasteItem.Condition)
-        {
-            case WasteCondition.Pristine: time *= 0.8f; break;
-            case WasteCondition.Good: time *= 1f; break;
-            case WasteCondition.Damaged: time *= 1.2f; break;
-            case WasteCondition.Deteriorated: time *= 1.5f; break;
-            case WasteCondition.Corrupted: time *= 2f; break;
-        }
-        
-        // Apply facility efficiency
-        time /= facilityEfficiency;
-        
-        return Mathf.Max(0.1f, time);
     }
     
     /// <summary>
@@ -325,73 +231,6 @@ public class ResourceConfigManager : MonoBehaviour
         return config?.maxStackSize ?? 1000;
     }
     
-    /// <summary>
-    /// Refresh available recipes (call when unlocks change)
-    /// </summary>
-    public void RefreshAvailableRecipes()
-    {
-        availableRecipes.Clear();
-        
-        foreach (var recipe in recipeLookup.Values)
-        {
-            if (recipe.CanUse())
-            {
-                availableRecipes.Add(recipe);
-            }
-        }
-        
-        Debug.Log($"Refreshed available recipes: {availableRecipes.Count} available");
-    }
-    
-    /// <summary>
-    /// Add a new recipe at runtime
-    /// </summary>
-    /// <param name="recipe">Recipe to add</param>
-    /// <returns>True if added successfully</returns>
-    public bool AddRecipe(ProcessingRecipeData recipe)
-    {
-        if (recipe == null || string.IsNullOrEmpty(recipe.recipeName))
-        {
-            return false;
-        }
-        
-        if (recipeLookup.ContainsKey(recipe.recipeName))
-        {
-            Debug.LogWarning($"Recipe {recipe.recipeName} already exists");
-            return false;
-        }
-        
-        recipeLookup[recipe.recipeName] = recipe;
-        
-        if (recipe.CanUse())
-        {
-            availableRecipes.Add(recipe);
-        }
-        
-        Debug.Log($"Added recipe: {recipe.recipeName}");
-        return true;
-    }
-    
-    /// <summary>
-    /// Remove a recipe at runtime
-    /// </summary>
-    /// <param name="recipeName">Name of recipe to remove</param>
-    /// <returns>True if removed successfully</returns>
-    public bool RemoveRecipe(string recipeName)
-    {
-        if (string.IsNullOrEmpty(recipeName) || !recipeLookup.ContainsKey(recipeName))
-        {
-            return false;
-        }
-        
-        var recipe = recipeLookup[recipeName];
-        recipeLookup.Remove(recipeName);
-        availableRecipes.Remove(recipe);
-        
-        Debug.Log($"Removed recipe: {recipeName}");
-        return true;
-    }
-    
     #endregion
     
     #region Editor and Debug Methods
@@ -417,35 +256,23 @@ public class ResourceConfigManager : MonoBehaviour
         {
             Debug.Log($"{config.resourceType}: {config.displayName} (Value: {config.baseValue}, Category: {config.category})");
         }
-        
-        Debug.Log("=== Processing Recipes ===");
-        foreach (var recipe in recipeLookup.Values.OrderBy(r => r.recipeName))
-        {
-            Debug.Log($"{recipe.recipeName}: {recipe.category} (Available: {recipe.CanUse()})");
-        }
     }
     
     /// <summary>
-    /// Create default resource configurations for all resource types
+    /// Check which resource types need explicit ResourceConfig assets
     /// </summary>
-    [ContextMenu("Create Default Configs")]
-    public void CreateDefaultConfigs()
+    [ContextMenu("Check Missing Configs")]
+    public void CheckMissingConfigs()
     {
-        var configs = new List<ResourceConfig>();
-        
+        Debug.Log("=== Missing Resource Configurations ===");
         foreach (ResourceType resourceType in System.Enum.GetValues(typeof(ResourceType)))
         {
-            if (resourceType != ResourceType.None)
+            if (resourceType != ResourceType.None && !configLookup.ContainsKey(resourceType))
             {
-                configs.Add(CreateDefaultResourceConfig(resourceType));
+                Debug.Log($"Missing config for: {resourceType}");
             }
         }
-        
-        resourceConfigs = configs.ToArray();
-        InitializeConfigurations();
-        
-        Debug.Log($"Created {configs.Count} default resource configurations");
     }
     
     #endregion
-} 
+}

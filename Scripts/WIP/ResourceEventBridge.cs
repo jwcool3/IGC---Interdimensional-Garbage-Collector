@@ -1,605 +1,347 @@
 using UnityEngine;
 using System;
-using System.Collections.Generic;
 
 /// <summary>
-/// Event bridge that translates between legacy and new resource system events
-/// Ensures UI and other systems continue to work during the transition
+/// Bridge between old ResourceManager API and new resource system
+/// Maintains backward compatibility while transitioning to new system
 /// </summary>
-public class ResourceEventBridge : MonoBehaviour
+public class ResourceManagerBridge : MonoBehaviour
 {
-    public static ResourceEventBridge Instance { get; private set; }
-    
-    [Header("Bridge Settings")]
-    [SerializeField] private bool enableLegacyEvents = true;
-    [SerializeField] private bool enableNewEvents = true;
-    [SerializeField] private bool logEventTranslations = false;
-    
-    [Header("Event Translation Settings")]
-    [SerializeField] private float eventThrottleTime = 0.1f; // Prevent event spam
-    [SerializeField] private bool batchSimilarEvents = true;
-    
-    // Legacy event delegates (maintain compatibility)
-    public event Action<float> OnLegacyRecyclingPointsChanged;
-    public event Action<float> OnLegacyDimensionalPotentialChanged;
-    public event Action<float> OnLegacyContaminationChanged;
-    public event Action OnLegacyResourcesChanged;
-    public event Action OnLegacyInventoryChanged;
-    
-    // New system event delegates
-    public event Action<ResourceType, int, int> OnResourceAmountChanged; // type, oldAmount, newAmount
-    public event Action<ResourceType, int> OnResourceAdded;
-    public event Action<ResourceType, int> OnResourceSpent;
-    public event Action<Dictionary<ResourceType, int>> OnMultipleResourcesChanged;
-    
-    // Event batching
-    private Dictionary<ResourceType, ResourceChangeData> pendingChanges = new Dictionary<ResourceType, ResourceChangeData>();
-    private float lastEventTime = 0f;
-    private bool hasPendingBatch = false;
-    
-    // System references
-    private ResourceManager legacyResourceManager;
-    private NewResourceManager newResourceManager;
-    private ResourceManagerBridge bridge;
-    
-    // Cached values for change detection
-    private float lastRecyclingPoints = 0f;
-    private float lastDimensionalPotential = 0f;
-    private float lastContamination = 0f;
-    private Dictionary<ResourceType, int> lastResourceAmounts = new Dictionary<ResourceType, int>();
-    
+    public static ResourceManagerBridge Instance { get; private set; }
+
+    [Header("Legacy Compatibility Settings")]
+    [SerializeField] private bool enableLegacyMode = true;
+    [SerializeField] private float rpToPlasticRatio = 10f; // 10 RP = 1 Plastic
+    [SerializeField] private float dpToCrystalRatio = 5f;  // 5 DP = 1 Crystal Fragment
+
+    [Header("Conversion Rates")]
+    [SerializeField] private float plasticToRpRatio = 10f;
+    [SerializeField] private float crystalToDpRatio = 5f;
+    [SerializeField] private float metalToRpRatio = 20f;
+
+    // Legacy properties that delegate to new system
+    public float RecyclingPoints => GetLegacyRecyclingPoints();
+    public float DimensionalPotential => GetLegacyDimensionalPotential();
+    public float ContaminationLevel { get; private set; }
+
+    // Legacy events (maintain existing API)
+    public event Action<float> OnRecyclingPointsChanged;
+    public event Action<float> OnDimensionalPotentialChanged;
+    public event Action<float> OnContaminationChanged;
+    public event Action OnResourcesChanged;
+
+    // Combat resources (delegate to new system)
+    public int ShipParts => NewResourceManager.Instance?.GetResourceAmount(ResourceType.ShipParts) ?? 0;
+    public int AlienTech => NewResourceManager.Instance?.GetResourceAmount(ResourceType.AlienTech) ?? 0;
+    public int CombatData => NewResourceManager.Instance?.GetResourceAmount(ResourceType.CombatData) ?? 0;
+
     private void Awake()
     {
         if (Instance == null)
         {
             Instance = this;
             DontDestroyOnLoad(gameObject);
-            InitializeEventBridge();
+            SubscribeToNewResourceEvents();
         }
         else
         {
             Destroy(gameObject);
         }
     }
-    
-    private void Start()
+
+    private void SubscribeToNewResourceEvents()
     {
-        SubscribeToEvents();
-        InitializeCachedValues();
-    }
-    
-    private void Update()
-    {
-        // Process batched events
-        if (hasPendingBatch && Time.time - lastEventTime >= eventThrottleTime)
+        if (NewResourceManager.Instance != null)
         {
-            ProcessBatchedEvents();
+            // Subscribe to resource changes with correct signature
+            NewResourceManager.Instance.OnResourceChanged += OnNewResourceChanged;
+            NewResourceManager.Instance.OnResourcesUpdated += OnNewInventoryChanged;
         }
     }
-    
-    private void InitializeEventBridge()
+
+    // Fixed event handler with correct signature (ResourceType, oldAmount, newAmount)
+    private void OnNewResourceChanged(ResourceType type, int oldAmount, int newAmount)
     {
-        // Find system references
-        legacyResourceManager = ResourceManager.Instance;
-        newResourceManager = NewResourceManager.Instance;
-        bridge = ResourceManagerBridge.Instance;
-        
-        Debug.Log("ResourceEventBridge initialized");
-    }
-    
-    private void SubscribeToEvents()
-    {
-        // Subscribe to new resource manager events
-        if (newResourceManager != null)
+        // Fire legacy events when relevant resources change
+        if (enableLegacyMode)
         {
-            newResourceManager.OnResourceChanged += HandleNewResourceChanged;
-            newResourceManager.OnResourceAdded += HandleNewResourceAdded;
-            newResourceManager.OnResourceSpent += HandleNewResourceSpent;
-            newResourceManager.OnResourceInventoryChanged += HandleNewInventoryChanged;
-        }
-        
-        // Subscribe to legacy resource manager events
-        if (legacyResourceManager != null)
-        {
-            legacyResourceManager.OnRecyclingPointsChanged += HandleLegacyRPChanged;
-            legacyResourceManager.OnDimensionalPotentialChanged += HandleLegacyDPChanged;
-            legacyResourceManager.OnContaminationChanged += HandleLegacyContaminationChanged;
-            legacyResourceManager.OnResourcesChanged += HandleLegacyResourcesChanged;
-        }
-        
-        // Subscribe to bridge events
-        if (bridge != null)
-        {
-            bridge.OnRecyclingPointsChanged += HandleBridgeRPChanged;
-            bridge.OnDimensionalPotentialChanged += HandleBridgeDPChanged;
-            bridge.OnContaminationChanged += HandleBridgeContaminationChanged;
-            bridge.OnResourcesChanged += HandleBridgeResourcesChanged;
-        }
-    }
-    
-    private void InitializeCachedValues()
-    {
-        // Initialize cached values for change detection
-        if (bridge != null)
-        {
-            lastRecyclingPoints = bridge.RecyclingPoints;
-            lastDimensionalPotential = bridge.DimensionalPotential;
-            lastContamination = bridge.ContaminationLevel;
-        }
-        
-        if (newResourceManager != null)
-        {
-            foreach (ResourceType type in Enum.GetValues(typeof(ResourceType)))
+            switch (type)
             {
-                lastResourceAmounts[type] = newResourceManager.GetResourceAmount(type);
+                case ResourceType.Plastic:
+                case ResourceType.MetalScraps:
+                case ResourceType.OrganicMatter:
+                    OnRecyclingPointsChanged?.Invoke(GetLegacyRecyclingPoints());
+                    break;
+
+                case ResourceType.CrystalFragments:
+                case ResourceType.NeuralResidue:
+                    OnDimensionalPotentialChanged?.Invoke(GetLegacyDimensionalPotential());
+                    break;
+            }
+
+            OnResourcesChanged?.Invoke();
+        }
+    }
+
+    private void OnNewInventoryChanged()
+    {
+        if (enableLegacyMode)
+        {
+            OnRecyclingPointsChanged?.Invoke(GetLegacyRecyclingPoints());
+            OnDimensionalPotentialChanged?.Invoke(GetLegacyDimensionalPotential());
+            OnResourcesChanged?.Invoke();
+        }
+    }
+
+    #region Legacy API Methods
+
+    /// <summary>
+    /// Legacy method: Add recycling points (converts to resources)
+    /// </summary>
+    public void AddRecyclingPoints(float amount)
+    {
+        if (NewResourceManager.Instance == null) return;
+
+        // Convert RP to plastic resources
+        int plasticAmount = Mathf.RoundToInt(amount / rpToPlasticRatio);
+        if (plasticAmount > 0)
+        {
+            NewResourceManager.Instance.AddResource(ResourceType.Plastic, plasticAmount);
+        }
+
+        Debug.Log($"Legacy: Added {amount} RP → {plasticAmount} Plastic");
+    }
+
+    /// <summary>
+    /// Legacy method: Spend recycling points
+    /// </summary>
+    public bool SpendRecyclingPoints(float amount)
+    {
+        if (NewResourceManager.Instance == null) return false;
+
+        // Calculate how much plastic we need
+        int plasticNeeded = Mathf.CeilToInt(amount / rpToPlasticRatio);
+
+        // Try to spend plastic first, then other basic resources
+        if (NewResourceManager.Instance.GetResourceAmount(ResourceType.Plastic) >= plasticNeeded)
+        {
+            return NewResourceManager.Instance.SpendResource(ResourceType.Plastic, plasticNeeded);
+        }
+
+        // Fallback: spend equivalent value in other resources
+        return SpendEquivalentResources(amount);
+    }
+
+    /// <summary>
+    /// Legacy method: Add dimensional potential (converts to crystal fragments)
+    /// </summary>
+    public void AddDimensionalPotential(float amount)
+    {
+        if (NewResourceManager.Instance == null) return;
+
+        // Convert DP to crystal fragments
+        int crystalAmount = Mathf.RoundToInt(amount / dpToCrystalRatio);
+        if (crystalAmount > 0)
+        {
+            NewResourceManager.Instance.AddResource(ResourceType.CrystalFragments, crystalAmount);
+        }
+
+        Debug.Log($"Legacy: Added {amount} DP → {crystalAmount} Crystal Fragments");
+    }
+
+    /// <summary>
+    /// Legacy method: Spend dimensional potential
+    /// </summary>
+    public bool SpendDimensionalPotential(float amount)
+    {
+        if (NewResourceManager.Instance == null) return false;
+
+        // Calculate how many crystals we need
+        int crystalsNeeded = Mathf.CeilToInt(amount / dpToCrystalRatio);
+
+        return NewResourceManager.Instance.SpendResource(ResourceType.CrystalFragments, crystalsNeeded);
+    }
+
+    /// <summary>
+    /// Legacy method: Process waste item (simplified version without UpdatedWasteProcessor)
+    /// </summary>
+    public void ProcessWasteItem(WasteItem item)
+    {
+        if (item == null || NewResourceManager.Instance == null) return;
+
+        // Direct resource conversion for now
+        ProcessLegacyWasteItem(item);
+    }
+
+    /// <summary>
+    /// Legacy contamination methods
+    /// </summary>
+    public void IncreaseContamination(float amount)
+    {
+        ContaminationLevel += amount;
+        OnContaminationChanged?.Invoke(ContaminationLevel);
+    }
+
+    public void DecreaseContamination(float amount)
+    {
+        ContaminationLevel = Mathf.Max(0, ContaminationLevel - amount);
+        OnContaminationChanged?.Invoke(ContaminationLevel);
+    }
+
+    /// <summary>
+    /// Legacy combat resource methods
+    /// </summary>
+    public void AddShipParts(int amount)
+    {
+        NewResourceManager.Instance?.AddResource(ResourceType.ShipParts, amount);
+    }
+
+    public void AddAlienTech(int amount)
+    {
+        NewResourceManager.Instance?.AddResource(ResourceType.AlienTech, amount);
+    }
+
+    public void AddCombatData(int amount)
+    {
+        NewResourceManager.Instance?.AddResource(ResourceType.CombatData, amount);
+    }
+
+    public bool SpendShipParts(int amount)
+    {
+        return NewResourceManager.Instance?.SpendResource(ResourceType.ShipParts, amount) ?? false;
+    }
+
+    public bool SpendAlienTech(int amount)
+    {
+        return NewResourceManager.Instance?.SpendResource(ResourceType.AlienTech, amount) ?? false;
+    }
+
+    public bool SpendCombatData(int amount)
+    {
+        return NewResourceManager.Instance?.SpendResource(ResourceType.CombatData, amount) ?? false;
+    }
+
+    #endregion
+
+    #region Helper Methods
+
+    private float GetLegacyRecyclingPoints()
+    {
+        if (NewResourceManager.Instance == null) return 0f;
+
+        // Convert current resources back to legacy RP for UI compatibility
+        float totalRP = 0f;
+        totalRP += NewResourceManager.Instance.GetResourceAmount(ResourceType.Plastic) * plasticToRpRatio;
+        totalRP += NewResourceManager.Instance.GetResourceAmount(ResourceType.MetalScraps) * metalToRpRatio;
+        totalRP += NewResourceManager.Instance.GetResourceAmount(ResourceType.OrganicMatter) * plasticToRpRatio;
+
+        return totalRP;
+    }
+
+    private float GetLegacyDimensionalPotential()
+    {
+        if (NewResourceManager.Instance == null) return 0f;
+
+        // Convert crystal fragments and neural residue to legacy DP
+        float totalDP = 0f;
+        totalDP += NewResourceManager.Instance.GetResourceAmount(ResourceType.CrystalFragments) * crystalToDpRatio;
+        totalDP += NewResourceManager.Instance.GetResourceAmount(ResourceType.NeuralResidue) * crystalToDpRatio;
+
+        return totalDP;
+    }
+
+    private bool SpendEquivalentResources(float rpAmount)
+    {
+        // Try to spend equivalent value from available resources
+        float remainingValue = rpAmount;
+
+        // Try metal scraps (worth more RP)
+        int metalAvailable = NewResourceManager.Instance.GetResourceAmount(ResourceType.MetalScraps);
+        int metalToSpend = Mathf.Min(metalAvailable, Mathf.FloorToInt(remainingValue / metalToRpRatio));
+        if (metalToSpend > 0)
+        {
+            NewResourceManager.Instance.SpendResource(ResourceType.MetalScraps, metalToSpend);
+            remainingValue -= metalToSpend * metalToRpRatio;
+        }
+
+        // Try organic matter
+        if (remainingValue > 0)
+        {
+            int organicNeeded = Mathf.CeilToInt(remainingValue / plasticToRpRatio);
+            int organicAvailable = NewResourceManager.Instance.GetResourceAmount(ResourceType.OrganicMatter);
+            if (organicAvailable >= organicNeeded)
+            {
+                NewResourceManager.Instance.SpendResource(ResourceType.OrganicMatter, organicNeeded);
+                remainingValue = 0;
             }
         }
+
+        return remainingValue <= 0;
     }
-    
-    #region New System Event Handlers
-    
-    private void HandleNewResourceChanged(ResourceType type, int newAmount)
+
+    private void ProcessLegacyWasteItem(WasteItem item)
     {
-        if (!enableNewEvents) return;
-        
-        int oldAmount = lastResourceAmounts.TryGetValue(type, out int cached) ? cached : 0;
-        lastResourceAmounts[type] = newAmount;
-        
-        if (logEventTranslations)
-        {
-            Debug.Log($"New Resource Changed: {type} {oldAmount} → {newAmount}");
-        }
-        
-        // Fire new system events
-        OnResourceAmountChanged?.Invoke(type, oldAmount, newAmount);
-        
-        // Translate to legacy events if enabled
-        if (enableLegacyEvents)
-        {
-            TranslateNewResourceToLegacy(type, oldAmount, newAmount);
-        }
-        
-        // Batch for multi-resource event
-        if (batchSimilarEvents)
-        {
-            BatchResourceChange(type, oldAmount, newAmount);
-        }
+        // Simplified processing for compatibility
+        float rpValue = item.RecyclingValue * 10f;
+        float dpValue = item.RecyclingPotential * 5f;
+
+        AddRecyclingPoints(rpValue);
+        AddDimensionalPotential(dpValue);
+
+        // Add contamination
+        IncreaseContamination(item.ContaminationLevel * 0.1f);
     }
-    
-    private void HandleNewResourceAdded(ResourceType type, int amount)
-    {
-        if (!enableNewEvents) return;
-        
-        if (logEventTranslations)
-        {
-            Debug.Log($"New Resource Added: {type} +{amount}");
-        }
-        
-        OnResourceAdded?.Invoke(type, amount);
-        
-        // Update cached value
-        if (lastResourceAmounts.ContainsKey(type))
-        {
-            lastResourceAmounts[type] += amount;
-        }
-        else
-        {
-            lastResourceAmounts[type] = amount;
-        }
-    }
-    
-    private void HandleNewResourceSpent(ResourceType type, int amount)
-    {
-        if (!enableNewEvents) return;
-        
-        if (logEventTranslations)
-        {
-            Debug.Log($"New Resource Spent: {type} -{amount}");
-        }
-        
-        OnResourceSpent?.Invoke(type, amount);
-        
-        // Update cached value
-        if (lastResourceAmounts.ContainsKey(type))
-        {
-            lastResourceAmounts[type] = Mathf.Max(0, lastResourceAmounts[type] - amount);
-        }
-    }
-    
-    private void HandleNewInventoryChanged()
-    {
-        if (!enableNewEvents) return;
-        
-        if (logEventTranslations)
-        {
-            Debug.Log("New Inventory Changed");
-        }
-        
-        // Translate to legacy inventory event
-        if (enableLegacyEvents)
-        {
-            OnLegacyInventoryChanged?.Invoke();
-        }
-    }
-    
+
     #endregion
-    
-    #region Legacy System Event Handlers
-    
-    private void HandleLegacyRPChanged(float newAmount)
+
+    #region Public Utility Methods
+
+    public float GetRecyclingPoints() => RecyclingPoints;
+    public float GetDimensionalPotential() => DimensionalPotential;
+    public float GetContamination() => ContaminationLevel;
+
+    public void SetRecyclingPoints(float value)
     {
-        if (!enableLegacyEvents) return;
-        
-        float oldAmount = lastRecyclingPoints;
-        lastRecyclingPoints = newAmount;
-        
-        if (logEventTranslations)
+        // Convert to plastic resources
+        int targetPlastic = Mathf.RoundToInt(value / rpToPlasticRatio);
+        int currentPlastic = NewResourceManager.Instance?.GetResourceAmount(ResourceType.Plastic) ?? 0;
+
+        if (targetPlastic > currentPlastic)
         {
-            Debug.Log($"Legacy RP Changed: {oldAmount} → {newAmount}");
+            NewResourceManager.Instance?.AddResource(ResourceType.Plastic, targetPlastic - currentPlastic);
         }
-        
-        OnLegacyRecyclingPointsChanged?.Invoke(newAmount);
     }
-    
-    private void HandleLegacyDPChanged(float newAmount)
+
+    public void SetDimensionalPotential(float value)
     {
-        if (!enableLegacyEvents) return;
-        
-        float oldAmount = lastDimensionalPotential;
-        lastDimensionalPotential = newAmount;
-        
-        if (logEventTranslations)
+        // Convert to crystal fragments
+        int targetCrystals = Mathf.RoundToInt(value / dpToCrystalRatio);
+        int currentCrystals = NewResourceManager.Instance?.GetResourceAmount(ResourceType.CrystalFragments) ?? 0;
+
+        if (targetCrystals > currentCrystals)
         {
-            Debug.Log($"Legacy DP Changed: {oldAmount} → {newAmount}");
+            NewResourceManager.Instance?.AddResource(ResourceType.CrystalFragments, targetCrystals - currentCrystals);
         }
-        
-        OnLegacyDimensionalPotentialChanged?.Invoke(newAmount);
     }
-    
-    private void HandleLegacyContaminationChanged(float newAmount)
+
+    /// <summary>
+    /// Enable or disable legacy compatibility mode
+    /// </summary>
+    public void SetLegacyMode(bool enabled)
     {
-        if (!enableLegacyEvents) return;
-        
-        float oldAmount = lastContamination;
-        lastContamination = newAmount;
-        
-        if (logEventTranslations)
-        {
-            Debug.Log($"Legacy Contamination Changed: {oldAmount} → {newAmount}");
-        }
-        
-        OnLegacyContaminationChanged?.Invoke(newAmount);
+        enableLegacyMode = enabled;
+        Debug.Log($"Legacy compatibility mode: {(enabled ? "Enabled" : "Disabled")}");
     }
-    
-    private void HandleLegacyResourcesChanged()
-    {
-        if (!enableLegacyEvents) return;
-        
-        if (logEventTranslations)
-        {
-            Debug.Log("Legacy Resources Changed");
-        }
-        
-        OnLegacyResourcesChanged?.Invoke();
-    }
-    
+
     #endregion
-    
-    #region Bridge Event Handlers
-    
-    private void HandleBridgeRPChanged(float newAmount)
-    {
-        if (logEventTranslations)
-        {
-            Debug.Log($"Bridge RP Changed: {newAmount}");
-        }
-        
-        // Forward to legacy event
-        if (enableLegacyEvents)
-        {
-            OnLegacyRecyclingPointsChanged?.Invoke(newAmount);
-        }
-    }
-    
-    private void HandleBridgeDPChanged(float newAmount)
-    {
-        if (logEventTranslations)
-        {
-            Debug.Log($"Bridge DP Changed: {newAmount}");
-        }
-        
-        // Forward to legacy event
-        if (enableLegacyEvents)
-        {
-            OnLegacyDimensionalPotentialChanged?.Invoke(newAmount);
-        }
-    }
-    
-    private void HandleBridgeContaminationChanged(float newAmount)
-    {
-        if (logEventTranslations)
-        {
-            Debug.Log($"Bridge Contamination Changed: {newAmount}");
-        }
-        
-        // Forward to legacy event
-        if (enableLegacyEvents)
-        {
-            OnLegacyContaminationChanged?.Invoke(newAmount);
-        }
-    }
-    
-    private void HandleBridgeResourcesChanged()
-    {
-        if (logEventTranslations)
-        {
-            Debug.Log("Bridge Resources Changed");
-        }
-        
-        // Forward to legacy event
-        if (enableLegacyEvents)
-        {
-            OnLegacyResourcesChanged?.Invoke();
-        }
-    }
-    
-    #endregion
-    
-    #region Event Translation
-    
-    private void TranslateNewResourceToLegacy(ResourceType type, int oldAmount, int newAmount)
-    {
-        // Convert new resource changes to legacy RP/DP changes
-        int amountDiff = newAmount - oldAmount;
-        
-        if (amountDiff == 0) return;
-        
-        // Calculate legacy value change
-        float rpChange = 0f;
-        float dpChange = 0f;
-        
-        switch (type)
-        {
-            case ResourceType.Plastic:
-            case ResourceType.MetalScraps:
-            case ResourceType.OrganicMatter:
-            case ResourceType.ToxicSludge:
-                rpChange = amountDiff * LegacyResourceConverter.GetRPConversionRate(type);
-                break;
-                
-            case ResourceType.CrystalFragments:
-            case ResourceType.NeuralResidue:
-            case ResourceType.Energy:
-                dpChange = amountDiff * LegacyResourceConverter.GetDPConversionRate(type);
-                break;
-                
-            case ResourceType.Fuel:
-            case ResourceType.Food:
-            case ResourceType.Parts:
-                rpChange = amountDiff * LegacyResourceConverter.GetRPConversionRate(type);
-                break;
-        }
-        
-        // Fire legacy events if there's a significant change
-        if (Mathf.Abs(rpChange) > 0.1f)
-        {
-            float newRP = lastRecyclingPoints + rpChange;
-            OnLegacyRecyclingPointsChanged?.Invoke(newRP);
-            lastRecyclingPoints = newRP;
-        }
-        
-        if (Mathf.Abs(dpChange) > 0.1f)
-        {
-            float newDP = lastDimensionalPotential + dpChange;
-            OnLegacyDimensionalPotentialChanged?.Invoke(newDP);
-            lastDimensionalPotential = newDP;
-        }
-        
-        // Always fire general resources changed event
-        OnLegacyResourcesChanged?.Invoke();
-    }
-    
-    #endregion
-    
-    #region Event Batching
-    
-    private void BatchResourceChange(ResourceType type, int oldAmount, int newAmount)
-    {
-        if (!batchSimilarEvents) return;
-        
-        pendingChanges[type] = new ResourceChangeData
-        {
-            oldAmount = oldAmount,
-            newAmount = newAmount,
-            timestamp = Time.time
-        };
-        
-        hasPendingBatch = true;
-        lastEventTime = Time.time;
-    }
-    
-    private void ProcessBatchedEvents()
-    {
-        if (pendingChanges.Count == 0)
-        {
-            hasPendingBatch = false;
-            return;
-        }
-        
-        // Create batched event data
-        var batchedChanges = new Dictionary<ResourceType, int>();
-        
-        foreach (var kvp in pendingChanges)
-        {
-            batchedChanges[kvp.Key] = kvp.Value.newAmount;
-        }
-        
-        if (logEventTranslations)
-        {
-            Debug.Log($"Processing batched events for {batchedChanges.Count} resources");
-        }
-        
-        // Fire batched event
-        OnMultipleResourcesChanged?.Invoke(batchedChanges);
-        
-        // Clear pending changes
-        pendingChanges.Clear();
-        hasPendingBatch = false;
-    }
-    
-    #endregion
-    
-    #region Public API
-    
-    /// <summary>
-    /// Enable or disable legacy event forwarding
-    /// </summary>
-    /// <param name="enabled">Whether to enable legacy events</param>
-    public void SetLegacyEventsEnabled(bool enabled)
-    {
-        enableLegacyEvents = enabled;
-        Debug.Log($"Legacy events: {(enabled ? "Enabled" : "Disabled")}");
-    }
-    
-    /// <summary>
-    /// Enable or disable new system event forwarding
-    /// </summary>
-    /// <param name="enabled">Whether to enable new events</param>
-    public void SetNewEventsEnabled(bool enabled)
-    {
-        enableNewEvents = enabled;
-        Debug.Log($"New events: {(enabled ? "Enabled" : "Disabled")}");
-    }
-    
-    /// <summary>
-    /// Enable or disable event translation logging
-    /// </summary>
-    /// <param name="enabled">Whether to log event translations</param>
-    public void SetEventLoggingEnabled(bool enabled)
-    {
-        logEventTranslations = enabled;
-        Debug.Log($"Event logging: {(enabled ? "Enabled" : "Disabled")}");
-    }
-    
-    /// <summary>
-    /// Force process any pending batched events
-    /// </summary>
-    public void FlushBatchedEvents()
-    {
-        if (hasPendingBatch)
-        {
-            ProcessBatchedEvents();
-        }
-    }
-    
-    /// <summary>
-    /// Manually trigger a legacy resource change event
-    /// </summary>
-    /// <param name="recyclingPoints">New recycling points value</param>
-    /// <param name="dimensionalPotential">New dimensional potential value</param>
-    public void TriggerLegacyResourceChange(float recyclingPoints, float dimensionalPotential)
-    {
-        if (enableLegacyEvents)
-        {
-            OnLegacyRecyclingPointsChanged?.Invoke(recyclingPoints);
-            OnLegacyDimensionalPotentialChanged?.Invoke(dimensionalPotential);
-            OnLegacyResourcesChanged?.Invoke();
-        }
-    }
-    
-    /// <summary>
-    /// Manually trigger a new resource change event
-    /// </summary>
-    /// <param name="type">Resource type</param>
-    /// <param name="oldAmount">Previous amount</param>
-    /// <param name="newAmount">New amount</param>
-    public void TriggerNewResourceChange(ResourceType type, int oldAmount, int newAmount)
-    {
-        if (enableNewEvents)
-        {
-            OnResourceAmountChanged?.Invoke(type, oldAmount, newAmount);
-        }
-    }
-    
-    /// <summary>
-    /// Get current event bridge status
-    /// </summary>
-    /// <returns>Event bridge status information</returns>
-    public EventBridgeStatus GetStatus()
-    {
-        return new EventBridgeStatus
-        {
-            legacyEventsEnabled = enableLegacyEvents,
-            newEventsEnabled = enableNewEvents,
-            eventLoggingEnabled = logEventTranslations,
-            pendingBatchedEvents = pendingChanges.Count,
-            lastEventTime = lastEventTime,
-            hasPendingBatch = hasPendingBatch
-        };
-    }
-    
-    #endregion
-    
+
     private void OnDestroy()
     {
-        // Unsubscribe from events to prevent memory leaks
-        if (newResourceManager != null)
+        // Unsubscribe from events
+        if (NewResourceManager.Instance != null)
         {
-            newResourceManager.OnResourceChanged -= HandleNewResourceChanged;
-            newResourceManager.OnResourceAdded -= HandleNewResourceAdded;
-            newResourceManager.OnResourceSpent -= HandleNewResourceSpent;
-            newResourceManager.OnResourceInventoryChanged -= HandleNewInventoryChanged;
-        }
-        
-        if (legacyResourceManager != null)
-        {
-            legacyResourceManager.OnRecyclingPointsChanged -= HandleLegacyRPChanged;
-            legacyResourceManager.OnDimensionalPotentialChanged -= HandleLegacyDPChanged;
-            legacyResourceManager.OnContaminationChanged -= HandleLegacyContaminationChanged;
-            legacyResourceManager.OnResourcesChanged -= HandleLegacyResourcesChanged;
-        }
-        
-        if (bridge != null)
-        {
-            bridge.OnRecyclingPointsChanged -= HandleBridgeRPChanged;
-            bridge.OnDimensionalPotentialChanged -= HandleBridgeDPChanged;
-            bridge.OnContaminationChanged -= HandleBridgeContaminationChanged;
-            bridge.OnResourcesChanged -= HandleBridgeResourcesChanged;
+            NewResourceManager.Instance.OnResourceChanged -= OnNewResourceChanged;
+            NewResourceManager.Instance.OnResourcesUpdated -= OnNewInventoryChanged;
         }
     }
 }
-
-/// <summary>
-/// Data structure for batched resource changes
-/// </summary>
-[System.Serializable]
-public class ResourceChangeData
-{
-    public int oldAmount;
-    public int newAmount;
-    public float timestamp;
-}
-
-/// <summary>
-/// Event bridge status information
-/// </summary>
-[System.Serializable]
-public class EventBridgeStatus
-{
-    public bool legacyEventsEnabled;
-    public bool newEventsEnabled;
-    public bool eventLoggingEnabled;
-    public int pendingBatchedEvents;
-    public float lastEventTime;
-    public bool hasPendingBatch;
-    
-    public override string ToString()
-    {
-        return $"EventBridge Status:\n" +
-               $"Legacy Events: {(legacyEventsEnabled ? "Enabled" : "Disabled")}\n" +
-               $"New Events: {(newEventsEnabled ? "Enabled" : "Disabled")}\n" +
-               $"Event Logging: {(eventLoggingEnabled ? "Enabled" : "Disabled")}\n" +
-               $"Pending Batched Events: {pendingBatchedEvents}\n" +
-               $"Has Pending Batch: {hasPendingBatch}";
-    }
-} 

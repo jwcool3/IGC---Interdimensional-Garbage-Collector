@@ -4,8 +4,9 @@ using UnityEngine;
 /// Configuration data for a resource type
 /// Defines display properties, behavior, and metadata for resources
 /// </summary>
+[CreateAssetMenu(fileName = "New Resource Config", menuName = "Resources/Resource Configuration", order = 0)]
 [System.Serializable]
-public class ResourceConfig
+public class ResourceConfig : ScriptableObject
 {
     [Header("Basic Properties")]
     public ResourceType resourceType = ResourceType.None;
@@ -16,6 +17,7 @@ public class ResourceConfig
     [Header("Value and Economy")]
     public int baseValue = 1;
     public ResourceCategory category = ResourceCategory.Basic;
+    public ResourceRarity rarity = ResourceRarity.Common;
     
     [Header("Stacking and Storage")]
     public bool isStackable = true;
@@ -23,17 +25,32 @@ public class ResourceConfig
     
     [Header("Visual Properties")]
     public Color displayColor = Color.white;
+    public Color resourceColor = Color.white; // Alternative name for compatibility
     public Sprite icon;
     
     [Header("Processing Properties")]
     public bool canBeProcessed = true;
     public bool isRenewable = false;
     public float processingDifficulty = 1f;
+    public bool requiresSpecialFacility = false;
+    public string requiredFacilityType = "";
     
     [Header("Special Properties")]
     public bool isHazardous = false;
     public bool requiresSpecialStorage = false;
     public float decayRate = 0f; // Resources per second lost to decay
+    public int storageWeight = 1;
+    public bool canDecay = false;
+    
+    // Ensure color consistency
+    private void OnValidate()
+    {
+        // Keep both color fields in sync for compatibility
+        if (displayColor != resourceColor)
+        {
+            resourceColor = displayColor;
+        }
+    }
     
     /// <summary>
     /// Get the effective value of this resource considering quantity
@@ -75,7 +92,7 @@ public class ResourceConfig
     /// <returns>Amount lost to decay</returns>
     public int CalculateDecay(float deltaTime, int currentQuantity)
     {
-        if (decayRate <= 0f || currentQuantity <= 0) return 0;
+        if (!canDecay || decayRate <= 0f || currentQuantity <= 0) return 0;
         
         float decayAmount = decayRate * deltaTime;
         return Mathf.Min(currentQuantity, Mathf.FloorToInt(decayAmount));
@@ -122,7 +139,12 @@ public class ResourceConfig
             details += "\n🔒 Requires Special Storage";
         }
         
-        if (decayRate > 0f)
+        if (requiresSpecialFacility && !string.IsNullOrEmpty(requiredFacilityType))
+        {
+            details += $"\n🏭 Requires {requiredFacilityType}";
+        }
+        
+        if (canDecay && decayRate > 0f)
         {
             details += $"\n⏰ Decays at {decayRate}/sec";
         }
@@ -130,6 +152,11 @@ public class ResourceConfig
         if (!isRenewable)
         {
             details += "\n♻️ Non-renewable Resource";
+        }
+        
+        if (storageWeight > 1)
+        {
+            details += $"\n⚖️ Storage Weight: {storageWeight}";
         }
         
         return details;
@@ -180,6 +207,12 @@ public class ResourceConfig
             return false;
         }
         
+        if (storageWeight < 1)
+        {
+            errorMessage = "Storage weight must be at least 1";
+            return false;
+        }
+        
         return true;
     }
     
@@ -189,23 +222,29 @@ public class ResourceConfig
     /// <returns>New ResourceConfig instance with copied values</returns>
     public ResourceConfig Clone()
     {
-        return new ResourceConfig
-        {
-            resourceType = this.resourceType,
-            displayName = this.displayName,
-            description = this.description,
-            baseValue = this.baseValue,
-            category = this.category,
-            isStackable = this.isStackable,
-            maxStackSize = this.maxStackSize,
-            displayColor = this.displayColor,
-            icon = this.icon,
-            canBeProcessed = this.canBeProcessed,
-            isRenewable = this.isRenewable,
-            processingDifficulty = this.processingDifficulty,
-            isHazardous = this.isHazardous,
-            requiresSpecialStorage = this.requiresSpecialStorage,
-            decayRate = this.decayRate
-        };
+        ResourceConfig clone = CreateInstance<ResourceConfig>();
+        clone.resourceType = this.resourceType;
+        clone.displayName = this.displayName;
+        clone.description = this.description;
+        clone.baseValue = this.baseValue;
+        clone.category = this.category;
+        clone.rarity = this.rarity;
+        clone.isStackable = this.isStackable;
+        clone.maxStackSize = this.maxStackSize;
+        clone.displayColor = this.displayColor;
+        clone.resourceColor = this.resourceColor;
+        clone.icon = this.icon;
+        clone.canBeProcessed = this.canBeProcessed;
+        clone.isRenewable = this.isRenewable;
+        clone.processingDifficulty = this.processingDifficulty;
+        clone.requiresSpecialFacility = this.requiresSpecialFacility;
+        clone.requiredFacilityType = this.requiredFacilityType;
+        clone.isHazardous = this.isHazardous;
+        clone.requiresSpecialStorage = this.requiresSpecialStorage;
+        clone.decayRate = this.decayRate;
+        clone.storageWeight = this.storageWeight;
+        clone.canDecay = this.canDecay;
+        
+        return clone;
     }
-} 
+}
