@@ -297,36 +297,39 @@ public class ResourceManager : MonoBehaviour
     {
         if (yield == null) return false;
 
-        bool success = true;
-
-        // Add primary resources
-        if (yield.primaryResources != null)
+        bool allSuccessful = true;
+        
+        // Add primary resources (guaranteed)
+        foreach (var resource in yield.primaryResources)
         {
-            foreach (var resource in yield.primaryResources)
+            bool success = AddResource(resource.type, resource.amount);
+            if (!success) allSuccessful = false;
+        }
+        
+        // Add secondary resources (chance-based)
+        foreach (var chance in yield.secondaryResources)
+        {
+            if (UnityEngine.Random.value <= chance.chance)
             {
-                if (!AddResource(resource.type, resource.amount))
-                {
-                    success = false;
-                }
+                bool success = AddResource(chance.type, chance.amount);
+                if (!success) allSuccessful = false;
             }
         }
+        
+        return allSuccessful;
+    }
 
-        // Add secondary resources (with chance)
-        if (yield.secondaryResources != null)
+    /// <summary>
+    /// Get recycling multiplier from upgrades
+    /// </summary>
+    public float RecyclingMultiplier
+    {
+        get
         {
-            foreach (var resource in yield.secondaryResources)
-            {
-                if (UnityEngine.Random.value <= resource.chance)
-                {
-                    if (!AddResource(resource.type, resource.amount))
-                    {
-                        success = false;
-                    }
-                }
-            }
+            // This should be connected to your facility upgrade system
+            // For now, return base multiplier
+            return recyclingMultiplier;
         }
-
-        return success;
     }
 
     #endregion

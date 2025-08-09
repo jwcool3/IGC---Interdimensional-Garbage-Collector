@@ -472,80 +472,6 @@ public class UpdatedWasteItem
     }
     
     /// <summary>
-    /// Set up default resource yield based on waste type and properties
-    /// </summary>
-    private void SetupDefaultYield()
-    {
-        var primaryResources = new List<ResourceAmount>();
-        var secondaryResources = new List<ResourceChance>();
-        
-        // Set primary resources based on waste type
-        switch (Type)
-        {
-            case WasteType.Metal:
-                primaryResources.Add(new ResourceAmount(ResourceType.MetalScraps, GetBaseYieldAmount()));
-                secondaryResources.Add(new ResourceChance(ResourceType.RareMetals, 1, 0.1f));
-                break;
-                
-            case WasteType.Plastic:
-                primaryResources.Add(new ResourceAmount(ResourceType.Plastic, GetBaseYieldAmount()));
-                secondaryResources.Add(new ResourceChance(ResourceType.Polymer, 1, 0.15f));
-                break;
-                
-            case WasteType.Organic:
-                primaryResources.Add(new ResourceAmount(ResourceType.OrganicMatter, GetBaseYieldAmount()));
-                secondaryResources.Add(new ResourceChance(ResourceType.Biomass, 1, 0.2f));
-                break;
-                
-            case WasteType.Electronics:
-                primaryResources.Add(new ResourceAmount(ResourceType.Electronics, GetBaseYieldAmount()));
-                secondaryResources.Add(new ResourceChance(ResourceType.RareMetals, 1, 0.25f));
-                secondaryResources.Add(new ResourceChance(ResourceType.CrystalFragments, 1, 0.1f));
-                break;
-                
-            case WasteType.Chemical:
-                primaryResources.Add(new ResourceAmount(ResourceType.Chemical, GetBaseYieldAmount()));
-                secondaryResources.Add(new ResourceChance(ResourceType.ToxicSludge, 1, 0.3f));
-                break;
-                
-            default:
-                primaryResources.Add(new ResourceAmount(ResourceType.RecyclingPoints, GetBaseYieldAmount()));
-                break;
-        }
-        
-        resourceYield.primaryResources = primaryResources.ToArray();
-        resourceYield.secondaryResources = secondaryResources.ToArray();
-        resourceYield.contaminationRisk = ContaminationLevel;
-    }
-    
-    private int GetBaseYieldAmount()
-    {
-        int baseAmount = 1;
-        
-        // Adjust based on rarity
-        switch (Rarity)
-        {
-            case WasteRarity.Common: baseAmount = 1; break;
-            case WasteRarity.Uncommon: baseAmount = 2; break;
-            case WasteRarity.Rare: baseAmount = 3; break;
-            case WasteRarity.Epic: baseAmount = 5; break;
-            case WasteRarity.Legendary: baseAmount = 8; break;
-        }
-        
-        // Adjust based on condition
-        switch (Condition)
-        {
-            case WasteCondition.Pristine: baseAmount = Mathf.RoundToInt(baseAmount * 1.5f); break;
-            case WasteCondition.Good: break; // No change needed
-            case WasteCondition.Damaged: baseAmount = Mathf.RoundToInt(baseAmount * 0.8f); break;
-            case WasteCondition.Deteriorated: baseAmount = Mathf.RoundToInt(baseAmount * 0.6f); break;
-            case WasteCondition.Corrupted: baseAmount = Mathf.RoundToInt(baseAmount * 0.4f); break;
-        }
-        
-        return Mathf.Max(1, baseAmount);
-    }
-    
-    /// <summary>
     /// Calculate processing complexity based on various factors
     /// </summary>
     private float CalculateProcessingComplexity()
@@ -697,6 +623,152 @@ public class UpdatedWasteItem
         {
             IsHazardous = true;
         }
+    }
+    
+    /// <summary>
+    /// Setup default resource yield based on waste type and properties
+    /// </summary>
+    public void SetupDefaultYield()
+    {
+        if (resourceYield == null)
+            resourceYield = new ResourceYield();
+        
+        // Clear existing yields
+        var primaryList = new List<ResourceAmount>();
+        var secondaryList = new List<ResourceChance>();
+        
+        // Generate yields based on waste type
+        var typeResources = GetResourceTypesForWasteType(Type);
+        var rarityMultiplier = GetRarityValueMultiplier(Rarity);
+        
+        foreach (var resourceType in typeResources)
+        {
+            int baseAmount = GetBaseAmountForResource(resourceType) * rarityMultiplier;
+            
+            if (baseAmount > 0)
+            {
+                primaryList.Add(new ResourceAmount(resourceType, baseAmount));
+            }
+        }
+        
+        // Add bonus resources based on dimensional origin
+        var bonusResources = GetBonusResourcesFromOrigin(DimensionalOrigin);
+        foreach (var bonusResource in bonusResources)
+        {
+            float chance = GetBonusResourceChance(bonusResource, Rarity);
+            int amount = GetBonusResourceAmount(bonusResource, Rarity);
+            
+            if (chance > 0f && amount > 0)
+            {
+                secondaryList.Add(new ResourceChance(bonusResource, amount, chance));
+            }
+        }
+        
+        // Assign to resourceYield
+        resourceYield.primaryResources = primaryList.ToArray();
+        resourceYield.secondaryResources = secondaryList.ToArray();
+        resourceYield.contaminationRisk = ContaminationLevel;
+        
+        // Set single resource type for legacy compatibility
+        if (primaryList.Count > 0)
+        {
+            resourceYield.resourceType = primaryList[0].type;
+            resourceYield.baseAmount = primaryList[0].amount;
+            resourceYield.yieldMultiplier = 1f;
+            resourceYield.chancePercentage = 100f;
+        }
+    }
+
+    private ResourceType[] GetResourceTypesForWasteType(WasteType wasteType)
+    {
+        return wasteType switch
+        {
+            WasteType.Plastic => new[] { ResourceType.Plastic, ResourceType.Fuel },
+            WasteType.Metal => new[] { ResourceType.MetalScraps, ResourceType.Parts },
+            WasteType.Organic => new[] { ResourceType.OrganicMatter, ResourceType.Food },
+            WasteType.Electronics => new[] { ResourceType.MetalScraps, ResourceType.CrystalFragments },
+            WasteType.Glass => new[] { ResourceType.CrystalFragments },
+            WasteType.Chemical => new[] { ResourceType.ToxicSludge, ResourceType.Energy },
+            WasteType.Crystalline => new[] { ResourceType.CrystalFragments, ResourceType.Energy },
+            WasteType.Dimensional => new[] { ResourceType.CrystalFragments, ResourceType.NeuralResidue },
+            _ => new[] { ResourceType.Plastic }
+        };
+    }
+
+    private int GetRarityValueMultiplier(WasteRarity rarity)
+    {
+        return rarity switch
+        {
+            WasteRarity.Common => 1,
+            WasteRarity.Uncommon => 2,
+            WasteRarity.Rare => 3,
+            WasteRarity.Epic => 5,
+            WasteRarity.Legendary => 8,
+            _ => 1
+        };
+    }
+
+    private int GetBaseAmountForResource(ResourceType resourceType)
+    {
+        // Basic amounts - can be configured later via ResourceConfig
+        return resourceType switch
+        {
+            ResourceType.Plastic => UnityEngine.Random.Range(1, 4),
+            ResourceType.MetalScraps => UnityEngine.Random.Range(1, 3),
+            ResourceType.OrganicMatter => UnityEngine.Random.Range(2, 5),
+            ResourceType.CrystalFragments => UnityEngine.Random.Range(1, 2),
+            ResourceType.NeuralResidue => 1,
+            ResourceType.ToxicSludge => UnityEngine.Random.Range(1, 2),
+            _ => 1
+        };
+    }
+
+    private ResourceType[] GetBonusResourcesFromOrigin(string dimensionalOrigin)
+    {
+        if (string.IsNullOrEmpty(dimensionalOrigin)) return new ResourceType[0];
+        
+        string origin = dimensionalOrigin.ToLower();
+        
+        if (origin.Contains("technological"))
+            return new[] { ResourceType.CrystalFragments, ResourceType.Parts };
+        if (origin.Contains("biological"))
+            return new[] { ResourceType.OrganicMatter, ResourceType.NeuralResidue };
+        if (origin.Contains("quantum"))
+            return new[] { ResourceType.CrystalFragments, ResourceType.Energy };
+        if (origin.Contains("philosophical"))
+            return new[] { ResourceType.NeuralResidue };
+        
+        return new ResourceType[0];
+    }
+
+    private float GetBonusResourceChance(ResourceType resourceType, WasteRarity rarity)
+    {
+        float baseChance = resourceType switch
+        {
+            ResourceType.CrystalFragments => 0.3f,
+            ResourceType.NeuralResidue => 0.2f,
+            ResourceType.Energy => 0.25f,
+            ResourceType.Parts => 0.4f,
+            _ => 0.1f
+        };
+        
+        // Increase chance with rarity
+        float rarityBonus = (int)rarity * 0.1f;
+        return Mathf.Clamp01(baseChance + rarityBonus);
+    }
+
+    private int GetBonusResourceAmount(ResourceType resourceType, WasteRarity rarity)
+    {
+        int baseAmount = resourceType switch
+        {
+            ResourceType.CrystalFragments => 1,
+            ResourceType.NeuralResidue => 1,
+            ResourceType.Energy => 2,
+            ResourceType.Parts => 1,
+            _ => 1
+        };
+        
+        return baseAmount + ((int)rarity);
     }
     
     /// <summary>

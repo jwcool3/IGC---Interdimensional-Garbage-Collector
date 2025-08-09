@@ -206,29 +206,35 @@ public class WasteGenerator : MonoBehaviour
             }
 
             // Generate rarity based on LOCATION's probability
-            WasteRarity rarity = GenerateRarityForLocation(currentLocation);
+            WasteRarity generatedRarity = GenerateRarityForLocation(currentLocation);
 
-            // Create the waste item
-            Sprite itemSprite = GetSpriteForItem(itemData);
+            // Create the WasteItem using the data
             WasteItem wasteItem = new WasteItem(
                 itemData.itemName,
                 itemData.dimensionalOrigin,
-                rarity,
-                itemSprite
+                generatedRarity,
+                GetSpriteForItem(itemData)
             );
-
-            // Set additional properties
+            
+            // Set additional properties from itemData
             wasteItem.Description = itemData.description;
             wasteItem.DimensionalStability = RandomizeProperty(itemData.baseStability);
             wasteItem.ContaminationLevel = RandomizeProperty(itemData.baseContamination);
             wasteItem.RecyclingPotential = RandomizeProperty(itemData.baseRecyclingPotential);
 
-            // Apply location modifiers
+            // Apply location-specific modifiers
             ApplyLocationModifiers(wasteItem);
 
             DebugManager.Log($"Generated {wasteItem.Rarity} waste item: {wasteItem.Name}, Origin: {wasteItem.DimensionalOrigin}", DebugCategory.WasteGeneration);
 
-            return wasteItem;
+            // Convert to UpdatedWasteItem to apply resource yield
+            var updatedItem = UpdatedWasteItem.FromWasteItem(wasteItem);
+            
+            // Assign proper resource yield
+            AssignResourceYield(updatedItem);
+            
+            // Convert back to WasteItem for compatibility
+            return updatedItem.ToWasteItem();
         }
         catch (Exception e)
         {
@@ -323,30 +329,33 @@ public class WasteGenerator : MonoBehaviour
         return defaultItemSprite;
     }
 
-    private WasteItem CreateProceduralWasteItem(string dimensionName = null)
+    /// <summary>
+    /// Create a fallback procedural waste item
+    /// </summary>
+    private WasteItem CreateProceduralWasteItem(string dimensionType = null)
     {
         // If no dimension name is provided, pick a random one
-        if (string.IsNullOrEmpty(dimensionName))
+        if (string.IsNullOrEmpty(dimensionType))
         {
-            dimensionName = GetRandomDimension().Name;
+            dimensionType = GetRandomDimension().Name;
         }
 
         // Generate a random rarity
-        WasteRarity rarity = GenerateRarity(GetDimensionType(dimensionName));
+        WasteRarity rarity = GenerateRarity(GetDimensionType(dimensionType));
 
         // Generate a name
-        string itemName = GenerateDetailedName(dimensionName, rarity);
+        string itemName = GenerateDetailedName(dimensionType, rarity);
 
         // Create the waste item
         WasteItem wasteItem = new WasteItem(
             itemName,
-            dimensionName,
+            dimensionType,
             rarity,
             defaultItemSprite
         );
 
         // Set additional properties
-        wasteItem.Description = GenerateDescription(dimensionName, rarity);
+        wasteItem.Description = GenerateDescription(dimensionType, rarity);
         wasteItem.DimensionalStability = 0.5f + ((int)rarity * 0.1f) + UnityEngine.Random.Range(-0.1f, 0.1f);
         wasteItem.ContaminationLevel = 0.5f - ((int)rarity * 0.1f) + UnityEngine.Random.Range(-0.1f, 0.1f);
         wasteItem.RecyclingPotential = 0.3f + ((int)rarity * 0.15f) + UnityEngine.Random.Range(-0.1f, 0.1f);
@@ -547,5 +556,52 @@ public class WasteGenerator : MonoBehaviour
             return WasteRarity.Uncommon;
 
         return WasteRarity.Common;
+    }
+
+    private void AssignResourceYield(UpdatedWasteItem wasteItem)
+    {
+        // Ensure the item has proper resource yield based on its properties
+        if (wasteItem.ResourceYield == null || wasteItem.ResourceYield.IsEmpty)
+        {
+            wasteItem.SetupDefaultYield();
+        }
+        
+        // Apply modifiers based on location and ship upgrades
+        ApplyLocationModifiers(wasteItem);
+        ApplyShipUpgradeModifiers(wasteItem);
+    }
+
+    private void ApplyLocationModifiers(UpdatedWasteItem wasteItem)
+    {
+        if (currentLocation == null) return;
+        
+        // Get location-specific resource bonuses
+        float locationBonus = currentLocation.dangerLevel * 0.1f; // Higher danger = better yield
+        
+        // Modify existing resource yield
+        var yields = wasteItem.ResourceYields;
+        foreach (var resourceType in yields.Keys.ToList())
+        {
+            var yield = yields[resourceType];
+            yield.yieldMultiplier *= (1f + locationBonus);
+            yields[resourceType] = yield;
+        }
+    }
+
+    private void ApplyShipUpgradeModifiers(UpdatedWasteItem wasteItem)
+    {
+        // Apply recycling multiplier from facility upgrades
+        if (ResourceManager.Instance != null)
+        {
+            float recyclingMultiplier = ResourceManager.Instance.RecyclingMultiplier;
+            
+            var yields = wasteItem.ResourceYields;
+            foreach (var resourceType in yields.Keys.ToList())
+            {
+                var yield = yields[resourceType];
+                yield.yieldMultiplier *= recyclingMultiplier;
+                yields[resourceType] = yield;
+            }
+        }
     }
 }

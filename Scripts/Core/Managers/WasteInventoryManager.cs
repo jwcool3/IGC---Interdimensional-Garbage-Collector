@@ -846,16 +846,20 @@ public class WasteInventoryManager : MonoBehaviour
     public static event Action<ResourceType, int> OnResourceGenerated;
 
     /// <summary>
-    /// Process waste item using the new resource system
+    /// Process waste item using the new resource system - UPDATED VERSION
     /// </summary>
-    /// <param name="wasteItem">Waste item to process</param>
-    /// <returns>Dictionary of generated resources</returns>
     public Dictionary<ResourceType, int> ProcessWasteToResources(UpdatedWasteItem wasteItem)
     {
         if (!useNewResourceSystem || wasteItem == null)
         {
             Debug.LogWarning("ProcessWasteToResources: New resource system disabled or null waste item");
             return new Dictionary<ResourceType, int>();
+        }
+
+        // Ensure waste item has proper resource yield
+        if (wasteItem.ResourceYield == null || wasteItem.ResourceYield.IsEmpty)
+        {
+            wasteItem.SetupDefaultYield();
         }
 
         // Remove the item from inventory first
@@ -866,44 +870,44 @@ public class WasteInventoryManager : MonoBehaviour
             return new Dictionary<ResourceType, int>();
         }
 
-        // Generate resources using ResourceProcessingManager
+        // Generate resources
         var generatedResources = new Dictionary<ResourceType, int>();
         
-        if (ResourceProcessingManager.Instance != null)
+        // Process primary resources (guaranteed)
+        foreach (var resource in wasteItem.ResourceYield.primaryResources)
         {
-            bool processSuccess = ResourceProcessingManager.Instance.ProcessWasteItem(wasteItem);
-            
-            if (processSuccess)
+            int amount = Mathf.RoundToInt(resource.amount * wasteItem.ResourceYield.yieldMultiplier);
+            if (amount > 0)
             {
-                // Get the actual resources that were generated
-                foreach (var yieldPair in wasteItem.ResourceYields)
-                {
-                    var yield = yieldPair.Value;
-                    if (yield.RollForYield())
-                    {
-                        int actualYield = yield.CalculateActualYield(wasteItem.Quality, 1.0f);
-                        if (actualYield > 0)
-                        {
-                            generatedResources[yieldPair.Key] = actualYield;
-                            OnResourceGenerated?.Invoke(yieldPair.Key, actualYield);
-                        }
-                    }
-                }
-                
-                // Fire the processing event
-                OnWasteProcessedToResources?.Invoke(wasteItem, generatedResources);
-                Debug.Log($"Processed {wasteItem.Name} -> Generated {generatedResources.Count} resource types");
-            }
-            else
-            {
-                Debug.LogWarning($"ResourceProcessingManager failed to process {wasteItem.Name}");
+                generatedResources[resource.type] = amount;
+                ResourceManager.Instance.AddResource(resource.type, amount);
+                OnResourceGenerated?.Invoke(resource.type, amount);
             }
         }
-        else
+        
+        // Process secondary resources (chance-based)
+        foreach (var chance in wasteItem.ResourceYield.secondaryResources)
         {
-            Debug.LogError("ResourceProcessingManager.Instance is null!");
+            if (UnityEngine.Random.value <= chance.chance)
+            {
+                int amount = Mathf.RoundToInt(chance.amount * wasteItem.ResourceYield.yieldMultiplier);
+                if (amount > 0)
+                {
+                    if (generatedResources.ContainsKey(chance.type))
+                        generatedResources[chance.type] += amount;
+                    else
+                        generatedResources[chance.type] = amount;
+                        
+                    ResourceManager.Instance.AddResource(chance.type, amount);
+                    OnResourceGenerated?.Invoke(chance.type, amount);
+                }
+            }
         }
 
+        // Fire the processing event
+        OnWasteProcessedToResources?.Invoke(wasteItem, generatedResources);
+        Debug.Log($"Processed {wasteItem.Name} -> Generated {generatedResources.Count} resource types: {string.Join(", ", generatedResources.Select(kv => $"{kv.Value} {kv.Key}"))}");
+        
         return generatedResources;
     }
 

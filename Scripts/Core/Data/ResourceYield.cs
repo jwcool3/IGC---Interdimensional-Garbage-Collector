@@ -178,6 +178,22 @@ public class ResourceYield
         return desc;
     }
     
+    /// <summary>
+    /// Check if this resource yield is empty (no resources defined)
+    /// </summary>
+    /// <returns>True if no resources are defined</returns>
+    public bool IsEmpty
+    {
+        get
+        {
+            bool hasPrimary = primaryResources != null && primaryResources.Length > 0;
+            bool hasSecondary = secondaryResources != null && secondaryResources.Length > 0;
+            bool hasLegacy = resourceType != ResourceType.None && baseAmount > 0;
+            
+            return !hasPrimary && !hasSecondary && !hasLegacy;
+        }
+    }
+    
     public override string ToString()
     {
         return GetDescription();
