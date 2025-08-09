@@ -313,7 +313,7 @@ public class ResourceSystemTest : MonoBehaviour
         if (resourceInventoryUI == null)
         {
             Debug.LogWarning("ResourceInventoryUI reference not set. Looking for it...");
-            resourceInventoryUI = FindObjectOfType<ResourceInventoryUI>();
+            resourceInventoryUI = FindFirstObjectByType<ResourceInventoryUI>();
         }
         
         if (resourceInventoryUI == null)

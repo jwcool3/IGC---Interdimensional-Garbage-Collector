@@ -51,6 +51,9 @@ public class GameSetupManager : MonoBehaviour
     {
         Debug.Log("Starting game system initialization sequence...");
 
+        // Step 0: Create DebugManager first (so it can handle logs from other systems)
+        yield return CreateSystem("DebugManager", null, () => DebugManager.Instance == null);
+
         // Step 1: Create WasteItemDatabase
         yield return CreateSystem("WasteItemDatabase", wasteItemDatabasePrefab, () => WasteItemDatabase.Instance == null);
 
@@ -103,6 +106,9 @@ public class GameSetupManager : MonoBehaviour
                 // Add the component based on the system name
                 switch (systemName)
                 {
+                    case "DebugManager":
+                        systemObject.AddComponent<DebugManager>();
+                        break;
                     case "WasteItemDatabase":
                         systemObject.AddComponent<WasteItemDatabase>();
                         break;
@@ -111,6 +117,9 @@ public class GameSetupManager : MonoBehaviour
                         break;
                     case "FacilityManager":
                         systemObject.AddComponent<FacilityManager>();
+                        break;
+                    case "LocationManager":
+                        systemObject.AddComponent<LocationManager>();
                         break;
                     case "WasteInventoryManager":
                         systemObject.AddComponent<WasteInventoryManager>();

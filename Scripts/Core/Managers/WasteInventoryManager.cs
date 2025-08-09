@@ -708,13 +708,7 @@ public class WasteInventoryManager : MonoBehaviour
     /// <returns>New inventory slot</returns>
     private WasteInventorySlot CreateInventorySlot(UpdatedWasteItem wasteItem, WasteStorageCategory category)
     {
-        return new WasteInventorySlot
-        {
-            wasteItem = wasteItem,
-            category = category,
-            addedTime = DateTime.Now,
-            lastModified = DateTime.Now
-        };
+        return new WasteInventorySlot(wasteItem, category);
     }
     
     /// <summary>
@@ -839,6 +833,291 @@ public class WasteInventoryManager : MonoBehaviour
     {
         return maxInventorySlots;
     }
+
+    #region New Resource System Integration
+
+    [Header("Resource System Integration")]
+    [SerializeField] private bool useNewResourceSystem = true;
+    [SerializeField] private bool showResourcePreview = true;
+    [SerializeField] private bool enableResourceProcessing = true;
+
+    // Resource processing events
+    public static event Action<UpdatedWasteItem, Dictionary<ResourceType, int>> OnWasteProcessedToResources;
+    public static event Action<ResourceType, int> OnResourceGenerated;
+
+    /// <summary>
+    /// Process waste item using the new resource system
+    /// </summary>
+    /// <param name="wasteItem">Waste item to process</param>
+    /// <returns>Dictionary of generated resources</returns>
+    public Dictionary<ResourceType, int> ProcessWasteToResources(UpdatedWasteItem wasteItem)
+    {
+        if (!useNewResourceSystem || wasteItem == null)
+        {
+            Debug.LogWarning("ProcessWasteToResources: New resource system disabled or null waste item");
+            return new Dictionary<ResourceType, int>();
+        }
+
+        // Remove the item from inventory first
+        bool removed = RemoveWasteItem(wasteItem, wasteItem.Quantity) != null;
+        if (!removed)
+        {
+            Debug.LogWarning($"Failed to remove waste item {wasteItem.Name} from inventory");
+            return new Dictionary<ResourceType, int>();
+        }
+
+        // Generate resources using ResourceProcessingManager
+        var generatedResources = new Dictionary<ResourceType, int>();
+        
+        if (ResourceProcessingManager.Instance != null)
+        {
+            bool processSuccess = ResourceProcessingManager.Instance.ProcessWasteItem(wasteItem);
+            
+            if (processSuccess)
+            {
+                // Get the actual resources that were generated
+                foreach (var yieldPair in wasteItem.ResourceYields)
+                {
+                    var yield = yieldPair.Value;
+                    if (yield.RollForYield())
+                    {
+                        int actualYield = yield.CalculateActualYield(wasteItem.Quality, 1.0f);
+                        if (actualYield > 0)
+                        {
+                            generatedResources[yieldPair.Key] = actualYield;
+                            OnResourceGenerated?.Invoke(yieldPair.Key, actualYield);
+                        }
+                    }
+                }
+                
+                // Fire the processing event
+                OnWasteProcessedToResources?.Invoke(wasteItem, generatedResources);
+                Debug.Log($"Processed {wasteItem.Name} -> Generated {generatedResources.Count} resource types");
+            }
+            else
+            {
+                Debug.LogWarning($"ResourceProcessingManager failed to process {wasteItem.Name}");
+            }
+        }
+        else
+        {
+            Debug.LogError("ResourceProcessingManager.Instance is null!");
+        }
+
+        return generatedResources;
+    }
+
+    /// <summary>
+    /// Get resource preview for all waste items in inventory
+    /// </summary>
+    /// <returns>Dictionary of total expected resources</returns>
+    public Dictionary<ResourceType, int> GetInventoryResourcePreview()
+    {
+        var totalPreview = new Dictionary<ResourceType, int>();
+        
+        foreach (var slot in inventorySlots.Values)
+        {
+            var wasteItem = slot.wasteItem;
+            foreach (var yieldPair in wasteItem.ResourceYields)
+            {
+                var yield = yieldPair.Value;
+                int estimatedYield = yield.CalculateActualYield(wasteItem.Quality, 1.0f) * wasteItem.Quantity;
+                
+                if (totalPreview.ContainsKey(yieldPair.Key))
+                {
+                    totalPreview[yieldPair.Key] += estimatedYield;
+                }
+                else
+                {
+                    totalPreview[yieldPair.Key] = estimatedYield;
+                }
+            }
+        }
+        
+        return totalPreview;
+    }
+
+    /// <summary>
+    /// Process all waste items of a specific type
+    /// </summary>
+    /// <param name="wasteType">Type of waste to process</param>
+    /// <param name="maxQuantity">Maximum quantity to process</param>
+    /// <returns>Total resources generated</returns>
+    public Dictionary<ResourceType, int> ProcessAllWasteOfType(WasteType wasteType, int maxQuantity = int.MaxValue)
+    {
+        var totalResources = new Dictionary<ResourceType, int>();
+        var wasteItems = GetWasteByType(wasteType, maxQuantity);
+        
+        foreach (var wasteItem in wasteItems)
+        {
+            var generatedResources = ProcessWasteToResources(wasteItem);
+            
+            // Merge resources
+            foreach (var kvp in generatedResources)
+            {
+                if (totalResources.ContainsKey(kvp.Key))
+                {
+                    totalResources[kvp.Key] += kvp.Value;
+                }
+                else
+                {
+                    totalResources[kvp.Key] = kvp.Value;
+                }
+            }
+        }
+        
+        Debug.Log($"Processed all {wasteType} waste -> Generated total resources: {totalResources.Count} types");
+        return totalResources;
+    }
+
+    /// <summary>
+    /// Get waste items that would generate specific resource types
+    /// </summary>
+    /// <param name="desiredResources">Resource types to look for</param>
+    /// <returns>List of waste items that generate these resources</returns>
+    public List<UpdatedWasteItem> GetWasteForResources(params ResourceType[] desiredResources)
+    {
+        var result = new List<UpdatedWasteItem>();
+        var desiredSet = new HashSet<ResourceType>(desiredResources);
+        
+        foreach (var slot in inventorySlots.Values)
+        {
+            var wasteItem = slot.wasteItem;
+            var wasteResourceTypes = wasteItem.ResourceYields.Keys;
+            
+            // Check if this waste item generates any of the desired resources
+            if (wasteResourceTypes.Any(rt => desiredSet.Contains(rt)))
+            {
+                result.Add(wasteItem);
+            }
+        }
+        
+        return result.OrderByDescending(w => w.EstimatedValue).ToList();
+    }
+
+    /// <summary>
+    /// Batch process multiple waste items efficiently
+    /// </summary>
+    /// <param name="wasteItems">List of waste items to process</param>
+    /// <returns>Total resources generated</returns>
+    public Dictionary<ResourceType, int> BatchProcessWaste(List<UpdatedWasteItem> wasteItems)
+    {
+        var totalResources = new Dictionary<ResourceType, int>();
+        
+        foreach (var wasteItem in wasteItems)
+        {
+            var generatedResources = ProcessWasteToResources(wasteItem);
+            
+            // Merge resources
+            foreach (var kvp in generatedResources)
+            {
+                if (totalResources.ContainsKey(kvp.Key))
+                {
+                    totalResources[kvp.Key] += kvp.Value;
+                }
+                else
+                {
+                    totalResources[kvp.Key] = kvp.Value;
+                }
+            }
+        }
+        
+        Debug.Log($"Batch processed {wasteItems.Count} items -> Generated {totalResources.Count} resource types");
+        return totalResources;
+    }
+
+    #endregion
+
+    #region Legacy System Bridge
+
+    /// <summary>
+    /// Process waste using legacy system (for backward compatibility)
+    /// </summary>
+    /// <param name="wasteItem">Waste item to process</param>
+    /// <returns>Legacy recycling points generated</returns>
+    public float ProcessWasteLegacy(UpdatedWasteItem wasteItem)
+    {
+        if (wasteItem == null) return 0f;
+        
+        // Remove from inventory
+        bool removed = RemoveWasteItem(wasteItem, wasteItem.Quantity) != null;
+        if (!removed) return 0f;
+        
+        // Calculate legacy values
+        float recyclingPoints = wasteItem.TotalValue;
+        float dimensionalPotential = wasteItem.DimensionalStability * 10f;
+        
+        // Add to legacy resource manager if it exists
+        if (ResourceManager.Instance != null)
+        {
+            ResourceManager.Instance.AddRecyclingPoints(recyclingPoints);
+            ResourceManager.Instance.AddDimensionalPotential(dimensionalPotential);
+        }
+        
+        Debug.Log($"Legacy processing: {wasteItem.Name} -> {recyclingPoints} RP, {dimensionalPotential} DP");
+        return recyclingPoints;
+    }
+
+    /// <summary>
+    /// Process waste using both legacy and new systems (transition mode)
+    /// </summary>
+    /// <param name="wasteItem">Waste item to process</param>
+    /// <returns>Processing results</returns>
+    public WasteProcessingResult ProcessWasteHybrid(UpdatedWasteItem wasteItem)
+    {
+        var result = new WasteProcessingResult
+        {
+            wasteItem = wasteItem,
+            success = false,
+            legacyRP = 0f,
+            legacyDP = 0f,
+            generatedResources = new Dictionary<ResourceType, int>()
+        };
+        
+        if (wasteItem == null) return result;
+        
+        // Remove from inventory
+        bool removed = RemoveWasteItem(wasteItem, wasteItem.Quantity) != null;
+        if (!removed) return result;
+        
+        // Generate legacy values
+        result.legacyRP = wasteItem.TotalValue;
+        result.legacyDP = wasteItem.DimensionalStability * 10f;
+        
+        // Generate new resources
+        if (useNewResourceSystem && ResourceProcessingManager.Instance != null)
+        {
+            bool processSuccess = ResourceProcessingManager.Instance.ProcessWasteItem(wasteItem);
+            if (processSuccess)
+            {
+                // Calculate actual resources generated
+                foreach (var yieldPair in wasteItem.ResourceYields)
+                {
+                    var yield = yieldPair.Value;
+                    if (yield.RollForYield())
+                    {
+                        int actualYield = yield.CalculateActualYield(wasteItem.Quality, 1.0f);
+                        if (actualYield > 0)
+                        {
+                            result.generatedResources[yieldPair.Key] = actualYield;
+                        }
+                    }
+                }
+            }
+        }
+        
+        // Add legacy values to ResourceManager
+        if (ResourceManager.Instance != null)
+        {
+            ResourceManager.Instance.AddRecyclingPoints(result.legacyRP);
+            ResourceManager.Instance.AddDimensionalPotential(result.legacyDP);
+        }
+        
+        result.success = true;
+        return result;
+    }
+
+    #endregion
 }
 
 /// <summary>
@@ -885,7 +1164,7 @@ public class WasteStorageCategory
 }
 
 /// <summary>
-/// Individual inventory slot containing waste item
+/// Inventory slot data structure
 /// Updated to use UpdatedWasteItem
 /// </summary>
 [System.Serializable]
@@ -894,64 +1173,81 @@ public class WasteInventorySlot
     public string slotId;
     public UpdatedWasteItem wasteItem;
     public WasteStorageCategory category;
-    public DateTime addedTime;
-    public DateTime lastModified;
+    public DateTime dateAdded;
+    public DateTime addedTime; // Added for compatibility
+    public DateTime lastModified; // Added for compatibility
+    public int positionIndex;
     
-    /// <summary>
-    /// Get age of this slot in hours
-    /// </summary>
-    /// <returns>Age in hours</returns>
-    public float GetAgeInHours()
+    public WasteInventorySlot(UpdatedWasteItem item, WasteStorageCategory cat = null)
     {
-        return (float)(DateTime.Now - addedTime).TotalHours;
-    }
-    
-    /// <summary>
-    /// Get time since last modification in hours
-    /// </summary>
-    /// <returns>Hours since last modified</returns>
-    public float GetTimeSinceModifiedInHours()
-    {
-        return (float)(DateTime.Now - lastModified).TotalHours;
+        slotId = Guid.NewGuid().ToString();
+        wasteItem = item;
+        category = cat;
+        dateAdded = DateTime.Now;
+        addedTime = DateTime.Now; // Initialize addedTime
+        lastModified = DateTime.Now; // Initialize lastModified
+        positionIndex = 0;
     }
 }
 
 /// <summary>
-/// Statistics for waste inventory
-/// Updated with new metrics for UpdatedWasteItem
+/// Inventory statistics
 /// </summary>
 [System.Serializable]
 public class WasteInventoryStats
 {
     public int currentSlots;
+    public int maxSlots;
     public float totalWeight;
+    public float maxWeight;
     public float averageQuality;
     public float averageContamination;
     public float totalEstimatedValue;
-    public int totalItemsProcessed;
-    public float totalValueProcessed;
+    public DateTime lastUpdated;
+    
+    // Added missing properties for compatibility
     public int itemsAdded;
     public int itemsRemoved;
-    public DateTime lastUpdated = DateTime.Now;
+    public int totalItemsProcessed;
+    public float totalValueProcessed;
     
-    /// <summary>
-    /// Get inventory efficiency percentage
-    /// </summary>
-    /// <returns>Efficiency as percentage (0-100)</returns>
-    public float GetEfficiencyPercentage()
+    public float GetCapacityPercentage()
     {
-        if (totalItemsProcessed == 0) return 0f;
-        return (averageQuality * 100f);
+        return maxSlots > 0 ? (float)currentSlots / maxSlots : 0f;
     }
     
-    /// <summary>
-    /// Get average value per item
-    /// </summary>
-    /// <returns>Average estimated value per item</returns>
-    public float GetAverageValuePerItem()
+    public float GetWeightPercentage()
     {
-        if (currentSlots == 0) return 0f;
-        return totalEstimatedValue / Math.Max(1, currentSlots);
+        return maxWeight > 0 ? totalWeight / maxWeight : 0f;
+    }
+}
+
+// Add this data structure for hybrid processing results
+[System.Serializable]
+public class WasteProcessingResult
+{
+    public UpdatedWasteItem wasteItem;
+    public bool success;
+    public float legacyRP;
+    public float legacyDP;
+    public Dictionary<ResourceType, int> generatedResources;
+    
+    public string GetSummary()
+    {
+        var summary = $"{wasteItem?.Name}: ";
+        if (success)
+        {
+            summary += $"{legacyRP:F1} RP, {legacyDP:F1} DP";
+            if (generatedResources.Count > 0)
+            {
+                summary += $" + {generatedResources.Count} resource types";
+            }
+        }
+        else
+        {
+            summary += "Failed";
+        }
+        return summary;
     }
 }
 

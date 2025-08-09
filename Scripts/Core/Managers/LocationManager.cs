@@ -119,7 +119,7 @@ public class LocationManager : MonoBehaviour
         // Only proceed if it's a real location change
         LocationData oldLocation = currentLocation;
         currentLocation = newLocation;
-        Debug.Log($"Location changed from {oldLocation?.displayName ?? "None"} to {newLocation.displayName}");
+        DebugManager.Log($"Location changed from {oldLocation?.displayName ?? "None"} to {newLocation.displayName}", DebugCategory.LocationSystem);
         OnLocationChanged?.Invoke(currentLocation);
         return true;
     }
@@ -146,23 +146,23 @@ public class LocationManager : MonoBehaviour
 
     public void CheckForLocationUnlocks()
     {
-        Debug.Log($"Checking for location unlocks. Total waste collected: {GameManager.Instance.TotalWasteCollected}");
+        DebugManager.Log($"Checking for location unlocks. Total waste collected: {GameManager.Instance.TotalWasteCollected}", DebugCategory.LocationSystem);
 
         foreach (var location in allLocations)
         {
             if (!unlockedLocations.Contains(location))
             {
-                Debug.Log($"Checking unlock requirements for {location.displayName}");
-                Debug.Log($"Required waste: {location.requiredWasteCollected}, Current: {GameManager.Instance.TotalWasteCollected}");
+                DebugManager.Log($"Checking unlock requirements for {location.displayName}", DebugCategory.LocationSystem);
+                DebugManager.Log($"Required waste: {location.requiredWasteCollected}, Current: {GameManager.Instance.TotalWasteCollected}", DebugCategory.LocationSystem);
 
                 if (CanUnlockLocation(location))
                 {
-                    Debug.Log($"Location {location.displayName} can be unlocked!");
+                    DebugManager.Log($"Location {location.displayName} can be unlocked!", DebugCategory.LocationSystem);
                     UnlockLocation(location);
                 }
                 else
                 {
-                    Debug.Log($"Location {location.displayName} cannot be unlocked yet");
+                    DebugManager.Log($"Location {location.displayName} cannot be unlocked yet", DebugCategory.LocationSystem);
                 }
             }
         }

@@ -78,7 +78,7 @@ public class WasteGenerator : MonoBehaviour
             // If still null, create a fallback
             if (defaultItemSprite == null)
             {
-                Debug.LogWarning("No default sprite found! Items may appear without icons.");
+                DebugManager.LogWarning("No default sprite found! Items may appear without icons.", DebugCategory.WasteGeneration);
             }
         }
     }
@@ -104,7 +104,7 @@ public class WasteGenerator : MonoBehaviour
     private void OnLocationChanged(LocationData newLocation)
     {
         currentLocation = newLocation;
-        Debug.Log($"WasteGenerator: Location changed to {currentLocation.displayName}");
+        DebugManager.Log($"WasteGenerator: Location changed to {currentLocation.displayName}", DebugCategory.WasteGeneration);
     }
 
     private void UpdateCurrentLocation()
@@ -164,14 +164,14 @@ public class WasteGenerator : MonoBehaviour
 
             if (currentLocation == null)
             {
-                Debug.LogError("No current location set!");
+                DebugManager.LogError("No current location set!", DebugCategory.WasteGeneration);
                 return CreateProceduralWasteItem();
             }
 
             WasteItemDatabase database = WasteItemDatabase.Instance;
             if (database == null)
             {
-                Debug.LogError("WasteItemDatabase.Instance is null!");
+                DebugManager.LogError("WasteItemDatabase.Instance is null!", DebugCategory.WasteGeneration);
                 return CreateProceduralWasteItem();
             }
 
@@ -188,19 +188,19 @@ public class WasteGenerator : MonoBehaviour
 
                 if (allowedTypes == null || allowedTypes.Count == 0)
                 {
-                    Debug.LogError($"No waste types defined for location {currentLocation.displayName}!");
+                    DebugManager.LogError($"No waste types defined for location {currentLocation.displayName}!", DebugCategory.WasteGeneration);
                     return CreateProceduralWasteItem();
                 }
 
                 // Pick a random allowed dimension type
                 string selectedType = allowedTypes[UnityEngine.Random.Range(0, allowedTypes.Count)];
-                Debug.Log($"Generating waste of type: {selectedType} for location: {currentLocation.displayName}");
+                DebugManager.Log($"Generating waste of type: {selectedType} for location: {currentLocation.displayName}", DebugCategory.WasteGeneration);
 
                 itemData = database.GetRandomItemByOrigin(selectedType);
 
                 if (itemData == null)
                 {
-                    Debug.LogWarning($"No items found for dimension: {selectedType}. Creating procedural item.");
+                    DebugManager.LogWarning($"No items found for dimension: {selectedType}. Creating procedural item.", DebugCategory.WasteGeneration);
                     return CreateProceduralWasteItem(selectedType);
                 }
             }
@@ -226,13 +226,13 @@ public class WasteGenerator : MonoBehaviour
             // Apply location modifiers
             ApplyLocationModifiers(wasteItem);
 
-            Debug.Log($"Generated {wasteItem.Rarity} waste item: {wasteItem.Name}, Origin: {wasteItem.DimensionalOrigin}");
+            DebugManager.Log($"Generated {wasteItem.Rarity} waste item: {wasteItem.Name}, Origin: {wasteItem.DimensionalOrigin}", DebugCategory.WasteGeneration);
 
             return wasteItem;
         }
         catch (Exception e)
         {
-            Debug.LogError($"Error generating waste item: {e.Message}\n{e.StackTrace}");
+            DebugManager.LogError($"Error generating waste item: {e.Message}\n{e.StackTrace}", DebugCategory.WasteGeneration);
             return CreateProceduralWasteItem();
         }
     }
@@ -243,7 +243,7 @@ public class WasteGenerator : MonoBehaviour
     public void SetRarityModifier(float modifier)
     {
         rarityModifier = Mathf.Clamp01(modifier);
-        Debug.Log($"WasteGenerator: Rarity modifier set to {rarityModifier:P0}");
+        DebugManager.Log($"WasteGenerator: Rarity modifier set to {rarityModifier:P0}", DebugCategory.WasteGeneration);
     }
 
     /// <summary>
@@ -252,7 +252,7 @@ public class WasteGenerator : MonoBehaviour
     public void SetStabilityModifier(float modifier)
     {
         stabilityModifier = Mathf.Clamp01(modifier);
-        Debug.Log($"WasteGenerator: Stability modifier set to {stabilityModifier:P0}");
+        DebugManager.Log($"WasteGenerator: Stability modifier set to {stabilityModifier:P0}", DebugCategory.WasteGeneration);
     }
 
     private WasteRarity GenerateRarityForLocation(LocationData location)
@@ -300,7 +300,7 @@ public class WasteGenerator : MonoBehaviour
             int currentRarity = (int)item.Rarity;
             int upgradedRarity = Mathf.Min(currentRarity + 1, (int)WasteRarity.Legendary);
             item.Rarity = (WasteRarity)upgradedRarity;
-            Debug.Log($"Discovery bonus! Upgraded {item.Name} to {item.Rarity}");
+            DebugManager.Log($"Discovery bonus! Upgraded {item.Name} to {item.Rarity}", DebugCategory.WasteGeneration);
         }
     }
 
@@ -352,7 +352,7 @@ public class WasteGenerator : MonoBehaviour
         wasteItem.RecyclingPotential = 0.3f + ((int)rarity * 0.15f) + UnityEngine.Random.Range(-0.1f, 0.1f);
 
         // Add debug logging
-        Debug.Log($"Generated procedural waste item: {wasteItem.Name}, Origin: {wasteItem.DimensionalOrigin}, Has Icon: {wasteItem.Icon != null}");
+        DebugManager.Log($"Generated procedural waste item: {wasteItem.Name}, Origin: {wasteItem.DimensionalOrigin}, Has Icon: {wasteItem.Icon != null}", DebugCategory.WasteGeneration);
 
         return wasteItem;
     }
@@ -375,7 +375,7 @@ public class WasteGenerator : MonoBehaviour
         var dimension = dimensionTypes.Find(d => d.Name == dimensionName);
         if (dimension == null)
         {
-            Debug.LogWarning($"Dimension type '{dimensionName}' not found. Using default dimension.");
+            DebugManager.LogWarning($"Dimension type '{dimensionName}' not found. Using default dimension.", DebugCategory.WasteGeneration);
 
             // Create a default dimension if none exists
             if (dimensionTypes.Count == 0)
@@ -394,7 +394,7 @@ public class WasteGenerator : MonoBehaviour
     {
         if (dimensionTypes.Count == 0)
         {
-            Debug.LogWarning("No dimension types defined. Creating a default dimension.");
+            DebugManager.LogWarning("No dimension types defined. Creating a default dimension.", DebugCategory.WasteGeneration);
             DimensionType defaultDimension = new DimensionType() { Name = "Default" };
             dimensionTypes.Add(defaultDimension);
             return defaultDimension;
@@ -476,14 +476,14 @@ public class WasteGenerator : MonoBehaviour
         {
             if (WasteItemDatabase.Instance == null)
             {
-                Debug.LogError("WasteItemDatabase.Instance is null! Creating procedural waste item instead.");
+                DebugManager.LogError("WasteItemDatabase.Instance is null! Creating procedural waste item instead.", DebugCategory.WasteGeneration);
                 return CreateProceduralWasteItem(dimensionType);
             }
 
             var itemData = WasteItemDatabase.Instance.GetRandomItemByOrigin(dimensionType);
             if (itemData == null)
             {
-                Debug.LogWarning($"No item data found for dimension: {dimensionType}. Creating procedural item.");
+                DebugManager.LogWarning($"No item data found for dimension: {dimensionType}. Creating procedural item.", DebugCategory.WasteGeneration);
                 return CreateProceduralWasteItem(dimensionType);
             }
 
@@ -508,7 +508,7 @@ public class WasteGenerator : MonoBehaviour
         }
         catch (Exception e)
         {
-            Debug.LogError($"Error generating specific waste: {e.Message}");
+            DebugManager.LogError($"Error generating specific waste: {e.Message}", DebugCategory.WasteGeneration);
             return CreateProceduralWasteItem(dimensionType);
         }
     }

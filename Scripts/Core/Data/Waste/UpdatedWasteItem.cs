@@ -658,6 +658,48 @@ public class UpdatedWasteItem
     }
     
     /// <summary>
+    /// Set the waste type of this item
+    /// </summary>
+    public void SetType(WasteType newType)
+    {
+        Type = newType;
+        // Recalculate resource yields when type changes
+        SetupDefaultYield();
+    }
+    
+    /// <summary>
+    /// Set the quality of this item
+    /// </summary>
+    public void SetQuality(float newQuality)
+    {
+        // Update the condition based on quality level
+        if (newQuality >= 0.9f)
+            Condition = WasteCondition.Pristine;
+        else if (newQuality >= 0.7f)
+            Condition = WasteCondition.Good;
+        else if (newQuality >= 0.5f)
+            Condition = WasteCondition.Damaged;
+        else if (newQuality >= 0.3f)
+            Condition = WasteCondition.Deteriorated;
+        else
+            Condition = WasteCondition.Corrupted;
+    }
+    
+    /// <summary>
+    /// Set the contamination level of this item
+    /// </summary>
+    public void SetContamination(float newContaminationLevel)
+    {
+        ContaminationLevel = Mathf.Clamp01(newContaminationLevel);
+        
+        // Update hazardous status if contamination is very high
+        if (ContaminationLevel > 0.8f)
+        {
+            IsHazardous = true;
+        }
+    }
+    
+    /// <summary>
     /// Create a copy of this waste item (alias for Clone for compatibility)
     /// </summary>
     public UpdatedWasteItem CreateCopy()

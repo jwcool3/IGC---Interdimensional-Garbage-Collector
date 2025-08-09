@@ -53,13 +53,13 @@ public class WasteInventoryUI : MonoBehaviour
     private void HandleWasteAdded(UpdatedWasteItem item)
     {
         // Optional: Add specific handling for newly added items
-        Debug.Log($"New item added to inventory: {item.Name}");
+        DebugManager.Log($"New item added to inventory: {item.Name}", DebugCategory.InventoryManagement);
     }
 
     private void HandleWasteRemoved(UpdatedWasteItem item)
     {
         // Optional: Add specific handling for removed items
-        Debug.Log($"Item removed from inventory: {item.Name}");
+        DebugManager.Log($"Item removed from inventory: {item.Name}", DebugCategory.InventoryManagement);
     }
 
     public void RefreshInventoryDisplay()
@@ -79,6 +79,7 @@ public class WasteInventoryUI : MonoBehaviour
         // Create new displays
         foreach (var item in items)
         {
+            DebugManager.Log($"Initializing display for waste item: {item.Name}", DebugCategory.UIDebug);
             CreateItemDisplay(item);
         }
 
@@ -99,7 +100,7 @@ public class WasteInventoryUI : MonoBehaviour
 
         if (itemDisplay != null)
         {
-            Debug.Log($"Initializing display for waste item: {item.Name}");
+            DebugManager.Log($"Initializing display for waste item: {item.Name}", DebugCategory.UIDebug);
             itemDisplay.Initialize(item);
             // Load and set the icon
             Sprite icon = LoadIconForItem(item);

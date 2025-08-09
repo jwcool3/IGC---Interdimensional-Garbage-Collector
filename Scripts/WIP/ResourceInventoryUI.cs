@@ -12,6 +12,9 @@ namespace ResourceSystem.UI
     /// </summary>
     public class ResourceInventoryUI : MonoBehaviour
     {
+        // Singleton instance
+        public static ResourceInventoryUI Instance { get; private set; }
+        
         [Header("UI References")]
         [SerializeField] private Transform resourceGrid;
         [SerializeField] private GameObject resourceDisplayPrefab;
@@ -45,6 +48,19 @@ namespace ResourceSystem.UI
         
         #region Unity Lifecycle
         
+        private void Awake()
+        {
+            if (Instance == null)
+            {
+                Instance = this;
+                DontDestroyOnLoad(gameObject);
+            }
+            else
+            {
+                Destroy(gameObject);
+            }
+        }
+        
         private void Start()
         {
             InitializeUI();
@@ -60,6 +76,10 @@ namespace ResourceSystem.UI
         private void OnDestroy()
         {
             UnsubscribeFromEvents();
+            if (Instance == this)
+            {
+                Instance = null;
+            }
         }
         
         #endregion
@@ -552,21 +572,29 @@ namespace ResourceSystem.UI
         #region Public Methods
         
         /// <summary>
-        /// Force refresh the entire display (useful for debugging)
+        /// Highlight a specific resource type in the display
         /// </summary>
-        public void ForceRefresh()
-        {
-            RefreshDisplay();
-        }
-        
-        /// <summary>
-        /// Highlight a specific resource type
-        /// </summary>
+        /// <param name="resourceType">Resource type to highlight</param>
+        /// <param name="duration">Duration of highlight in seconds</param>
         public void HighlightResource(ResourceType resourceType, float duration = 2f)
         {
             if (activeDisplays.TryGetValue(resourceType, out ResourceDisplayItem display))
             {
-                display.Highlight(duration);
+                if (display != null)
+                {
+                    display.Highlight(duration);
+                }
+            }
+            else
+            {
+                // If the resource isn't currently displayed, refresh to show it
+                RefreshDisplay();
+                
+                // Try to highlight after refresh
+                if (activeDisplays.TryGetValue(resourceType, out display))
+                {
+                    display?.Highlight(duration);
+                }
             }
         }
         
@@ -612,6 +640,14 @@ namespace ResourceSystem.UI
         public bool IsResourceDisplayed(ResourceType resourceType)
         {
             return activeDisplays.ContainsKey(resourceType);
+        }
+        
+        /// <summary>
+        /// Force refresh the entire display (useful for debugging)
+        /// </summary>
+        public void ForceRefresh()
+        {
+            RefreshDisplay();
         }
         
         #endregion
