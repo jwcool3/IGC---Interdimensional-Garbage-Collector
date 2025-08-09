@@ -13,6 +13,7 @@ public class TabSystem : MonoBehaviour
     [SerializeField] private Button combatTabButton;
     [SerializeField] private Button scannerTabButton;
     [SerializeField] private Button contactsTabButton;
+    [SerializeField] private Button resourcesTabButton;
 
     [Header("Tab Content")]
     [SerializeField] private GameObject inventoryPanel;
@@ -23,6 +24,7 @@ public class TabSystem : MonoBehaviour
     [SerializeField] private GameObject combatPanel;
     [SerializeField] private GameObject scannerPanel;
     [SerializeField] private GameObject contactsPanel;
+    [SerializeField] private GameObject resourcesPanel;
 
     [Header("Visual Settings")]
     [SerializeField] private Color activeTabColor = Color.white;
@@ -71,6 +73,7 @@ public class TabSystem : MonoBehaviour
         if (combatPanel != null) allPanels.Add(combatPanel);
         if (scannerPanel != null) allPanels.Add(scannerPanel);
         if (contactsPanel != null) allPanels.Add(contactsPanel);
+        if (resourcesPanel != null) allPanels.Add(resourcesPanel);
 
         Debug.Log($"TabSystem: Found {allPanels.Count} valid panels");
 
@@ -113,6 +116,7 @@ public class TabSystem : MonoBehaviour
         if (combatPanel == null) Debug.LogWarning("TabSystem: combatPanel reference is missing!");
         if (scannerPanel == null) Debug.LogWarning("TabSystem: scannerPanel reference is missing!");
         if (contactsPanel == null) Debug.LogWarning("TabSystem: contactsPanel reference is missing!");
+        if (resourcesPanel == null) Debug.LogWarning("TabSystem: resourcesPanel reference is missing!");
     }
 
     private void SetupButtonListeners()
@@ -156,6 +160,11 @@ public class TabSystem : MonoBehaviour
             contactsTabButton.onClick.AddListener(() => SwitchToTab(contactsPanel, contactsTabButton));
         else
             Debug.LogWarning("TabSystem: contactsTabButton reference is missing!");
+
+        if (resourcesTabButton != null)
+            resourcesTabButton.onClick.AddListener(() => SwitchToTab(resourcesPanel, resourcesTabButton));
+        else
+            Debug.LogWarning("TabSystem: resourcesTabButton reference is missing!");
     }
 
     private void SetupPanelCanvasGroups()
@@ -308,5 +317,13 @@ public class TabSystem : MonoBehaviour
             SwitchToTab(contactsPanel, contactsTabButton);
         else
             Debug.LogError("TabSystem: Cannot show contacts tab - contactsPanel is null!");
+    }
+
+    public void ShowResourcesTab()
+    {
+        if (resourcesPanel != null)
+            SwitchToTab(resourcesPanel, resourcesTabButton);
+        else
+            Debug.LogError("TabSystem: Cannot show resources tab - resourcesPanel is null!");
     }
 }
