@@ -14,6 +14,7 @@ public class TabSystem : MonoBehaviour
     [SerializeField] private Button scannerTabButton;
     [SerializeField] private Button contactsTabButton;
     [SerializeField] private Button resourcesTabButton;
+    [SerializeField] private Button craftingTabButton;
 
     [Header("Tab Content")]
     [SerializeField] private GameObject inventoryPanel;
@@ -25,6 +26,7 @@ public class TabSystem : MonoBehaviour
     [SerializeField] private GameObject scannerPanel;
     [SerializeField] private GameObject contactsPanel;
     [SerializeField] private GameObject resourcesPanel;
+    [SerializeField] private GameObject craftingPanel;
 
     [Header("Visual Settings")]
     [SerializeField] private Color activeTabColor = Color.white;
@@ -74,6 +76,7 @@ public class TabSystem : MonoBehaviour
         if (scannerPanel != null) allPanels.Add(scannerPanel);
         if (contactsPanel != null) allPanels.Add(contactsPanel);
         if (resourcesPanel != null) allPanels.Add(resourcesPanel);
+        if (craftingPanel != null) allPanels.Add(craftingPanel);
 
         Debug.Log($"TabSystem: Found {allPanels.Count} valid panels");
 
@@ -117,6 +120,7 @@ public class TabSystem : MonoBehaviour
         if (scannerPanel == null) Debug.LogWarning("TabSystem: scannerPanel reference is missing!");
         if (contactsPanel == null) Debug.LogWarning("TabSystem: contactsPanel reference is missing!");
         if (resourcesPanel == null) Debug.LogWarning("TabSystem: resourcesPanel reference is missing!");
+        if (craftingPanel == null) Debug.LogWarning("TabSystem: craftingPanel reference is missing!");
     }
 
     private void SetupButtonListeners()
@@ -165,6 +169,11 @@ public class TabSystem : MonoBehaviour
             resourcesTabButton.onClick.AddListener(() => SwitchToTab(resourcesPanel, resourcesTabButton));
         else
             Debug.LogWarning("TabSystem: resourcesTabButton reference is missing!");
+
+        if (craftingTabButton != null)
+            craftingTabButton.onClick.AddListener(() => SwitchToTab(craftingPanel, craftingTabButton));
+        else
+            Debug.LogWarning("TabSystem: craftingTabButton reference is missing!");
     }
 
     private void SetupPanelCanvasGroups()
@@ -325,5 +334,13 @@ public class TabSystem : MonoBehaviour
             SwitchToTab(resourcesPanel, resourcesTabButton);
         else
             Debug.LogError("TabSystem: Cannot show resources tab - resourcesPanel is null!");
+    }
+
+    public void ShowCraftingTab()
+    {
+        if (craftingPanel != null)
+            SwitchToTab(craftingPanel, craftingTabButton);
+        else
+            Debug.LogError("TabSystem: Cannot show crafting tab - craftingPanel is null!");
     }
 }

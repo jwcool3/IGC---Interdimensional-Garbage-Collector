@@ -28,6 +28,7 @@ namespace ResourceSystem.UI
         [SerializeField] private Button craftedItemsTabButton;
         [SerializeField] private Transform craftedItemsContainer;
         [SerializeField] private GameObject craftedItemDisplayPrefab;
+        [SerializeField] private Button openCraftingButton;  // Button to open main crafting panel
         
         [Header("Filter Controls")]
         [SerializeField] private Toggle rawResourcesToggle;
@@ -128,6 +129,15 @@ namespace ResourceSystem.UI
             {
                 craftedItemsTabButton.onClick.AddListener(OnCraftedItemsTabClicked);
             }
+            
+            // Setup crafting button to open main crafting panel
+            if (openCraftingButton != null)
+            {
+                openCraftingButton.onClick.AddListener(OpenCraftingPanel);
+                // Initially hide the button since we start on raw resources tab
+                openCraftingButton.gameObject.SetActive(false);
+            }
+            
             UpdateTabButtons();
         }
 
@@ -146,6 +156,11 @@ namespace ResourceSystem.UI
         private void OnRawResourcesTabClicked()
         {
             showingCraftedItems = false;
+            
+            // Hide crafting button on raw resources tab
+            if (openCraftingButton != null)
+                openCraftingButton.gameObject.SetActive(false);
+                
             UpdateTabButtons();
             RefreshDisplay();
         }
@@ -153,8 +168,31 @@ namespace ResourceSystem.UI
         private void OnCraftedItemsTabClicked()
         {
             showingCraftedItems = true;
+            
+            // Show crafting button on crafted items tab
+            if (openCraftingButton != null)
+                openCraftingButton.gameObject.SetActive(true);
+                
             UpdateTabButtons();
             RefreshDisplay();
+        }
+        
+        /// <summary>
+        /// Open the main crafting panel through the tab system
+        /// </summary>
+        private void OpenCraftingPanel()
+        {
+            // Try to access the tab system to open crafting tab
+            TabSystem tabSystem = FindObjectOfType<TabSystem>();
+            if (tabSystem != null)
+            {
+                tabSystem.ShowCraftingTab();
+                Debug.Log("Opened crafting panel from ResourceInventoryUI");
+            }
+            else
+            {
+                Debug.LogWarning("TabSystem not found - cannot open crafting panel");
+            }
         }
         
         private void SetupFilterControls()
