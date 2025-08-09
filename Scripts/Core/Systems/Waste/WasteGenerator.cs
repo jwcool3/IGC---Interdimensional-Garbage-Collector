@@ -1,0 +1,681 @@
+using System.Collections.Generic;
+using UnityEngine;
+using System;
+
+public class WasteGenerator : MonoBehaviour
+{
+    // Singleton pattern
+    public static WasteGenerator Instance { get; private set; }
+
+    [System.Serializable]
+    public class DimensionType
+    {
+        public string Name;
+        public float CommonChance = 0.6f;
+        public float UncommonChance = 0.25f;
+        public float RareChance = 0.1f;
+        public float EpicChance = 0.04f;
+        public float LegendaryChance = 0.01f;
+
+        [Tooltip("Default icon for this dimension type")]
+        public Sprite DefaultIcon;
+    }
+
+    private LocationData currentLocation;
+
+    [Header("Dimension Configuration")]
+    [SerializeField] private List<DimensionType> dimensionTypes = new List<DimensionType>();
+
+    [Header("Generation Settings")]
+    [SerializeField] private float propertyVariance = 0.2f;
+
+    [Header("Fallback Settings")]
+    [SerializeField] private Sprite defaultItemSprite;
+
+    // Effect modifiers from ship compartments
+    private float rarityModifier = 0f;
+    private float stabilityModifier = 0f;
+
+    // Procedural generation data
+    private string[] prefixes;
+    private string[] suffixes;
+    private string[] descriptions;
+
+    private void Awake()
+    {
+        // Singleton setup
+        if (Instance == null)
+        {
+            Instance = this;
+            DontDestroyOnLoad(gameObject);
+
+            // Initialize the generator
+            InitializeGenerator();
+        }
+        else
+        {
+            Destroy(gameObject);
+            return; // Skip the rest of Awake if this is a duplicate
+        }
+    }
+
+    private void InitializeGenerator()
+    {
+        // Ensure dimensions are initialized
+        if (dimensionTypes.Count == 0)
+        {
+            OnValidate();
+        }
+
+        InitializeGenerationData();
+
+        // Add default sprite loading code
+        if (defaultItemSprite == null)
+        {
+            // Try to load a default sprite
+            defaultItemSprite = Resources.Load<Sprite>("DefaultWasteIcon");
+
+            // If still null, create a fallback
+            if (defaultItemSprite == null)
+            {
+                DebugManager.LogWarning("No default sprite found! Items may appear without icons.", DebugCategory.WasteGeneration);
+            }
+        }
+    }
+
+    private void Start()
+    {
+        // Subscribe to location change events
+        if (LocationManager.Instance != null)
+        {
+            LocationManager.Instance.OnLocationChanged += OnLocationChanged;
+            UpdateCurrentLocation();
+        }
+    }
+
+    private void OnDestroy()
+    {
+        if (LocationManager.Instance != null)
+        {
+            LocationManager.Instance.OnLocationChanged -= OnLocationChanged;
+        }
+    }
+
+    private void OnLocationChanged(LocationData newLocation)
+    {
+        currentLocation = newLocation;
+        DebugManager.Log($"WasteGenerator: Location changed to {currentLocation.displayName}", DebugCategory.WasteGeneration);
+    }
+
+    private void UpdateCurrentLocation()
+    {
+        if (LocationManager.Instance != null)
+        {
+            currentLocation = LocationManager.Instance.GetCurrentLocation();
+        }
+    }
+
+    private void OnValidate()
+    {
+        // Auto-populate dimension types if empty
+        if (dimensionTypes.Count == 0)
+        {
+            dimensionTypes.Add(new DimensionType() { Name = "Earth" });
+            dimensionTypes.Add(new DimensionType() { Name = "Technological Waste" });
+            dimensionTypes.Add(new DimensionType() { Name = "Biological Remnants" });
+            dimensionTypes.Add(new DimensionType() { Name = "Quantum Residue" });
+            dimensionTypes.Add(new DimensionType() { Name = "Philosophical Byproducts" });
+            dimensionTypes.Add(new DimensionType() { Name = "Cosmic Debris" });
+            dimensionTypes.Add(new DimensionType() { Name = "Temporal Anomaly" });
+            dimensionTypes.Add(new DimensionType() { Name = "Ethereal Plane" });
+            dimensionTypes.Add(new DimensionType() { Name = "Archaeological Waste" });
+        }
+    }
+
+    private void InitializeGenerationData()
+    {
+        prefixes = new string[] {
+            "Unstable", "Quantum", "Temporal", "Ethereal", "Void-touched",
+            "Crystalline", "Anomalous", "Prismatic", "Corrupted", "Ancient"
+        };
+
+        suffixes = new string[] {
+            "Fragment", "Remnant", "Particle", "Essence", "Core",
+            "Shard", "Residue", "Matter", "Echo", "Artifact"
+        };
+
+        descriptions = new string[] {
+            "A mysterious fragment of interdimensional origin.",
+            "Traces of an unknown reality bleed through this waste.",
+            "A peculiar remnant that defies conventional understanding.",
+            "Quantum echoes resonate within this discarded matter.",
+            "An enigmatic piece of dimensional debris.",
+            "Reality seems to warp around this strange object.",
+            "Emits a faint hum of interdimensional energy.",
+            "Shows signs of exposure to exotic dimensional forces."
+        };
+    }
+
+    public WasteItem GenerateWasteItem(string specificIdentifier = null)
+    {
+        try
+        {
+            UpdateCurrentLocation();
+
+            if (currentLocation == null)
+            {
+                DebugManager.LogError("No current location set!", DebugCategory.WasteGeneration);
+                return CreateProceduralWasteItem();
+            }
+
+            WasteItemDatabase database = WasteItemDatabase.Instance;
+            if (database == null)
+            {
+                DebugManager.LogError("WasteItemDatabase.Instance is null!", DebugCategory.WasteGeneration);
+                return CreateProceduralWasteItem();
+            }
+
+            WasteItemData itemData = null;
+
+            if (!string.IsNullOrEmpty(specificIdentifier))
+            {
+                itemData = database.GetItemByIdentifier(specificIdentifier);
+            }
+            else
+            {
+                // Use ONLY the allowed waste types for this location
+                List<string> allowedTypes = currentLocation.wasteTypes;
+
+                if (allowedTypes == null || allowedTypes.Count == 0)
+                {
+                    DebugManager.LogError($"No waste types defined for location {currentLocation.displayName}!", DebugCategory.WasteGeneration);
+                    return CreateProceduralWasteItem();
+                }
+
+                // Pick a random allowed dimension type
+                string selectedType = allowedTypes[UnityEngine.Random.Range(0, allowedTypes.Count)];
+                DebugManager.Log($"Generating waste of type: {selectedType} for location: {currentLocation.displayName}", DebugCategory.WasteGeneration);
+
+                itemData = database.GetRandomItemByOrigin(selectedType);
+
+                if (itemData == null)
+                {
+                    DebugManager.LogWarning($"No items found for dimension: {selectedType}. Creating procedural item.", DebugCategory.WasteGeneration);
+                    return CreateProceduralWasteItem(selectedType);
+                }
+            }
+
+            // Generate rarity based on LOCATION's probability
+            WasteRarity generatedRarity = GenerateRarityForLocation(currentLocation);
+
+            // Create the WasteItem using the data
+            WasteItem wasteItem = new WasteItem(
+                itemData.itemName,
+                itemData.dimensionalOrigin,
+                generatedRarity,
+                GetSpriteForItem(itemData)
+            );
+            
+            // Set additional properties from itemData
+            wasteItem.Description = itemData.description;
+            wasteItem.DimensionalStability = RandomizeProperty(itemData.baseStability);
+            wasteItem.ContaminationLevel = RandomizeProperty(itemData.baseContamination);
+            wasteItem.RecyclingPotential = RandomizeProperty(itemData.baseRecyclingPotential);
+
+            // Apply location-specific modifiers
+            ApplyLocationModifiers(wasteItem);
+
+            DebugManager.Log($"Generated {wasteItem.Rarity} waste item: {wasteItem.Name}, Origin: {wasteItem.DimensionalOrigin}", DebugCategory.WasteGeneration);
+
+            // Convert to UpdatedWasteItem to apply resource yield
+            var updatedItem = UpdatedWasteItem.FromWasteItem(wasteItem);
+            
+            // Assign proper resource yield
+            AssignResourceYield(updatedItem);
+            
+            // Convert back to WasteItem for compatibility
+            return updatedItem.ToWasteItem();
+        }
+        catch (Exception e)
+        {
+            DebugManager.LogError($"Error generating waste item: {e.Message}\n{e.StackTrace}", DebugCategory.WasteGeneration);
+            return CreateProceduralWasteItem();
+        }
+    }
+
+    /// <summary>
+    /// Sets the rarity modifier from the Communications compartment
+    /// </summary>
+    public void SetRarityModifier(float modifier)
+    {
+        rarityModifier = Mathf.Clamp01(modifier);
+        DebugManager.Log($"WasteGenerator: Rarity modifier set to {rarityModifier:P0}", DebugCategory.WasteGeneration);
+    }
+
+    /// <summary>
+    /// Sets the stability modifier from the Stabilizer compartment
+    /// </summary>
+    public void SetStabilityModifier(float modifier)
+    {
+        stabilityModifier = Mathf.Clamp01(modifier);
+        DebugManager.Log($"WasteGenerator: Stability modifier set to {stabilityModifier:P0}", DebugCategory.WasteGeneration);
+    }
+
+    private WasteRarity GenerateRarityForLocation(LocationData location)
+    {
+        // Apply rarity modifier to increase chances of better items
+        float roll = UnityEngine.Random.value;
+        roll = Mathf.Max(roll - rarityModifier, 0f); // Higher modifier means better chance of rare items
+        float cumulative = 0f;
+
+        // Add each rarity chance in order
+        cumulative += location.commonChance;
+        if (roll < cumulative) return WasteRarity.Common;
+
+        cumulative += location.uncommonChance;
+        if (roll < cumulative) return WasteRarity.Uncommon;
+
+        cumulative += location.rareChance;
+        if (roll < cumulative) return WasteRarity.Rare;
+
+        cumulative += location.epicChance;
+        if (roll < cumulative) return WasteRarity.Epic;
+
+        cumulative += location.legendaryChance;
+        if (roll < cumulative) return WasteRarity.Legendary;
+
+        // Fallback to common if somehow none matched
+        return WasteRarity.Common;
+    }
+
+    private void ApplyLocationModifiers(WasteItem item)
+    {
+        if (currentLocation == null) return;
+
+        // Apply value multiplier
+        item.RecyclingValue *= currentLocation.averageValueMultiplier;
+
+        // Apply danger level effects
+        item.ContaminationLevel += currentLocation.dangerLevel * 0.2f;
+        item.ContaminationLevel = Mathf.Clamp01(item.ContaminationLevel);
+
+        // Apply discovery rate bonus
+        if (UnityEngine.Random.value < currentLocation.discoveryRateMultiplier * 0.1f)
+        {
+            // Small chance to upgrade rarity
+            int currentRarity = (int)item.Rarity;
+            int upgradedRarity = Mathf.Min(currentRarity + 1, (int)WasteRarity.Legendary);
+            item.Rarity = (WasteRarity)upgradedRarity;
+            DebugManager.Log($"Discovery bonus! Upgraded {item.Name} to {item.Rarity}", DebugCategory.WasteGeneration);
+        }
+    }
+
+    private Sprite GetSpriteForItem(WasteItemData itemData)
+    {
+        // Try to get a sprite from the item data
+        if (itemData.itemSprites != null && itemData.itemSprites.Length > 0)
+        {
+            return itemData.itemSprites[UnityEngine.Random.Range(0, itemData.itemSprites.Length)];
+        }
+
+        // Try to get a sprite from the dimension type
+        DimensionType dimension = GetDimensionType(itemData.dimensionalOrigin);
+        if (dimension != null && dimension.DefaultIcon != null)
+        {
+            return dimension.DefaultIcon;
+        }
+
+        // Fall back to default sprite
+        return defaultItemSprite;
+    }
+
+    /// <summary>
+    /// Create a fallback procedural waste item
+    /// </summary>
+    private WasteItem CreateProceduralWasteItem(string dimensionType = null)
+    {
+        // If no dimension name is provided, pick a random one
+        if (string.IsNullOrEmpty(dimensionType))
+        {
+            dimensionType = GetRandomDimension().Name;
+        }
+
+        // Generate a random rarity
+        WasteRarity rarity = GenerateRarity(GetDimensionType(dimensionType));
+
+        // Generate a name
+        string itemName = GenerateDetailedName(dimensionType, rarity);
+
+        // Create the waste item
+        WasteItem wasteItem = new WasteItem(
+            itemName,
+            dimensionType,
+            rarity,
+            defaultItemSprite
+        );
+
+        // Set additional properties
+        wasteItem.Description = GenerateDescription(dimensionType, rarity);
+        wasteItem.DimensionalStability = 0.5f + ((int)rarity * 0.1f) + UnityEngine.Random.Range(-0.1f, 0.1f);
+        wasteItem.ContaminationLevel = 0.5f - ((int)rarity * 0.1f) + UnityEngine.Random.Range(-0.1f, 0.1f);
+        wasteItem.RecyclingPotential = 0.3f + ((int)rarity * 0.15f) + UnityEngine.Random.Range(-0.1f, 0.1f);
+
+        // Add debug logging
+        DebugManager.Log($"Generated procedural waste item: {wasteItem.Name}, Origin: {wasteItem.DimensionalOrigin}, Has Icon: {wasteItem.Icon != null}", DebugCategory.WasteGeneration);
+
+        return wasteItem;
+    }
+
+    private float RandomizeProperty(float baseValue)
+    {
+        // Apply stability modifier to reduce randomness and improve base values
+        float variance = propertyVariance * (1f - stabilityModifier);
+        float minValue = baseValue * (1f - variance);
+        float maxValue = baseValue * (1f + variance);
+
+        // Higher stability also provides a small bonus to the base value
+        float stabilityBonus = baseValue * (stabilityModifier * 0.2f);
+
+        return UnityEngine.Random.Range(minValue, maxValue) + stabilityBonus;
+    }
+
+    private DimensionType GetDimensionType(string dimensionName)
+    {
+        var dimension = dimensionTypes.Find(d => d.Name == dimensionName);
+        if (dimension == null)
+        {
+            DebugManager.LogWarning($"Dimension type '{dimensionName}' not found. Using default dimension.", DebugCategory.WasteGeneration);
+
+            // Create a default dimension if none exists
+            if (dimensionTypes.Count == 0)
+            {
+                var defaultDimension = new DimensionType() { Name = "Default" };
+                dimensionTypes.Add(defaultDimension);
+                return defaultDimension;
+            }
+
+            return dimensionTypes[0];
+        }
+        return dimension;
+    }
+
+    private DimensionType GetRandomDimension()
+    {
+        if (dimensionTypes.Count == 0)
+        {
+            DebugManager.LogWarning("No dimension types defined. Creating a default dimension.", DebugCategory.WasteGeneration);
+            DimensionType defaultDimension = new DimensionType() { Name = "Default" };
+            dimensionTypes.Add(defaultDimension);
+            return defaultDimension;
+        }
+
+        return dimensionTypes[UnityEngine.Random.Range(0, dimensionTypes.Count)];
+    }
+
+    // Generate multiple waste items
+    public List<WasteItem> GenerateMultipleWaste(int count, string specificIdentifier = null)
+    {
+        var items = new List<WasteItem>();
+        for (int i = 0; i < count; i++)
+        {
+            var item = GenerateWasteItem(specificIdentifier);
+            if (item != null)
+            {
+                items.Add(item);
+            }
+        }
+        return items;
+    }
+
+    private string GenerateDetailedName(string dimensionType, WasteRarity rarity)
+    {
+        string[] rarityPrefixes = GetPrefixesForRarity(rarity);
+        string prefix = rarityPrefixes[UnityEngine.Random.Range(0, rarityPrefixes.Length)];
+        string suffix = suffixes[UnityEngine.Random.Range(0, suffixes.Length)];
+
+        return $"{prefix} {dimensionType} {suffix}";
+    }
+
+    private string[] GetPrefixesForRarity(WasteRarity rarity)
+    {
+        switch (rarity)
+        {
+            case WasteRarity.Legendary:
+                return new string[] { "Mythical", "Divine", "Transcendent", "Ultimate", "Supreme" };
+            case WasteRarity.Epic:
+                return new string[] { "Magnificent", "Extraordinary", "Phenomenal", "Majestic", "Ethereal" };
+            case WasteRarity.Rare:
+                return new string[] { "Exceptional", "Superior", "Advanced", "Enhanced", "Refined" };
+            case WasteRarity.Uncommon:
+                return new string[] { "Unusual", "Peculiar", "Strange", "Curious", "Odd" };
+            default:
+                return new string[] { "Common", "Basic", "Simple", "Regular", "Standard" };
+        }
+    }
+
+    private string GenerateDescription(string dimensionType, WasteRarity rarity)
+    {
+        string baseDescription = descriptions[UnityEngine.Random.Range(0, descriptions.Length)];
+        string rarityDesc = GetRarityDescription(rarity);
+
+        return $"{baseDescription} {rarityDesc}";
+    }
+
+    private string GetRarityDescription(WasteRarity rarity)
+    {
+        switch (rarity)
+        {
+            case WasteRarity.Legendary:
+                return "Its legendary nature makes it highly sought after by dimensional researchers.";
+            case WasteRarity.Epic:
+                return "The epic qualities of this item are immediately apparent.";
+            case WasteRarity.Rare:
+                return "A rare find that could prove valuable for study.";
+            case WasteRarity.Uncommon:
+                return "Shows some unusual properties worth investigating.";
+            default:
+                return "A common example of interdimensional waste.";
+        }
+    }
+
+    // Generate waste with specific characteristics
+    public WasteItem GenerateSpecificWaste(string dimensionType, WasteRarity rarity = WasteRarity.Common)
+    {
+        try
+        {
+            if (WasteItemDatabase.Instance == null)
+            {
+                DebugManager.LogError("WasteItemDatabase.Instance is null! Creating procedural waste item instead.", DebugCategory.WasteGeneration);
+                return CreateProceduralWasteItem(dimensionType);
+            }
+
+            var itemData = WasteItemDatabase.Instance.GetRandomItemByOrigin(dimensionType);
+            if (itemData == null)
+            {
+                DebugManager.LogWarning($"No item data found for dimension: {dimensionType}. Creating procedural item.", DebugCategory.WasteGeneration);
+                return CreateProceduralWasteItem(dimensionType);
+            }
+
+            // Get a sprite
+            Sprite itemSprite = GetSpriteForItem(itemData);
+
+            // Create the item
+            WasteItem wasteItem = new WasteItem(
+                itemData.itemName,
+                dimensionType,
+                rarity,
+                itemSprite
+            );
+
+            // Set properties
+            wasteItem.Description = itemData.description;
+            wasteItem.DimensionalStability = RandomizeProperty(itemData.baseStability);
+            wasteItem.ContaminationLevel = RandomizeProperty(itemData.baseContamination);
+            wasteItem.RecyclingPotential = RandomizeProperty(itemData.baseRecyclingPotential);
+
+            return wasteItem;
+        }
+        catch (Exception e)
+        {
+            DebugManager.LogError($"Error generating specific waste: {e.Message}", DebugCategory.WasteGeneration);
+            return CreateProceduralWasteItem(dimensionType);
+        }
+    }
+
+    // Generate a batch of similar waste
+    public List<WasteItem> GenerateSimilarWaste(int count, string dimensionType)
+    {
+        var wasteItems = new List<WasteItem>();
+        WasteRarity baseRarity = UnityEngine.Random.value < 0.3f ? WasteRarity.Uncommon : WasteRarity.Common;
+
+        for (int i = 0; i < count; i++)
+        {
+            var item = GenerateSpecificWaste(dimensionType, baseRarity);
+            if (item != null)
+            {
+                wasteItems.Add(item);
+            }
+        }
+
+        return wasteItems;
+    }
+
+    private WasteRarity GenerateRarity(DimensionType dimension)
+    {
+        // Apply rarity modifier to increase chances of better items
+        float roll = UnityEngine.Random.value;
+        roll = Mathf.Max(roll - rarityModifier, 0f); // Higher modifier means better chance of rare items
+
+        if (roll < dimension.LegendaryChance)
+            return WasteRarity.Legendary;
+        if (roll < dimension.LegendaryChance + dimension.EpicChance)
+            return WasteRarity.Epic;
+        if (roll < dimension.LegendaryChance + dimension.EpicChance + dimension.RareChance)
+            return WasteRarity.Rare;
+        if (roll < dimension.LegendaryChance + dimension.EpicChance + dimension.RareChance + dimension.UncommonChance)
+            return WasteRarity.Uncommon;
+
+        return WasteRarity.Common;
+    }
+
+    private void AssignResourceYield(UpdatedWasteItem wasteItem)
+    {
+        // Ensure the item has proper resource yield based on its properties
+        if (wasteItem.ResourceYield == null || wasteItem.ResourceYield.IsEmpty)
+        {
+            wasteItem.SetupDefaultYield();
+        }
+        
+        // Apply modifiers based on location and ship upgrades
+        ApplyLocationModifiers(wasteItem);
+        ApplyShipUpgradeModifiers(wasteItem);
+    }
+
+    private void ApplyLocationModifiers(UpdatedWasteItem wasteItem)
+    {
+        if (currentLocation == null) return;
+        
+        // Get location-specific resource bonuses
+        float locationBonus = currentLocation.dangerLevel * 0.1f; // Higher danger = better yield
+        
+        // Modify existing resource yield
+        var yields = wasteItem.ResourceYields;
+        foreach (var resourceType in yields.Keys.ToList())
+        {
+            var yield = yields[resourceType];
+            yield.yieldMultiplier *= (1f + locationBonus);
+            yields[resourceType] = yield;
+        }
+    }
+
+    private void ApplyShipUpgradeModifiers(UpdatedWasteItem wasteItem)
+    {
+        // Apply recycling multiplier from facility upgrades
+        if (ResourceManager.Instance != null)
+        {
+            float recyclingMultiplier = ResourceManager.Instance.RecyclingMultiplier;
+            
+            var yields = wasteItem.ResourceYields;
+            foreach (var resourceType in yields.Keys.ToList())
+            {
+                var yield = yields[resourceType];
+                yield.yieldMultiplier *= recyclingMultiplier;
+                yields[resourceType] = yield;
+            }
+        }
+    }
+    
+    /// <summary>
+    /// Generate waste with proper resource yield integration
+    /// </summary>
+    public UpdatedWasteItem GenerateUpdatedWasteItem()
+    {
+        // Get current location for generation context
+        var location = LocationManager.Instance?.GetCurrentLocation();
+        
+        // Generate the base waste item using existing logic
+        var legacyWaste = GenerateWasteItem();
+        
+        // Convert to UpdatedWasteItem with enhanced resource yield
+        var updatedWaste = UpdatedWasteItem.FromWasteItem(legacyWaste);
+        
+        // Apply location-based resource modifiers
+        ApplyLocationResourceModifiers(updatedWaste, location);
+        
+        // Apply ship upgrade modifiers
+        ApplyShipUpgradeResourceModifiers(updatedWaste);
+        
+        return updatedWaste;
+    }
+
+    /// <summary>
+    /// Apply location-specific resource yield modifiers
+    /// </summary>
+    private void ApplyLocationResourceModifiers(UpdatedWasteItem wasteItem, LocationData location)
+    {
+        if (location == null) return;
+        
+        // Higher danger locations yield better resources
+        float dangerBonus = location.dangerLevel * 0.15f;
+        
+        // Apply modifiers to all resource yields
+        var yields = wasteItem.ResourceYields;
+        foreach (var resourceType in yields.Keys.ToList())
+        {
+            var yield = yields[resourceType];
+            yield.yieldMultiplier *= (1f + dangerBonus);
+            
+            // Special location bonuses
+            if (location.displayName.Contains("Industrial"))
+            {
+                if (resourceType == ResourceType.MetalScraps || resourceType == ResourceType.Parts)
+                    yield.yieldMultiplier *= 1.2f;
+            }
+            else if (location.displayName.Contains("Residential"))
+            {
+                if (resourceType == ResourceType.Plastic || resourceType == ResourceType.OrganicMatter)
+                    yield.yieldMultiplier *= 1.15f;
+            }
+            
+            yields[resourceType] = yield;
+        }
+    }
+
+    /// <summary>
+    /// Apply ship upgrade modifiers to resource yields
+    /// </summary>
+    private void ApplyShipUpgradeResourceModifiers(UpdatedWasteItem wasteItem)
+    {
+        if (ResourceManager.Instance == null) return;
+        
+        float recyclingMultiplier = ResourceManager.Instance.RecyclingMultiplier;
+        
+        var yields = wasteItem.ResourceYields;
+        foreach (var resourceType in yields.Keys.ToList())
+        {
+            var yield = yields[resourceType];
+            yield.yieldMultiplier *= recyclingMultiplier;
+            yields[resourceType] = yield;
+        }
+    }
+}
