@@ -21,6 +21,13 @@ namespace ResourceSystem.UI
         [SerializeField] private TextMeshProUGUI totalResourcesText;
         [SerializeField] private Slider storageIndicator;
         [SerializeField] private TextMeshProUGUI emptyMessage;
+
+        [Header("Crafted Items Tab")]
+        [SerializeField] private GameObject craftedItemsTab;
+        [SerializeField] private Button rawResourcesTabButton;
+        [SerializeField] private Button craftedItemsTabButton;
+        [SerializeField] private Transform craftedItemsContainer;
+        [SerializeField] private GameObject craftedItemDisplayPrefab;
         
         [Header("Filter Controls")]
         [SerializeField] private Toggle rawResourcesToggle;
@@ -38,6 +45,10 @@ namespace ResourceSystem.UI
         // Resource display management
         private Dictionary<ResourceType, ResourceDisplayItem> activeDisplays = new Dictionary<ResourceType, ResourceDisplayItem>();
         private List<ResourceType> filteredResourceTypes = new List<ResourceType>();
+        
+        // Add this to your existing ResourceInventoryUI class
+        private Dictionary<ResourceType, GameObject> activeCraftedDisplays = new Dictionary<ResourceType, GameObject>();
+        private bool showingCraftedItems = false;
         
         // Filter states
         private bool showRawResources = true;
@@ -64,7 +75,15 @@ namespace ResourceSystem.UI
         private void Start()
         {
             InitializeUI();
+            InitializeTabs();
             SubscribeToEvents();
+            
+            // Subscribe to crafted inventory events
+            if (CraftedItemInventory.Instance != null)
+            {
+                CraftedItemInventory.Instance.OnCraftedInventoryUpdated += UpdateCraftedItemsDisplay;
+            }
+            
             RefreshDisplay();
         }
         
@@ -97,6 +116,45 @@ namespace ResourceSystem.UI
             {
                 emptyMessage.gameObject.SetActive(false);
             }
+        }
+        
+        private void InitializeTabs()
+        {
+            if (rawResourcesTabButton != null)
+            {
+                rawResourcesTabButton.onClick.AddListener(OnRawResourcesTabClicked);
+            }
+            if (craftedItemsTabButton != null)
+            {
+                craftedItemsTabButton.onClick.AddListener(OnCraftedItemsTabClicked);
+            }
+            UpdateTabButtons();
+        }
+
+        private void UpdateTabButtons()
+        {
+            if (rawResourcesTabButton != null)
+            {
+                rawResourcesTabButton.interactable = !showingCraftedItems;
+            }
+            if (craftedItemsTabButton != null)
+            {
+                craftedItemsTabButton.interactable = showingCraftedItems;
+            }
+        }
+
+        private void OnRawResourcesTabClicked()
+        {
+            showingCraftedItems = false;
+            UpdateTabButtons();
+            RefreshDisplay();
+        }
+
+        private void OnCraftedItemsTabClicked()
+        {
+            showingCraftedItems = true;
+            UpdateTabButtons();
+            RefreshDisplay();
         }
         
         private void SetupFilterControls()
@@ -181,9 +239,22 @@ namespace ResourceSystem.UI
         
         private void RefreshDisplay()
         {
-            UpdateResourceList();
-            UpdateSummaryInfo();
-            UpdateEmptyMessage();
+            // Show/hide appropriate containers based on current tab
+            if (resourceGrid != null)
+                resourceGrid.gameObject.SetActive(!showingCraftedItems);
+            if (craftedItemsContainer != null)
+                craftedItemsContainer.gameObject.SetActive(showingCraftedItems);
+                
+            if (showingCraftedItems)
+            {
+                UpdateCraftedItemsDisplay();
+            }
+            else
+            {
+                UpdateResourceList();
+                UpdateSummaryInfo();
+                UpdateEmptyMessage();
+            }
         }
         
         private void UpdateResourceList()
@@ -648,6 +719,67 @@ namespace ResourceSystem.UI
         public void ForceRefresh()
         {
             RefreshDisplay();
+        }
+        
+        #endregion
+        
+        #region Crafted Items Management
+        
+        private void UpdateCraftedItemsDisplay()
+        {
+            if (!showingCraftedItems || CraftedItemInventory.Instance == null) return;
+            
+            var allCraftedItems = CraftedItemInventory.Instance.GetAllCraftedItems();
+            
+            // Remove displays for items no longer in inventory
+            var toRemove = new List<ResourceType>();
+            foreach (var kvp in activeCraftedDisplays)
+            {
+                if (!allCraftedItems.ContainsKey(kvp.Key) || allCraftedItems[kvp.Key] <= 0)
+                {
+                    toRemove.Add(kvp.Key);
+                }
+            }
+            
+            foreach (var resourceType in toRemove)
+            {
+                RemoveCraftedItemDisplay(resourceType);
+            }
+            
+            // Add or update displays for current items
+            foreach (var kvp in allCraftedItems)
+            {
+                if (kvp.Value > 0)
+                {
+                    UpdateCraftedItemDisplay(kvp.Key, kvp.Value);
+                }
+            }
+        }
+        
+        private void UpdateCraftedItemDisplay(ResourceType itemType, int amount)
+        {
+            if (!activeCraftedDisplays.TryGetValue(itemType, out GameObject displayObject))
+            {
+                // Create new display
+                displayObject = Instantiate(craftedItemDisplayPrefab, craftedItemsContainer);
+                activeCraftedDisplays[itemType] = displayObject;
+            }
+            
+            // Update the display
+            var displayComponent = displayObject.GetComponent<CraftedItemDisplayItem>();
+            if (displayComponent != null)
+            {
+                displayComponent.UpdateDisplay(itemType, amount);
+            }
+        }
+        
+        private void RemoveCraftedItemDisplay(ResourceType itemType)
+        {
+            if (activeCraftedDisplays.TryGetValue(itemType, out GameObject displayObject))
+            {
+                activeCraftedDisplays.Remove(itemType);
+                Destroy(displayObject);
+            }
         }
         
         #endregion

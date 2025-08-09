@@ -79,6 +79,41 @@ public enum ResourceType
     ElectricalEnergy,
     DimensionalEnergy,
 
+    // Crafted Components - Layer 1: Basic Building Blocks
+    HullPiece,
+    StructuralBeam,
+    ArmorPlate,
+    JointConnector,
+    PowerCell,
+    EnergyConduit,
+    PowerRegulator,
+    EnergyCrystal, // Fixed typo from EnergyCorystal
+    DataProcessor,
+    ServoMotor,
+    SensorArray,
+    LogicCore,
+
+    // Crafted Components - Layer 2: Assemblies
+    WallSection,
+    ReinforcedBulkhead,
+    FloorPanel,
+    CeilingAssembly,
+    BatteryBank,
+    PowerDistributionHub,
+    QuantumPowerCore,
+    AssemblyRobot,
+    QualityInspector,
+    MaterialHandler,
+
+    // Crafted Components - Layer 3: Complex Systems
+    SmallShipCompartment,
+    AirlockModule,
+    EngineeringBay,
+    PowerPlantModule,
+    DimensionalGenerator,
+    AutomatedFactory,
+    ResearchLaboratory,
+
     // Aliases for compatibility
     Metals = MetalScraps,
     Organic = OrganicMatter

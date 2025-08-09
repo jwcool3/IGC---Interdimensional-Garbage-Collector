@@ -51,6 +51,17 @@ public class CompactorFacility : ProcessingFacilityBase
         maxConcurrentJobs = 3;
         energyConsumption = 1.2f;
         
+        // Compactors specialize in structural components
+        maxRecipeComplexity = 3;
+        craftingEfficiencyBonus = 0.2f;
+        specializedOutputs.AddRange(new[]
+        {
+            ResourceType.StructuralBeam,
+            ResourceType.ArmorPlate,
+            ResourceType.WallSection,
+            ResourceType.ReinforcedBulkhead
+        });
+        
         // Set supported waste types
         supportedWasteTypes = new List<WasteType>(preferredWasteTypes);
         

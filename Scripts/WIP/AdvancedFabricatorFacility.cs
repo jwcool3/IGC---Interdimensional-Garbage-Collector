@@ -11,7 +11,6 @@ public class AdvancedFabricatorFacility : ProcessingFacilityBase
     [Header("Fabricator Specific Settings")]
     [SerializeField] private float recipeEfficiencyBonus = 0.3f;
     [SerializeField] private float precisionMultiplier = 1.5f;
-    [SerializeField] private int maxRecipeComplexity = 5;
     [SerializeField] private float qualityControlBonus = 0.25f;
     
     [Header("Recipe Management")]
@@ -51,6 +50,16 @@ public class AdvancedFabricatorFacility : ProcessingFacilityBase
         baseEfficiency = 1.3f;
         maxConcurrentJobs = 2;
         energyConsumption = 2.0f; // Higher energy consumption for advanced processing
+        
+        // Advanced fabricators handle complex recipes
+        maxRecipeComplexity = 5;
+        craftingEfficiencyBonus = 0.3f;
+        specializedOutputs.AddRange(new[]
+        {
+            ResourceType.AssemblyRobot,
+            ResourceType.QualityInspector,
+            ResourceType.AutomatedFactory
+        });
         
         // Fabricators can handle all waste types for recipe inputs
         supportedWasteTypes = System.Enum.GetValues(typeof(WasteType)).Cast<WasteType>().ToList();

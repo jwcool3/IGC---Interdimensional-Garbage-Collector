@@ -44,6 +44,16 @@ public class RecyclingFacility : ProcessingFacilityBase
         maxConcurrentJobs = 2;
         energyConsumption = 0.8f;
         
+        // Recycling facilities specialize in basic components
+        maxRecipeComplexity = 2;
+        craftingEfficiencyBonus = 0.15f;
+        specializedOutputs.AddRange(new[]
+        {
+            ResourceType.HullPiece,
+            ResourceType.PowerCell,
+            ResourceType.JointConnector
+        });
+        
         // Set supported waste types
         supportedWasteTypes = new List<WasteType>(preferredWasteTypes);
         

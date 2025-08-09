@@ -201,4 +201,36 @@ public class ShipManager : MonoBehaviour
             compartment.ApplyEffects();
         }
     }
+
+    /// <summary>
+    /// Add a new compartment to the ship from crafted items
+    /// </summary>
+    public bool AddNewCompartment()
+    {
+        try
+        {
+            // Create a new compartment GameObject
+            GameObject compartmentObj = new GameObject("New Ship Compartment");
+            
+            // Add ShipCompartment component with basic configuration
+            var compartment = compartmentObj.AddComponent<ShipCompartment>();
+            
+            // Set default compartment properties
+            var compartmentId = $"compartment_{compartments.Count + 1}";
+            
+            // Register the new compartment
+            RegisterCompartment(compartment);
+            
+            // Update combat stats with new compartment
+            UpdateCombatStats();
+            
+            Debug.Log($"Successfully added new ship compartment: {compartmentId}");
+            return true;
+        }
+        catch (System.Exception ex)
+        {
+            Debug.LogError($"Failed to add new ship compartment: {ex.Message}");
+            return false;
+        }
+    }
 }

@@ -36,6 +36,11 @@ public abstract class ProcessingFacilityBase : MonoBehaviour
     [SerializeField] protected float detectionRadius = 5f;
     [SerializeField] protected LayerMask wasteLayerMask = -1;
     
+    [Header("Crafting Specialization")]
+    [SerializeField] protected int maxRecipeComplexity = 3;
+    [SerializeField] protected float craftingEfficiencyBonus = 0f;
+    [SerializeField] protected List<ResourceType> specializedOutputs = new List<ResourceType>();
+    
     // Runtime properties
     protected ProcessingFacility facilityData;
     protected bool isOperational = true;
@@ -64,6 +69,39 @@ public abstract class ProcessingFacilityBase : MonoBehaviour
     public int ActiveJobs => activeJobIds.Count;
     public int AvailableSlots => maxConcurrentJobs - activeJobIds.Count;
     public ProcessingFacility FacilityData => facilityData;
+    
+    /// <summary>
+    /// Get the maximum recipe complexity this facility can handle
+    /// </summary>
+    public virtual int MaxRecipeComplexity => maxRecipeComplexity;
+
+    /// <summary>
+    /// Get the crafting efficiency bonus for this facility
+    /// </summary>
+    public virtual float CraftingEfficiencyBonus => craftingEfficiencyBonus;
+
+    /// <summary>
+    /// Check if this facility is specialized for a specific output type
+    /// </summary>
+    public virtual bool IsSpecializedFor(ResourceType outputType)
+    {
+        return specializedOutputs.Contains(outputType);
+    }
+
+    /// <summary>
+    /// Get the efficiency modifier for crafting a specific item type
+    /// </summary>
+    public virtual float GetCraftingEfficiency(ResourceType outputType)
+    {
+        float efficiency = baseEfficiency + craftingEfficiencyBonus;
+        
+        if (IsSpecializedFor(outputType))
+        {
+            efficiency *= 1.25f; // 25% bonus for specialized items
+        }
+        
+        return efficiency;
+    }
     
     protected virtual void Awake()
     {

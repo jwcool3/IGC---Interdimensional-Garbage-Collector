@@ -386,5 +386,32 @@ public class FacilityManager : MonoBehaviour
         Debug.Log("FacilityManager: Restarted all facilities");
     }
 
+    /// <summary>
+    /// Install an automated factory from crafted items
+    /// </summary>
+    public bool InstallAutomatedFactory()
+    {
+        try 
+        {
+            // Create a new automated fabricator facility
+            GameObject factoryObj = new GameObject("Automated Factory");
+            var fabricatorFacility = factoryObj.AddComponent<AdvancedFabricatorFacility>();
+            
+            // Configure as automated factory
+            fabricatorFacility.name = "Automated Factory";
+            
+            // Register the facility
+            RegisterProcessingFacility(fabricatorFacility);
+            
+            Debug.Log("Successfully installed automated factory!");
+            return true;
+        }
+        catch (System.Exception ex)
+        {
+            Debug.LogError($"Failed to install automated factory: {ex.Message}");
+            return false;
+        }
+    }
+
     #endregion
 }
