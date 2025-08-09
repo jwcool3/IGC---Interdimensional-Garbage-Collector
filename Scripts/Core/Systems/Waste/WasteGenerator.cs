@@ -604,4 +604,78 @@ public class WasteGenerator : MonoBehaviour
             }
         }
     }
+    
+    /// <summary>
+    /// Generate waste with proper resource yield integration
+    /// </summary>
+    public UpdatedWasteItem GenerateUpdatedWasteItem()
+    {
+        // Get current location for generation context
+        var location = LocationManager.Instance?.GetCurrentLocation();
+        
+        // Generate the base waste item using existing logic
+        var legacyWaste = GenerateWasteItem();
+        
+        // Convert to UpdatedWasteItem with enhanced resource yield
+        var updatedWaste = UpdatedWasteItem.FromWasteItem(legacyWaste);
+        
+        // Apply location-based resource modifiers
+        ApplyLocationResourceModifiers(updatedWaste, location);
+        
+        // Apply ship upgrade modifiers
+        ApplyShipUpgradeResourceModifiers(updatedWaste);
+        
+        return updatedWaste;
+    }
+
+    /// <summary>
+    /// Apply location-specific resource yield modifiers
+    /// </summary>
+    private void ApplyLocationResourceModifiers(UpdatedWasteItem wasteItem, LocationData location)
+    {
+        if (location == null) return;
+        
+        // Higher danger locations yield better resources
+        float dangerBonus = location.dangerLevel * 0.15f;
+        
+        // Apply modifiers to all resource yields
+        var yields = wasteItem.ResourceYields;
+        foreach (var resourceType in yields.Keys.ToList())
+        {
+            var yield = yields[resourceType];
+            yield.yieldMultiplier *= (1f + dangerBonus);
+            
+            // Special location bonuses
+            if (location.displayName.Contains("Industrial"))
+            {
+                if (resourceType == ResourceType.MetalScraps || resourceType == ResourceType.Parts)
+                    yield.yieldMultiplier *= 1.2f;
+            }
+            else if (location.displayName.Contains("Residential"))
+            {
+                if (resourceType == ResourceType.Plastic || resourceType == ResourceType.OrganicMatter)
+                    yield.yieldMultiplier *= 1.15f;
+            }
+            
+            yields[resourceType] = yield;
+        }
+    }
+
+    /// <summary>
+    /// Apply ship upgrade modifiers to resource yields
+    /// </summary>
+    private void ApplyShipUpgradeResourceModifiers(UpdatedWasteItem wasteItem)
+    {
+        if (ResourceManager.Instance == null) return;
+        
+        float recyclingMultiplier = ResourceManager.Instance.RecyclingMultiplier;
+        
+        var yields = wasteItem.ResourceYields;
+        foreach (var resourceType in yields.Keys.ToList())
+        {
+            var yield = yields[resourceType];
+            yield.yieldMultiplier *= recyclingMultiplier;
+            yields[resourceType] = yield;
+        }
+    }
 }

@@ -54,23 +54,51 @@ public class UpdatedWasteItem
     public float TotalValue => BaseValue * Quantity;
     public bool CanBeProcessed => !IsHazardous || RequiresSpecialHandling;
     
-    // Quality property based on condition and contamination
+    /// <summary>
+    /// Get contamination level as a percentage
+    /// </summary>
+    public float ContaminationPercentage => ContaminationLevel * 100f;
+    
+    /// <summary>
+    /// Get quality factor based on waste condition and stability
+    /// </summary>
     public float Quality
     {
         get
         {
-            float conditionMultiplier = Condition switch
+            float conditionFactor = Condition switch
             {
-                WasteCondition.Pristine => 1.0f,
-                WasteCondition.Good => 0.8f,
-                WasteCondition.Damaged => 0.6f,
-                WasteCondition.Deteriorated => 0.4f,
-                WasteCondition.Corrupted => 0.2f,
-                _ => 0.5f
+                WasteCondition.Pristine => 1.2f,
+                WasteCondition.Good => 1.0f,
+                WasteCondition.Damaged => 0.8f,
+                WasteCondition.Deteriorated => 0.6f,
+                WasteCondition.Corrupted => 0.4f,
+                _ => 1.0f
             };
             
-            float contaminationPenalty = ContaminationLevel * 0.5f;
-            return Mathf.Clamp01(conditionMultiplier - contaminationPenalty);
+            float stabilityFactor = DimensionalStability;
+            float contaminationPenalty = 1f - (ContaminationLevel * 0.3f);
+            
+            return conditionFactor * stabilityFactor * contaminationPenalty;
+        }
+    }
+
+    /// <summary>
+    /// Get color representing rarity for UI display
+    /// </summary>
+    public Color RarityColor
+    {
+        get
+        {
+            return Rarity switch
+            {
+                WasteRarity.Common => new Color(0.8f, 0.8f, 0.8f), // Light gray
+                WasteRarity.Uncommon => new Color(0.3f, 0.8f, 0.3f), // Green
+                WasteRarity.Rare => new Color(0.3f, 0.3f, 1f), // Blue
+                WasteRarity.Epic => new Color(0.8f, 0.3f, 0.8f), // Purple
+                WasteRarity.Legendary => new Color(1f, 0.6f, 0f), // Orange
+                _ => Color.white
+            };
         }
     }
     
@@ -121,23 +149,6 @@ public class UpdatedWasteItem
         {
             // Convert the EstimatedValue to a recycling value scale
             return EstimatedValue * 0.1f; // Scale factor for recycling value
-        }
-    }
-    
-    // Rarity color for UI display
-    public Color RarityColor
-    {
-        get
-        {
-            return Rarity switch
-            {
-                WasteRarity.Common => Color.white,
-                WasteRarity.Uncommon => Color.green,
-                WasteRarity.Rare => Color.blue,
-                WasteRarity.Epic => new Color(0.6f, 0f, 1f), // Purple
-                WasteRarity.Legendary => new Color(1f, 0.5f, 0f), // Orange
-                _ => Color.gray
-            };
         }
     }
     

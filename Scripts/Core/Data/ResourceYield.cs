@@ -1,5 +1,6 @@
 using System;
 using UnityEngine;
+using System.Linq; // Added for .Any()
 
 /// <summary>
 /// Represents the yield data for a specific resource type from waste processing
@@ -186,12 +187,39 @@ public class ResourceYield
     {
         get
         {
-            bool hasPrimary = primaryResources != null && primaryResources.Length > 0;
-            bool hasSecondary = secondaryResources != null && secondaryResources.Length > 0;
-            bool hasLegacy = resourceType != ResourceType.None && baseAmount > 0;
+            bool hasValidPrimary = primaryResources != null && 
+                                  primaryResources.Length > 0 && 
+                                  primaryResources.Any(r => r.amount > 0);
             
-            return !hasPrimary && !hasSecondary && !hasLegacy;
+            bool hasValidSecondary = secondaryResources != null && 
+                                    secondaryResources.Length > 0 && 
+                                    secondaryResources.Any(r => r.amount > 0 && r.chance > 0);
+            
+            bool hasValidSingle = resourceType != ResourceType.None && baseAmount > 0;
+            
+            return !hasValidPrimary && !hasValidSecondary && !hasValidSingle;
         }
+    }
+    
+    /// <summary>
+    /// Roll for secondary resource yields (chance-based)
+    /// </summary>
+    public bool RollForYield()
+    {
+        // Always succeed for primary resources
+        if (chancePercentage >= 100f) return true;
+        
+        // Roll for chance-based resources
+        return UnityEngine.Random.value * 100f <= chancePercentage;
+    }
+
+    /// <summary>
+    /// Calculate actual yield considering quality and multipliers
+    /// </summary>
+    public int CalculateActualYield(float quality = 1f, float facilityMultiplier = 1f)
+    {
+        float finalAmount = baseAmount * yieldMultiplier * quality * facilityMultiplier;
+        return Mathf.Max(0, Mathf.RoundToInt(finalAmount));
     }
     
     public override string ToString()

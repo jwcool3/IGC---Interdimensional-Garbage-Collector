@@ -173,16 +173,20 @@ public class GameManager : MonoBehaviour
 
         try
         {
-            var newWasteItem = wasteGenerator.GenerateWasteItem();
+            // Use new enhanced waste generation
+            var newWaste = wasteGenerator.GenerateUpdatedWasteItem();
 
-            if (newWasteItem == null)
+            if (newWaste == null)
             {
                 Debug.LogError("Generated waste item is null!");
                 return;
             }
 
-            // Convert WasteItem to UpdatedWasteItem
-            var newWaste = UpdatedWasteItem.FromWasteItem(newWasteItem);
+            // Ensure resource yield is properly set up
+            if (newWaste.ResourceYield == null || newWaste.ResourceYield.IsEmpty)
+            {
+                newWaste.SetupDefaultYield();
+            }
 
             // Add to inventory
             WasteInventoryManager.Instance.AddWasteItem(newWaste);
@@ -191,7 +195,7 @@ public class GameManager : MonoBehaviour
             OnWasteCollected?.Invoke(newWaste);
             OnWasteUpdated?.Invoke(WasteInventoryManager.Instance.GetAllWaste());
 
-            // Add this line to check for unlocks after each collection
+            // Check for unlocks after each collection
             if (LocationManager.Instance != null)
             {
                 LocationManager.Instance.CheckForLocationUnlocks();
@@ -199,6 +203,13 @@ public class GameManager : MonoBehaviour
 
             // Update contamination
             UpdateFacilityContamination(newWaste);
+            
+            // Log resource preview for debugging
+            var preview = newWaste.GetResourcePreview();
+            if (!string.IsNullOrEmpty(preview))
+            {
+                DebugManager.Log($"Collected waste with resources: {preview}", DebugCategory.WasteGeneration);
+            }
         }
         catch (Exception e)
         {
